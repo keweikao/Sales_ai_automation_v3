@@ -1,0 +1,28 @@
+{
+  "name": "@Sales_ai_automation_v3/api",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@Sales_ai_automation_v3/auth": "workspace:*",
+    "@Sales_ai_automation_v3/db": "workspace:*",
+    "@Sales_ai_automation_v3/env": "workspace:*",
+    "@orpc/client": "catalog:",
+    "@orpc/openapi": "catalog:",
+    "@orpc/server": "catalog:",
+    "@orpc/zod": "catalog:",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@Sales_ai_automation_v3/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}
