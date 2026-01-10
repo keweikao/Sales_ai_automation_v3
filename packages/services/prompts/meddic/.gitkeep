@@ -1,0 +1,14 @@
+# Placeholder for V2 MEDDIC prompts
+
+⚠️ ACTION REQUIRED:
+Clone the V2 repository and copy all 7 prompt files:
+https://github.com/keweikao/sales-ai-automation-V2/tree/main/modules/03-sales-conversation/meddic/agents/prompts
+
+Required files:
+- global-context.md
+- agent1-context.md
+- agent2-buyer.md
+- agent3-seller.md
+- agent4-summary.md
+- agent5-crm-extractor.md (V2's agent6.md)
+- agent6-coach.md (V2's agent_coach.md)
