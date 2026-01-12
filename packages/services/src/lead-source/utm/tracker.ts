@@ -4,9 +4,10 @@
  */
 
 import { eq, and, sql } from "drizzle-orm";
-import { db, utmCampaigns } from "@sales_ai_automation_v3/db";
+import { db, utmCampaigns } from "@Sales_ai_automation_v3/db";
+import type { UTMCampaign } from "@Sales_ai_automation_v3/db/schema";
 import type { UTMParams, CampaignStats } from "../types";
-import { generateUTMCampaignKey, normalizeUTMParams, hasUTMParams } from "./parser";
+import { normalizeUTMParams, hasUTMParams } from "./parser";
 
 /**
  * 追蹤 UTM Campaign
@@ -25,9 +26,6 @@ export async function trackUTMCampaign(options: {
   if (!hasUTMParams(normalizedUTM)) {
     return;
   }
-
-  // 產生 campaign key
-  const campaignKey = generateUTMCampaignKey(normalizedUTM);
 
   // 查找現有的 campaign
   const [existingCampaign] = await db
@@ -148,7 +146,7 @@ export async function getCampaignStats(
 
   const campaigns = await query;
 
-  return campaigns.map((c) => ({
+  return campaigns.map((c: UTMCampaign) => ({
     campaignId: c.id,
     utmSource: c.utmSource,
     utmMedium: c.utmMedium || undefined,
@@ -245,13 +243,13 @@ export async function getSourceAttribution(userId: string): Promise<{
 
   // Top campaigns
   const topCampaigns = campaigns
-    .filter((c) => c.utmCampaign)
-    .map((c) => ({
+    .filter((c: UTMCampaign) => c.utmCampaign)
+    .map((c: UTMCampaign) => ({
       campaign: c.utmCampaign || "",
       leads: c.totalLeads || 0,
       conversionRate: Number.parseFloat(c.conversionRate || "0"),
     }))
-    .sort((a, b) => b.leads - a.leads)
+    .sort((a: { leads: number }, b: { leads: number }) => b.leads - a.leads)
     .slice(0, 10);
 
   return { bySource, byMedium, topCampaigns };

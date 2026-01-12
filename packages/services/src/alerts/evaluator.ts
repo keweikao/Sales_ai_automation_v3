@@ -1,10 +1,10 @@
-import { db } from "@sales_ai_automation_v3/db";
+import { db } from "@Sales_ai_automation_v3/db";
 import {
 	alerts,
 	conversations,
 	meddicAnalyses,
 	opportunities,
-} from "@sales_ai_automation_v3/db/schema";
+} from "@Sales_ai_automation_v3/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 import { ALERT_RULES } from "./rules";
 import type { AlertResult, EvaluationContext } from "./types";
@@ -115,8 +115,8 @@ async function buildEvaluationContext(
 		.limit(5);
 
 	const recentScores = recentAnalyses
-		.map((a) => a.overallScore)
-		.filter((s): s is number => s !== null);
+		.map((a: { overallScore: number | null }) => a.overallScore)
+		.filter((s: number | null): s is number => s !== null);
 
 	return {
 		opportunityId,

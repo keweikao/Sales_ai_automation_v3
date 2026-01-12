@@ -1,6 +1,6 @@
-import { db } from "@sales_ai_automation_v3/db";
-import { alerts } from "@sales_ai_automation_v3/db/schema";
-import type { Alert } from "@sales_ai_automation_v3/db/schema";
+import { db } from "@Sales_ai_automation_v3/db";
+import { alerts } from "@Sales_ai_automation_v3/db/schema";
+import type { Alert } from "@Sales_ai_automation_v3/db/schema";
 import { eq } from "drizzle-orm";
 
 export interface SlackNotificationConfig {

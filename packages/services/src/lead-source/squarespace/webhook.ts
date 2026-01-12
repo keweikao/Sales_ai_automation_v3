@@ -10,8 +10,7 @@ import {
   opportunities,
   leadSources,
   formSubmissions,
-  utmCampaigns,
-} from "@sales_ai_automation_v3/db";
+} from "@Sales_ai_automation_v3/db";
 import type { WebhookResult, FieldMapping } from "../types";
 import type {
   SquarespaceFormPayload,
@@ -19,7 +18,6 @@ import type {
 } from "./types";
 import {
   parseSquarespaceForm,
-  generateDeduplicationKey,
   validateFormData,
 } from "./mapper";
 import { trackUTMCampaign } from "../utm/tracker";
@@ -169,8 +167,7 @@ export async function handleSquarespaceWebhook(options: {
       };
     }
 
-    // 檢查重複
-    const dedupeKey = generateDeduplicationKey(parsedData);
+    // 檢查重複（用 email 查詢）
     const existingOpportunity = await db
       .select({ id: opportunities.id })
       .from(opportunities)
