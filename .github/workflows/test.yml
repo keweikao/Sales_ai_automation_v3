@@ -67,7 +67,8 @@ jobs:
         run: bun install
 
       - name: Run database migrations
-        run: bun run db:migrate
+        working-directory: packages/db
+        run: bunx drizzle-kit migrate
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
@@ -125,7 +126,8 @@ jobs:
         run: bun install
 
       - name: Run database migrations
-        run: bun run db:migrate
+        working-directory: packages/db
+        run: bunx drizzle-kit migrate
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
@@ -180,7 +182,8 @@ jobs:
         run: bunx playwright install --with-deps chromium
 
       - name: Run database migrations
-        run: bun run db:migrate
+        working-directory: packages/db
+        run: bunx drizzle-kit migrate
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
@@ -253,7 +256,8 @@ jobs:
         run: bun install
 
       - name: Run database migrations
-        run: bun run db:migrate
+        working-directory: packages/db
+        run: bunx drizzle-kit migrate
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
