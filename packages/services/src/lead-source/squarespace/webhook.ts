@@ -174,19 +174,20 @@ export async function handleSquarespaceWebhook(options: {
       .where(eq(opportunities.contactEmail, parsedData.contactEmail || ""))
       .limit(1);
 
-    if (existingOpportunity.length > 0 && parsedData.contactEmail) {
+    const existingOpp = existingOpportunity[0];
+    if (existingOpp && parsedData.contactEmail) {
       await db
         .update(formSubmissions)
         .set({
           status: "duplicate",
-          opportunityId: existingOpportunity[0].id,
+          opportunityId: existingOpp.id,
           processedAt: new Date(),
         })
         .where(eq(formSubmissions.id, submissionId));
 
       return {
         success: true,
-        opportunityId: existingOpportunity[0].id,
+        opportunityId: existingOpp.id,
         message: "Duplicate submission - linked to existing opportunity",
         isDuplicate: true,
       };
