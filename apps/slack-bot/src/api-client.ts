@@ -71,7 +71,7 @@ export class ApiClient {
     }
 
     const query = searchParams.toString();
-    return this.request(`/api/opportunities.list${query ? `?${query}` : ""}`);
+    return this.request(`/rpc/opportunities.list${query ? `?${query}` : ""}`);
   }
 
   async getOpportunityById(id: string): Promise<OpportunityResponse | null> {
@@ -97,7 +97,7 @@ export class ApiClient {
     companySize?: string;
     notes?: string;
   }): Promise<OpportunityResponse> {
-    return this.request<OpportunityResponse>("/api/opportunities.create", {
+    return this.request<OpportunityResponse>("/rpc/opportunities.create", {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -154,7 +154,7 @@ export class ApiClient {
     };
   }): Promise<UploadConversationResponse> {
     return this.request<UploadConversationResponse>(
-      "/api/conversations.upload",
+      "/rpc/conversations.upload",
       {
         method: "POST",
         body: JSON.stringify(data),
@@ -163,7 +163,7 @@ export class ApiClient {
   }
 
   async analyzeConversation(id: string): Promise<MeddicAnalysisResponse> {
-    return this.request<MeddicAnalysisResponse>("/api/conversations.analyze", {
+    return this.request<MeddicAnalysisResponse>("/rpc/conversations.analyze", {
       method: "POST",
       body: JSON.stringify({ conversationId: id }),
     });
@@ -173,7 +173,7 @@ export class ApiClient {
     conversationId: string,
     summary: string
   ): Promise<void> {
-    await this.request("/api/conversations.updateSummary", {
+    await this.request("/rpc/conversations.updateSummary", {
       method: "POST",
       body: JSON.stringify({ conversationId, summary }),
     });
@@ -181,36 +181,36 @@ export class ApiClient {
 
   // Analytics 相關 API
   async getDashboard(): Promise<DashboardStatsResponse> {
-    return this.request<DashboardStatsResponse>("/api/analytics.dashboard");
+    return this.request<DashboardStatsResponse>("/rpc/analytics.dashboard");
   }
 
   async getOpportunityStats(): Promise<OpportunityStatsResponse> {
     return this.request<OpportunityStatsResponse>(
-      "/api/analytics.opportunityStats"
+      "/rpc/analytics.opportunityStats"
     );
   }
 
   async getMeddicTrends(): Promise<MeddicTrendsResponse> {
-    return this.request<MeddicTrendsResponse>("/api/analytics.meddicTrends");
+    return this.request<MeddicTrendsResponse>("/rpc/analytics.meddicTrends");
   }
 
   // Alert 相關 API
   async acknowledgeAlert(alertId: string): Promise<void> {
-    await this.request("/api/alert.acknowledge", {
+    await this.request("/rpc/alert.acknowledge", {
       method: "POST",
       body: JSON.stringify({ alertId }),
     });
   }
 
   async dismissAlert(alertId: string): Promise<void> {
-    await this.request("/api/alert.dismiss", {
+    await this.request("/rpc/alert.dismiss", {
       method: "POST",
       body: JSON.stringify({ alertId }),
     });
   }
 
   async resolveAlert(alertId: string, resolution: string): Promise<void> {
-    await this.request("/api/alert.resolve", {
+    await this.request("/rpc/alert.resolve", {
       method: "POST",
       body: JSON.stringify({ alertId, resolution }),
     });
@@ -232,11 +232,11 @@ export class ApiClient {
     if (params?.offset) searchParams.set("offset", String(params.offset));
 
     const query = searchParams.toString();
-    return this.request(`/api/alert.list${query ? `?${query}` : ""}`);
+    return this.request(`/rpc/alert.list${query ? `?${query}` : ""}`);
   }
 
   async getAlertStats(): Promise<AlertStatsResponse> {
-    return this.request<AlertStatsResponse>("/api/alert.stats");
+    return this.request<AlertStatsResponse>("/rpc/alert.stats");
   }
 
   // Talk Track 相關 API
@@ -250,7 +250,7 @@ export class ApiClient {
       searchParams.set("customerType", customerType);
     }
     return this.request<TalkTrackResponse[]>(
-      `/api/talkTracks.getBySituation?${searchParams.toString()}`
+      `/rpc/talkTracks.getBySituation?${searchParams.toString()}`
     );
   }
 
@@ -262,12 +262,12 @@ export class ApiClient {
     searchParams.set("keyword", keyword);
     searchParams.set("limit", String(limit));
     return this.request<TalkTrackResponse[]>(
-      `/api/talkTracks.search?${searchParams.toString()}`
+      `/rpc/talkTracks.search?${searchParams.toString()}`
     );
   }
 
   async recordTalkTrackUsage(talkTrackId: string): Promise<void> {
-    await this.request("/api/talkTracks.recordUsage", {
+    await this.request("/rpc/talkTracks.recordUsage", {
       method: "POST",
       body: JSON.stringify({ talkTrackId }),
     });
