@@ -41,34 +41,42 @@ export async function handleFileSharedEvent(
   event: SlackEvent,
   env: Env
 ): Promise<void> {
+  console.log(`[FileEvent] Starting handleFileSharedEvent for file_id: ${event.file_id}`);
+
   const fileId = event.file_id;
 
   if (!fileId) {
-    console.log("No file_id in file_shared event");
+    console.log("[FileEvent] No file_id in file_shared event");
     return;
   }
 
+  console.log(`[FileEvent] Creating SlackClient with token: ${env.SLACK_BOT_TOKEN?.substring(0, 10)}...`);
   const slackClient = new SlackClient(env.SLACK_BOT_TOKEN);
 
   // 取得檔案資訊
+  console.log(`[FileEvent] Fetching file info for: ${fileId}`);
   const fileInfo = await slackClient.getFileInfo(fileId);
 
   if (!(fileInfo.ok && fileInfo.file)) {
-    console.error("Failed to get file info:", fileInfo.error);
+    console.error(`[FileEvent] Failed to get file info: ${fileInfo.error}`);
     return;
   }
 
+  console.log(`[FileEvent] File info retrieved: ${fileInfo.file.name}, type: ${fileInfo.file.mimetype}`);
   const file = fileInfo.file;
 
   // 檢查是否為音檔
+  console.log(`[FileEvent] Checking if file is audio. Mimetype: ${file.mimetype}`);
   if (!SUPPORTED_AUDIO_TYPES.includes(file.mimetype)) {
-    console.log(`Ignoring non-audio file: ${file.mimetype}`);
+    console.log(`[FileEvent] Ignoring non-audio file: ${file.mimetype}`);
     return;
   }
 
+  console.log(`[FileEvent] File is audio, checking size: ${file.size} bytes`);
   // 檢查檔案大小（最大 100MB）
   const maxSize = 100 * 1024 * 1024;
   if (file.size > maxSize) {
+    console.log(`[FileEvent] File too large: ${file.size} bytes`);
     await slackClient.postMessage({
       channel: event.channel,
       text: `:warning: 檔案「${file.name}」太大（${formatFileSize(file.size)}），請上傳小於 100MB 的音檔。`,
@@ -78,8 +86,10 @@ export async function handleFileSharedEvent(
   }
 
   // 檢查是否有下載 URL
+  console.log(`[FileEvent] Checking download URL: ${file.url_private_download ? 'exists' : 'missing'}`);
   const downloadUrl = file.url_private_download;
   if (!downloadUrl) {
+    console.log(`[FileEvent] No download URL available`);
     await slackClient.postMessage({
       channel: event.channel,
       text: `:warning: 無法取得檔案「${file.name}」的下載連結。`,
@@ -89,15 +99,17 @@ export async function handleFileSharedEvent(
   }
 
   // 取得上傳者的使用者名稱
+  console.log(`[FileEvent] Fetching user info for: ${event.user ?? 'unknown'}`);
   let userName = "";
   if (event.user) {
     try {
       const userInfo = await slackClient.getUserInfo(event.user);
       if (userInfo.ok && userInfo.user) {
         userName = userInfo.user.name;
+        console.log(`[FileEvent] User name retrieved: ${userName}`);
       }
     } catch (err) {
-      console.error("Failed to get user info:", err);
+      console.error("[FileEvent] Failed to get user info:", err);
     }
   }
 
@@ -112,13 +124,22 @@ export async function handleFileSharedEvent(
     downloadUrl,
   };
 
+  console.log(`[FileEvent] Prepared pending file data:`, JSON.stringify(pendingFile, null, 2));
+
   // 發送帶按鈕的訊息，請用戶填寫資訊
-  await slackClient.postMessage({
-    channel: event.channel,
-    text: `偵測到音檔「${file.name}」，請點擊按鈕填寫客戶資訊以開始分析。`,
-    thread_ts: event.event_ts ?? event.ts,
-    blocks: buildAudioDetectedBlocks(file.name, file.size, pendingFile),
-  });
+  console.log(`[FileEvent] Sending message with button to channel: ${event.channel}`);
+  try {
+    const result = await slackClient.postMessage({
+      channel: event.channel,
+      text: `偵測到音檔「${file.name}」，請點擊按鈕填寫客戶資訊以開始分析。`,
+      thread_ts: event.event_ts ?? event.ts,
+      blocks: buildAudioDetectedBlocks(file.name, file.size, pendingFile),
+    });
+    console.log(`[FileEvent] Message sent successfully:`, JSON.stringify(result, null, 2));
+  } catch (error) {
+    console.error(`[FileEvent] Failed to send message:`, error);
+    throw error;
+  }
 }
 
 /**
