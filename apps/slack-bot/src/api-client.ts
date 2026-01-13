@@ -250,7 +250,7 @@ export class ApiClient {
       searchParams.set("customerType", customerType);
     }
     return this.request<TalkTrackResponse[]>(
-      `/rpc/talkTracks.getBySituation?${searchParams/toString()}`
+      `/rpc/talkTracks/getBySituation?${searchParams.toString()}`
     );
   }
 
@@ -262,7 +262,7 @@ export class ApiClient {
     searchParams.set("keyword", keyword);
     searchParams.set("limit", String(limit));
     return this.request<TalkTrackResponse[]>(
-      `/rpc/talkTracks.search?${searchParams/toString()}`
+      `/rpc/talkTracks/search?${searchParams.toString()}`
     );
   }
 
