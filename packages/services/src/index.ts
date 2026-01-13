@@ -104,18 +104,16 @@ export * from "./alerts/index.js";
 export * from "./lead-source/index.js";
 
 // ============================================================
-// MCP Tools & Server (暫緩 - 待 TypeScript 錯誤修復)
+// MCP Tools & Server
 // ============================================================
 
-// TODO: Sales Coach Agent 開發中，暫時停用導出
-// export * from "./mcp/index.js";
+export * from "./mcp/index.js";
 
 // ============================================================
-// Sales Coach Agent (暫緩 - 待 TypeScript 錯誤修復)
+// Sales Coach Agent
 // ============================================================
 
-// TODO: Sales Coach Agent 開發中，暫時停用導出
-// export * from "./agent/index.js";
+export * from "./agent/index.js";
 
 // ============================================================
 // Convenience Factory Functions

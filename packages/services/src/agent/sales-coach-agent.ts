@@ -281,7 +281,7 @@ export class SalesCoachAgent {
 
     const recommendations: Recommendation[] = response.recommendations.map(
       (r, index) => ({
-        id: `rec-${nanoid(8)}`,
+        id: `rec-${randomUUID().slice(0, 8)}`,
         type: r.type as Recommendation["type"],
         priority: r.priority as Recommendation["priority"],
         title: r.title,
@@ -292,7 +292,7 @@ export class SalesCoachAgent {
     );
 
     const alerts: Alert[] = response.alerts.map((a) => ({
-      id: `alert-${nanoid(8)}`,
+      id: `alert-${randomUUID().slice(0, 8)}`,
       type: a.type as Alert["type"],
       severity: a.severity as Alert["severity"],
       message: a.message,
@@ -301,7 +301,7 @@ export class SalesCoachAgent {
     }));
 
     const followUps: FollowUp[] = response.followUps.map((f) => ({
-      id: `fu-${nanoid(8)}`,
+      id: `fu-${randomUUID().slice(0, 8)}`,
       action: f.action,
       owner: f.owner as FollowUp["owner"],
       deadline: f.deadline ? new Date(f.deadline) : undefined,
@@ -430,7 +430,7 @@ export class SalesCoachAgent {
           );
           if (wonCases.length > 0) {
             enrichedOutput.recommendations.push({
-              id: `rec-similar-${nanoid(8)}`,
+              id: `rec-similar-${randomUUID().slice(0, 8)}`,
               type: "strategy",
               priority: "high",
               title: "參考類似成功案例",

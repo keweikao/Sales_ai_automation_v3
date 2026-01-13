@@ -214,7 +214,7 @@ function generatePostDemoRecommendations(
   // Hot lead - push for close
   if (demoOutcome.sentiment === "hot") {
     recommendations.push({
-      id: `rec-postdemo-${nanoid(8)}`,
+      id: `rec-postdemo-${randomUUID().slice(0, 8)}`,
       type: "immediate_action",
       priority: "critical",
       title: "立即推進成交",
@@ -226,7 +226,7 @@ function generatePostDemoRecommendations(
 
     if (demoOutcome.buyingSignals.length > 0) {
       recommendations.push({
-        id: `rec-signals-${nanoid(8)}`,
+        id: `rec-signals-${randomUUID().slice(0, 8)}`,
         type: "strategy",
         priority: "high",
         title: "強化購買信號",
@@ -239,7 +239,7 @@ function generatePostDemoRecommendations(
   // Warm lead - nurture and address objections
   if (demoOutcome.sentiment === "warm") {
     recommendations.push({
-      id: `rec-postdemo-${nanoid(8)}`,
+      id: `rec-postdemo-${randomUUID().slice(0, 8)}`,
       type: "follow_up",
       priority: "high",
       title: "48 小時內跟進",
@@ -250,7 +250,7 @@ function generatePostDemoRecommendations(
 
     if (demoOutcome.objections.length > 0) {
       recommendations.push({
-        id: `rec-objections-${nanoid(8)}`,
+        id: `rec-objections-${randomUUID().slice(0, 8)}`,
         type: "strategy",
         priority: "high",
         title: "處理客戶異議",
@@ -263,7 +263,7 @@ function generatePostDemoRecommendations(
   // Cold lead - re-engage strategy
   if (demoOutcome.sentiment === "cold") {
     recommendations.push({
-      id: `rec-postdemo-${nanoid(8)}`,
+      id: `rec-postdemo-${randomUUID().slice(0, 8)}`,
       type: "strategy",
       priority: "medium",
       title: "調整銷售策略",
@@ -274,7 +274,7 @@ function generatePostDemoRecommendations(
     });
 
     recommendations.push({
-      id: `rec-trial-${nanoid(8)}`,
+      id: `rec-trial-${randomUUID().slice(0, 8)}`,
       type: "strategy",
       priority: "medium",
       title: "提供試用方案",
@@ -286,7 +286,7 @@ function generatePostDemoRecommendations(
   // Decision maker not present
   if (demoOutcome.needsManagerDecision) {
     recommendations.push({
-      id: `rec-dm-${nanoid(8)}`,
+      id: `rec-dm-${randomUUID().slice(0, 8)}`,
       type: "immediate_action",
       priority: "high",
       title: "接觸決策者",
@@ -298,7 +298,7 @@ function generatePostDemoRecommendations(
   // Competitor concern
   if (demoOutcome.competitorConcern) {
     recommendations.push({
-      id: `rec-competitor-${nanoid(8)}`,
+      id: `rec-competitor-${randomUUID().slice(0, 8)}`,
       type: "strategy",
       priority: "high",
       title: "競品差異化說明",
@@ -322,7 +322,7 @@ function generatePostDemoAlerts(
   // Close now alert for hot leads
   if (demoOutcome.sentiment === "hot" && demoOutcome.closeReadiness >= 75) {
     alerts.push({
-      id: `alert-close-${nanoid(8)}`,
+      id: `alert-close-${randomUUID().slice(0, 8)}`,
       type: "close_now",
       severity: "critical",
       message: "客戶購買意願高！建議立即進入簽約流程。",
@@ -334,7 +334,7 @@ function generatePostDemoAlerts(
   // Risk alert for cold leads
   if (demoOutcome.sentiment === "cold") {
     alerts.push({
-      id: `alert-risk-${nanoid(8)}`,
+      id: `alert-risk-${randomUUID().slice(0, 8)}`,
       type: "risk",
       severity: "high",
       message: "Demo 後客戶反應冷淡，商機可能流失。",
@@ -346,7 +346,7 @@ function generatePostDemoAlerts(
   // Missing decision maker alert
   if (demoOutcome.needsManagerDecision) {
     alerts.push({
-      id: `alert-dm-${nanoid(8)}`,
+      id: `alert-dm-${randomUUID().slice(0, 8)}`,
       type: "missing_decision_maker",
       severity: "high",
       message: "尚未接觸到經濟買家，需要向上推進。",
@@ -358,7 +358,7 @@ function generatePostDemoAlerts(
   // Opportunity alert for high buying signals
   if (demoOutcome.buyingSignals.length >= 2) {
     alerts.push({
-      id: `alert-opp-${nanoid(8)}`,
+      id: `alert-opp-${randomUUID().slice(0, 8)}`,
       type: "opportunity",
       severity: "medium",
       message: `偵測到 ${demoOutcome.buyingSignals.length} 個正面購買信號！`,
@@ -382,7 +382,7 @@ function generatePostDemoFollowUps(
 
   // Thank you message - always
   followUps.push({
-    id: `fu-thanks-${nanoid(8)}`,
+    id: `fu-thanks-${randomUUID().slice(0, 8)}`,
     action: "發送 Demo 感謝訊息和會議摘要",
     owner: "rep",
     deadline: new Date(now.getTime() + 24 * 60 * 60 * 1000), // 24 hours
@@ -394,7 +394,7 @@ function generatePostDemoFollowUps(
   // Quote/Proposal based on temperature
   if (demoOutcome.sentiment === "hot") {
     followUps.push({
-      id: `fu-quote-${nanoid(8)}`,
+      id: `fu-quote-${randomUUID().slice(0, 8)}`,
       action: "發送正式報價單",
       owner: "rep",
       deadline: new Date(now.getTime() + 24 * 60 * 60 * 1000),
@@ -404,7 +404,7 @@ function generatePostDemoFollowUps(
     });
   } else if (demoOutcome.sentiment === "warm") {
     followUps.push({
-      id: `fu-quote-${nanoid(8)}`,
+      id: `fu-quote-${randomUUID().slice(0, 8)}`,
       action: "準備客製化方案和報價",
       owner: "rep",
       deadline: new Date(now.getTime() + 48 * 60 * 60 * 1000),
@@ -416,7 +416,7 @@ function generatePostDemoFollowUps(
 
   // Case study sharing
   followUps.push({
-    id: `fu-case-${nanoid(8)}`,
+    id: `fu-case-${randomUUID().slice(0, 8)}`,
     action: "分享相似客戶成功案例",
     owner: "rep",
     deadline: new Date(now.getTime() + 48 * 60 * 60 * 1000),
@@ -428,7 +428,7 @@ function generatePostDemoFollowUps(
   // Decision maker follow-up
   if (demoOutcome.needsManagerDecision) {
     followUps.push({
-      id: `fu-dm-${nanoid(8)}`,
+      id: `fu-dm-${randomUUID().slice(0, 8)}`,
       action: "安排與決策者會議",
       owner: "rep",
       deadline: new Date(now.getTime() + 72 * 60 * 60 * 1000),
@@ -441,7 +441,7 @@ function generatePostDemoFollowUps(
   // Cold lead re-engagement
   if (demoOutcome.sentiment === "cold") {
     followUps.push({
-      id: `fu-reengage-${nanoid(8)}`,
+      id: `fu-reengage-${randomUUID().slice(0, 8)}`,
       action: "準備替代方案或試用提案",
       owner: "rep",
       deadline: new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000),
