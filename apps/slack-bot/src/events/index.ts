@@ -34,17 +34,19 @@ export async function handleSlackEvent(
             console.log(`[Event] Found ${event.files.length} file(s) in message`);
             // 處理第一個檔案 (通常使用者一次上傳一個音檔)
             const file = event.files[0];
-            await handleFileSharedEvent(
-              {
-                type: "file_shared",
-                file_id: file.id,
-                user: event.user,
-                channel: event.channel,
-                ts: event.ts,
-                event_ts: event.ts,
-              },
-              env
-            );
+            if (file) {
+              await handleFileSharedEvent(
+                {
+                  type: "file_shared",
+                  file_id: file.id,
+                  user: event.user,
+                  channel: event.channel,
+                  ts: event.ts,
+                  event_ts: event.ts,
+                },
+                env
+              );
+            }
           } else {
             console.log(`[Event] file_share subtype but no files found`);
           }
