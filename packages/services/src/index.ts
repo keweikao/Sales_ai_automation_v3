@@ -107,13 +107,9 @@ export * from "./lead-source/index.js";
 // MCP Tools & Server
 // ============================================================
 
-export * from "./mcp/index.js";
-
-// ============================================================
-// Sales Coach Agent
-// ============================================================
-
-export * from "./agent/index.js";
+// TODO: Re-enable when Database export and other type issues are fixed
+// export * from "./mcp/index.js";
+// export * from "./agent/index.js";
 
 // ============================================================
 // Convenience Factory Functions
