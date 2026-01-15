@@ -149,7 +149,7 @@ export default {
   // Cron Trigger 處理 - 定期健康檢查與自動修復
   async scheduled(
     event: ScheduledEvent,
-    env: Env,
+    _env: Env,
     _ctx: ExecutionContext
   ): Promise<void> {
     console.log("[Ops] Scheduled event triggered:", event.cron);
