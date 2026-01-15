@@ -302,7 +302,12 @@ export default {
             )) {
               convertedDimensions[key] = {
                 name: key,
-                ...value,
+                ...(value as {
+                  score: number;
+                  evidence?: string[];
+                  gaps?: string[];
+                  recommendations?: string[];
+                }),
               };
             }
 
