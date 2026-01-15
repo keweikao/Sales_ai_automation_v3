@@ -9,6 +9,8 @@ export default defineConfig({
       "tests/api/**/*.test.ts",
       "tests/services/**/*.test.ts",
       "tests/slack-bot/**/*.test.ts",
+      "tests/queue-worker/**/*.test.ts",
+      "tests/shared/**/*.test.ts",
     ],
     exclude: ["tests/e2e/**/*"],
     coverage: {
@@ -17,7 +19,9 @@ export default defineConfig({
       include: [
         "packages/api/src/**/*.ts",
         "packages/services/src/**/*.ts",
+        "packages/shared/src/**/*.ts",
         "apps/slack-bot/src/**/*.ts",
+        "apps/queue-worker/src/**/*.ts",
       ],
       exclude: ["**/node_modules/**", "**/tests/**"],
     },
@@ -37,6 +41,10 @@ export default defineConfig({
       "@sales_ai_automation_v3/services": path.resolve(
         __dirname,
         "packages/services/src"
+      ),
+      "@sales_ai_automation_v3/shared": path.resolve(
+        __dirname,
+        "packages/shared/src"
       ),
     },
   },

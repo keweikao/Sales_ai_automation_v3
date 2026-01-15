@@ -35,9 +35,12 @@ export function createNotificationService(env: Env): NotificationService {
       const uid = env.EVERY8D_UID;
       const pwd = env.EVERY8D_PWD;
       // 支援 EVERY8D_API_URL 或 EVERY8D_SITE_URL (舊版命名)
-      const apiUrl = env.EVERY8D_API_URL || env.EVERY8D_SITE_URL || "https://api.e8d.tw/API21/HTTP/sendSMS.ashx";
+      const apiUrl =
+        env.EVERY8D_API_URL ||
+        env.EVERY8D_SITE_URL ||
+        "https://api.e8d.tw/API21/HTTP/sendSMS.ashx";
 
-      if (!uid || !pwd) {
+      if (!(uid && pwd)) {
         return {
           success: false,
           error: "SMS 服務未設定 (缺少 EVERY8D_UID 或 EVERY8D_PWD)",
@@ -94,7 +97,8 @@ export function createNotificationService(env: Env): NotificationService {
           error: result.errorMessage || `API 錯誤: ${responseText}`,
         };
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "未知錯誤";
+        const errorMessage =
+          error instanceof Error ? error.message : "未知錯誤";
         return {
           success: false,
           error: `發送失敗: ${errorMessage}`,

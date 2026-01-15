@@ -9,8 +9,10 @@ import {
   meddicAnalyses,
   opportunities,
 } from "@Sales_ai_automation_v3/db/schema";
+import { env } from "@Sales_ai_automation_v3/env/server";
 import {
   createAllServices,
+  createR2Service,
   evaluateAndCreateAlerts,
   generateAudioKey,
   type TranscriptSegment as ServiceTranscriptSegment,
@@ -35,35 +37,44 @@ function getServices() {
 // Schemas
 // ============================================================
 
-const uploadConversationSchema = z.object({
-  opportunityId: z.string(),
-  audioBase64: z.string(),
-  title: z.string().optional(),
-  type: z
-    .enum([
-      "discovery_call",
-      "demo",
-      "follow_up",
-      "negotiation",
-      "closing",
-      "support",
-    ])
-    .default("discovery_call"),
-  metadata: z
-    .object({
-      duration: z.number().optional(),
-      format: z.string().optional(),
-      conversationDate: z.string().optional(),
-    })
-    .optional(),
-  // Slack 業務資訊（可選，從 Slack Bot 傳入）
-  slackUser: z
-    .object({
-      id: z.string(),
-      username: z.string(),
-    })
-    .optional(),
-});
+const uploadConversationSchema = z
+  .object({
+    opportunityId: z.string(),
+    // 支援兩種方式：直接 base64 或 Slack 檔案 URL
+    audioBase64: z.string().optional(),
+    slackFileUrl: z.string().optional(),
+    slackBotToken: z.string().optional(), // 用於下載 Slack 檔案
+    title: z.string().optional(),
+    type: z
+      .enum([
+        "discovery_call",
+        "demo",
+        "follow_up",
+        "negotiation",
+        "closing",
+        "support",
+      ])
+      .default("discovery_call"),
+    metadata: z
+      .object({
+        duration: z.number().optional(),
+        format: z.string().optional(),
+        conversationDate: z.string().optional(),
+      })
+      .passthrough() // 允許額外欄位(如 storeType, serviceType 等)
+      .optional(),
+    // Slack 業務資訊（可選，從 Slack Bot 傳入）
+    slackUser: z
+      .object({
+        id: z.string(),
+        username: z.string(),
+      })
+      .optional(),
+  })
+  .refine(
+    (data) => data.audioBase64 || data.slackFileUrl,
+    "必須提供 audioBase64 或 slackFileUrl 其中之一"
+  );
 
 const analyzeConversationSchema = z.object({
   conversationId: z.string(),
@@ -122,117 +133,273 @@ async function getNextCaseNumber(): Promise<string> {
 export const uploadConversation = protectedProcedure
   .input(uploadConversationSchema)
   .handler(async ({ input, context }) => {
-    const { opportunityId, audioBase64, title, type, metadata, slackUser } =
-      input;
-    const userId = context.session?.user.id;
-
-    if (!userId) {
-      throw new ORPCError("UNAUTHORIZED");
-    }
-
-    // Step 1: Verify opportunity exists and belongs to user
-    const opportunity = await db.query.opportunities.findFirst({
-      where: and(
-        eq(opportunities.id, opportunityId),
-        eq(opportunities.userId, userId)
-      ),
-    });
-
-    if (!opportunity) {
-      throw new ORPCError("NOT_FOUND");
-    }
-
-    // Step 2: Decode audio buffer
-    const audioBuffer = Buffer.from(audioBase64, "base64");
-
-    // Step 3: Upload to R2
-    const { r2, whisper } = getServices();
-    const audioKey = generateAudioKey(opportunityId, Date.now().toString());
-
-    let audioUrl: string;
-    try {
-      audioUrl = await r2.uploadAudio(audioKey, audioBuffer, {
-        duration: metadata?.duration,
-        format: metadata?.format || "mp3",
-        conversationId: "",
-        leadId: opportunityId,
-      });
-    } catch (error) {
-      console.error("R2 upload failed:", error);
-      throw new ORPCError("INTERNAL_SERVER_ERROR");
-    }
-
-    // Step 4: Transcribe with Groq Whisper
-    let transcriptResult: {
-      fullText: string;
-      segments?: Array<{ start: number; end: number; text: string }>;
-      duration?: number;
-      language?: string;
-    };
+    const startTime = Date.now();
+    const requestId = randomUUID().slice(0, 8); // 短 ID 用於追蹤
 
     try {
-      transcriptResult = await whisper.transcribe(audioBuffer, {
-        language: "zh",
-        chunkIfNeeded: true,
+      console.log(`[${requestId}] 📥 uploadConversation request received`);
+      console.log(`[${requestId}] Request details:`, {
+        opportunityId: input.opportunityId,
+        audioSize: input.audioBase64?.length || 0,
+        hasSlackFile: !!input.slackFileUrl,
+        title: input.title,
+        type: input.type,
+        hasSlackUser: !!input.slackUser,
+        isServiceAccount: context.isServiceAccount,
       });
-    } catch (error) {
-      console.error("Transcription failed:", error);
-      await r2.delete(audioKey).catch(console.error);
-      throw new ORPCError("INTERNAL_SERVER_ERROR");
-    }
 
-    // Step 5: Generate case number
-    const caseNumber = await getNextCaseNumber();
-
-    // Step 6: Store in database
-    const conversationResults = await db
-      .insert(conversations)
-      .values({
-        id: randomUUID(),
+      const {
         opportunityId,
-        caseNumber,
-        title: title || `對話 - ${new Date().toLocaleDateString("zh-TW")}`,
+        audioBase64,
+        slackFileUrl,
+        slackBotToken,
+        title,
         type,
-        status: "transcribed",
+        metadata,
+        slackUser,
+      } = input;
+      const userId = context.session?.user.id;
+
+      if (!userId) {
+        console.error(`[${requestId}] ❌ UNAUTHORIZED: No userId in session`);
+        throw new ORPCError("UNAUTHORIZED");
+      }
+
+      console.log(`[${requestId}] ✓ Auth passed, userId: ${userId}`);
+
+      // Step 1: Verify opportunity exists and belongs to user
+      console.log(`[${requestId}] 🔍 Verifying opportunity: ${opportunityId}`);
+      const opportunity = await db.query.opportunities.findFirst({
+        where: and(
+          eq(opportunities.id, opportunityId),
+          eq(opportunities.userId, userId)
+        ),
+      });
+
+      if (!opportunity) {
+        console.error(
+          `[${requestId}] ❌ Opportunity not found: ${opportunityId}`
+        );
+        throw new ORPCError("NOT_FOUND");
+      }
+
+      console.log(
+        `[${requestId}] ✓ Opportunity verified: ${opportunity.companyName}`
+      );
+
+      // Step 2: Get audio buffer (從 base64 或從 Slack 下載)
+      let audioBuffer: Buffer;
+
+      if (slackFileUrl && slackBotToken) {
+        // 從 Slack 下載檔案
+        console.log(
+          `[${requestId}] 📥 Downloading from Slack: ${slackFileUrl.substring(0, 50)}...`
+        );
+        const downloadStartTime = Date.now();
+
+        try {
+          const response = await fetch(slackFileUrl, {
+            headers: {
+              Authorization: `Bearer ${slackBotToken}`,
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error(`Slack download failed: ${response.statusText}`);
+          }
+
+          const arrayBuffer = await response.arrayBuffer();
+          audioBuffer = Buffer.from(arrayBuffer);
+          console.log(
+            `[${requestId}] ✓ Downloaded from Slack in ${Date.now() - downloadStartTime}ms: ${audioBuffer.length} bytes`
+          );
+        } catch (error) {
+          console.error(`[${requestId}] ❌ Slack download failed:`, error);
+          console.error(`[${requestId}] Error details:`, {
+            name: error instanceof Error ? error.name : "Unknown",
+            message: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+          });
+          throw new ORPCError("INTERNAL_SERVER_ERROR", {
+            message: `Failed to download from Slack: ${error instanceof Error ? error.message : String(error)}`,
+          });
+        }
+      } else if (audioBase64) {
+        // 從 base64 解碼
+        console.log(`[${requestId}] 🔄 Decoding base64...`);
+        audioBuffer = Buffer.from(audioBase64, "base64");
+        console.log(
+          `[${requestId}] ✓ Base64 decoded: ${audioBuffer.length} bytes`
+        );
+      } else {
+        console.error(`[${requestId}] ❌ No audio source provided`);
+        throw new ORPCError("BAD_REQUEST");
+      }
+
+      // Step 3: Upload to R2
+      // 只初始化需要的服務,並傳入 Cloudflare Workers 的 env
+      const envRecord = env as Record<string, unknown>;
+      const r2 = createR2Service({
+        accessKeyId: envRecord.CLOUDFLARE_R2_ACCESS_KEY as string,
+        secretAccessKey: envRecord.CLOUDFLARE_R2_SECRET_KEY as string,
+        endpoint: envRecord.CLOUDFLARE_R2_ENDPOINT as string,
+        bucket: envRecord.CLOUDFLARE_R2_BUCKET as string,
+      });
+      // 不再需要 whisper service,轉錄將由 Queue Worker 處理
+      const audioKey = generateAudioKey(opportunityId, Date.now().toString());
+
+      console.log(`[${requestId}] ☁️ Uploading to R2: ${audioKey}`);
+      let audioUrl: string;
+      try {
+        const r2StartTime = Date.now();
+        audioUrl = await r2.uploadAudio(audioKey, audioBuffer, {
+          duration: metadata?.duration,
+          format: metadata?.format || "mp3",
+          conversationId: "",
+          leadId: opportunityId,
+        });
+        console.log(
+          `[${requestId}] ✓ R2 upload completed in ${Date.now() - r2StartTime}ms`
+        );
+      } catch (error) {
+        console.error(`[${requestId}] ❌ R2 upload failed:`, error);
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+
+      // Step 4: Generate case number
+      const caseNumber = await getNextCaseNumber();
+      const conversationId = randomUUID();
+      console.log(
+        `[${requestId}] 🎫 Generated conversationId: ${conversationId}, caseNumber: ${caseNumber}`
+      );
+
+      // Step 5: 建立資料庫記錄 (status: "pending")
+      // 不再同步轉錄,而是推送到 Queue
+      console.log(
+        `[${requestId}] 💾 Creating conversation record with status: pending...`
+      );
+      const dbStartTime = Date.now();
+      const conversationResults = await db
+        .insert(conversations)
+        .values({
+          id: conversationId,
+          opportunityId,
+          caseNumber,
+          title: title || `對話 - ${new Date().toLocaleDateString("zh-TW")}`,
+          type,
+          status: "pending", // 初始狀態為 pending
+          audioUrl,
+          transcript: null, // 稍後由 Queue Worker 填充
+          duration: metadata?.duration || 0,
+          conversationDate: metadata?.conversationDate
+            ? new Date(metadata.conversationDate)
+            : new Date(),
+          createdBy: userId,
+          // Slack 業務資訊
+          slackUserId: slackUser?.id,
+          slackUsername: slackUser?.username,
+        })
+        .returning();
+
+      console.log(
+        `[${requestId}] ✓ DB insert completed in ${Date.now() - dbStartTime}ms`
+      );
+
+      const insertedConversation = conversationResults[0];
+      if (!insertedConversation) {
+        console.error(
+          `[${requestId}] ❌ No conversation returned from DB insert`
+        );
+        throw new ORPCError("INTERNAL_SERVER_ERROR");
+      }
+
+      // Step 6: 推送到 Queue
+      console.log(`[${requestId}] 📤 Pushing to transcription queue...`);
+
+      try {
+        // 確保 TRANSCRIPTION_QUEUE binding 存在
+        if (!envRecord.TRANSCRIPTION_QUEUE) {
+          console.error(
+            `[${requestId}] ❌ TRANSCRIPTION_QUEUE binding not found`
+          );
+          throw new ORPCError("INTERNAL_SERVER_ERROR", {
+            message: "Queue binding not configured",
+          });
+        }
+
+        const queueBinding = envRecord.TRANSCRIPTION_QUEUE as any;
+        await queueBinding.send({
+          conversationId,
+          opportunityId,
+          audioUrl,
+          caseNumber,
+          metadata: {
+            fileName: title || `audio-${Date.now()}`,
+            fileSize: audioBuffer.length,
+            format: metadata?.format || "unknown",
+          },
+          slackUser: slackUser
+            ? {
+                id: slackUser.id,
+                username: slackUser.username,
+              }
+            : undefined,
+        });
+
+        console.log(`[${requestId}] ✓ Message pushed to queue successfully`);
+      } catch (queueError) {
+        console.error(`[${requestId}] ❌ Failed to push to queue:`, queueError);
+
+        // 更新狀態為 failed
+        await db
+          .update(conversations)
+          .set({
+            status: "failed",
+            errorMessage: "Failed to queue for processing",
+          })
+          .where(eq(conversations.id, conversationId));
+
+        throw new ORPCError("INTERNAL_SERVER_ERROR", {
+          message: `Failed to queue conversation: ${queueError instanceof Error ? queueError.message : String(queueError)}`,
+        });
+      }
+
+      const responseTime = Date.now() - startTime;
+      const response = {
+        conversationId: insertedConversation.id,
+        caseNumber: insertedConversation.caseNumber,
         audioUrl,
-        transcript: {
-          fullText: transcriptResult.fullText,
-          language: transcriptResult.language || "zh",
-          segments: (transcriptResult.segments || []).map((s) => ({
-            speaker: "unknown",
-            text: s.text,
-            start: s.start,
-            end: s.end,
-          })),
-        },
-        duration: transcriptResult.duration || metadata?.duration,
-        conversationDate: metadata?.conversationDate
-          ? new Date(metadata.conversationDate)
-          : new Date(),
-        createdBy: userId,
-        // Slack 業務資訊
-        slackUserId: slackUser?.id,
-        slackUsername: slackUser?.username,
-      })
-      .returning();
+        status: "pending", // 返回 pending 狀態
+        message: "已接收音檔,正在處理轉錄和分析,完成後會通知您...",
+        createdAt: insertedConversation.createdAt,
+      };
 
-    const insertedConversation = conversationResults[0];
-    if (!insertedConversation) {
-      throw new ORPCError("INTERNAL_SERVER_ERROR");
+      console.log(`[${requestId}] ✅ Request completed in ${responseTime}ms`);
+      console.log(`[${requestId}] Response:`, {
+        conversationId: response.conversationId,
+        caseNumber: response.caseNumber,
+        status: response.status,
+        message: response.message,
+      });
+
+      return response;
+    } catch (error) {
+      const errorTime = Date.now() - startTime;
+      console.error(
+        `[${requestId}] ❌❌❌ UNHANDLED ERROR after ${errorTime}ms:`,
+        error
+      );
+      console.error(`[${requestId}] Error type: ${error?.constructor?.name}`);
+      console.error(`[${requestId}] Error details:`, {
+        name: error instanceof Error ? error.name : "Unknown",
+        message: error instanceof Error ? error.message : String(error),
+        stack:
+          error instanceof Error
+            ? error.stack?.split("\n").slice(0, 5)
+            : undefined,
+      });
+      throw error; // Re-throw to let orPC handle it
     }
-
-    return {
-      conversationId: insertedConversation.id,
-      caseNumber: insertedConversation.caseNumber,
-      audioUrl,
-      transcript: {
-        fullText: transcriptResult.fullText,
-        segmentCount: transcriptResult.segments?.length || 0,
-        language: transcriptResult.language || "zh",
-      },
-      status: insertedConversation.status,
-      createdAt: insertedConversation.createdAt,
-    };
   });
 
 // ============================================================

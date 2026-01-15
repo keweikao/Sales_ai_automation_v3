@@ -1,13 +1,13 @@
 // Import pre-compiled prompts (generated at build time)
 // Run `bun run build:prompts` to regenerate from markdown files
 import {
-  globalContextPrompt,
   agent1ContextPrompt,
   agent2BuyerPrompt,
   agent3SellerPrompt,
   agent4SummaryPrompt,
   agent5CrmPrompt,
   agent6CoachPrompt,
+  globalContextPrompt,
 } from "./prompts.generated";
 
 /**

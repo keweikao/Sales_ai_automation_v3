@@ -170,9 +170,7 @@ export class AgentRegistrationError extends Error {
  * DAG 循環依賴錯誤
  */
 export class CyclicDependencyError extends Error {
-  constructor(
-    public readonly cycle: string[]
-  ) {
+  constructor(public readonly cycle: string[]) {
     super(`Cyclic dependency detected: ${cycle.join(" -> ")}`);
     this.name = "CyclicDependencyError";
   }

@@ -44,7 +44,8 @@ export const server = await Worker("server", {
 
     // Google OAuth (optional)
     GOOGLE_CLIENT_ID: alchemy.env.GOOGLE_CLIENT_ID || "",
-    GOOGLE_CLIENT_SECRET: alchemy.secret.env.GOOGLE_CLIENT_SECRET || alchemy.secret(""),
+    GOOGLE_CLIENT_SECRET:
+      alchemy.secret.env.GOOGLE_CLIENT_SECRET || alchemy.secret(""),
 
     // Environment
     ENVIRONMENT: alchemy.env.ENVIRONMENT!,

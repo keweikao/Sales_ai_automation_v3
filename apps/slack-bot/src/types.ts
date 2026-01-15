@@ -221,7 +221,13 @@ export interface UploadConversationResponse {
   conversationId: string;
   caseNumber: string;
   status: ConversationStatus;
-  transcript?: string;
+  audioUrl: string;
+  transcript: {
+    fullText: string;
+    segmentCount: number;
+    language: string;
+  } | null; // null 表示轉錄尚未完成(pending 狀態)
+  createdAt: Date;
 }
 
 // Alert 相關類型

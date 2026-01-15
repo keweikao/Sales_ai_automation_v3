@@ -125,6 +125,7 @@ export class R2StorageService implements StorageService {
       Key: key,
     });
 
+    // @ts-expect-error - @smithy/types version conflict between dependencies
     return getSignedUrl(this.client, command, { expiresIn });
   }
 
@@ -174,6 +175,65 @@ export class R2StorageService implements StorageService {
         leadId: metadata?.leadId || "",
       },
     });
+  }
+
+  /**
+   * Download audio file with retry logic
+   * Designed for large files with proper error handling
+   */
+  async downloadAudio(
+    key: string,
+    options?: {
+      maxRetries?: number;
+      retryDelayMs?: number;
+    }
+  ): Promise<Buffer> {
+    const maxRetries = options?.maxRetries || 3;
+    const retryDelayMs = options?.retryDelayMs || 1000;
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(
+          `[R2] Downloading audio: ${key} (attempt ${attempt}/${maxRetries})`
+        );
+        const startTime = Date.now();
+
+        const buffer = await this.download(key);
+
+        const duration = Date.now() - startTime;
+        console.log(
+          `[R2] ✓ Downloaded ${buffer.length} bytes in ${duration}ms`
+        );
+
+        return buffer;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        console.error(
+          `[R2] ❌ Download attempt ${attempt}/${maxRetries} failed:`,
+          lastError.message
+        );
+
+        // Don't retry if file not found
+        if (
+          lastError.name === "NotFound" ||
+          lastError.message.includes("not found")
+        ) {
+          throw new Error(`Audio file not found in R2: ${key}`);
+        }
+
+        // Wait before retry (except on last attempt)
+        if (attempt < maxRetries) {
+          console.log(`[R2] Retrying in ${retryDelayMs}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+        }
+      }
+    }
+
+    throw new Error(
+      `Failed to download audio after ${maxRetries} attempts: ` +
+        (lastError?.message || "Unknown error")
+    );
   }
 
   /**

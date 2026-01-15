@@ -3,6 +3,7 @@
  * 將原 Orchestrator 中的 6 個 Agent 包裝成符合 BaseAgent 介面的類別
  */
 
+import type { BaseAgent } from "./base-agent.js";
 import type { GeminiClient } from "./gemini.js";
 import {
   AGENT1_PROMPT,
@@ -23,7 +24,6 @@ import type {
   AnalysisState,
   TranscriptSegment,
 } from "./types.js";
-import type { BaseAgent } from "./base-agent.js";
 
 // ============================================================
 // Utilities
@@ -60,8 +60,7 @@ export class ContextAgent implements BaseAgent {
 
     const prompt = `${GLOBAL_CONTEXT()}\n\n${AGENT1_PROMPT()}\n\n## Meeting Transcript:\n${transcriptText}\n\n## Metadata:\n${JSON.stringify(state.metadata, null, 2)}`;
 
-    const response =
-      await this.geminiClient.generateJSON<Agent1Output>(prompt);
+    const response = await this.geminiClient.generateJSON<Agent1Output>(prompt);
 
     return {
       ...state,
@@ -86,8 +85,7 @@ export class BuyerAgent implements BaseAgent {
 
     const prompt = `${GLOBAL_CONTEXT()}\n\n${AGENT2_PROMPT()}\n\n## Meeting Transcript:\n${transcriptText}`;
 
-    const response =
-      await this.geminiClient.generateJSON<Agent2Output>(prompt);
+    const response = await this.geminiClient.generateJSON<Agent2Output>(prompt);
 
     return {
       ...state,
@@ -120,8 +118,7 @@ export class QualityLoopAgent implements BaseAgent {
       `## Meeting Transcript:\n${transcriptText}\n\n` +
       "IMPORTANT: The previous analysis was incomplete. Please provide more specific evidence, identify pain points more clearly, and ensure all MEDDIC scores are justified.";
 
-    const response =
-      await this.geminiClient.generateJSON<Agent2Output>(prompt);
+    const response = await this.geminiClient.generateJSON<Agent2Output>(prompt);
 
     return {
       ...state,
@@ -150,8 +147,7 @@ export class SellerAgent implements BaseAgent {
       `## Buyer Analysis:\n${buyerInsights}\n\n` +
       `## Meeting Transcript:\n${transcriptText}`;
 
-    const response =
-      await this.geminiClient.generateJSON<Agent3Output>(prompt);
+    const response = await this.geminiClient.generateJSON<Agent3Output>(prompt);
 
     return {
       ...state,
@@ -183,8 +179,7 @@ export class SummaryAgent implements BaseAgent {
       `## Seller Analysis:\n${sellerData}\n\n` +
       `## Meeting Transcript:\n${transcriptText}`;
 
-    const response =
-      await this.geminiClient.generateJSON<Agent4Output>(prompt);
+    const response = await this.geminiClient.generateJSON<Agent4Output>(prompt);
 
     return {
       ...state,
@@ -214,8 +209,7 @@ export class CRMAgent implements BaseAgent {
       `## Buyer Analysis:\n${buyerData}\n\n` +
       `## Meeting Transcript:\n${transcriptText}`;
 
-    const response =
-      await this.geminiClient.generateJSON<Agent5Output>(prompt);
+    const response = await this.geminiClient.generateJSON<Agent5Output>(prompt);
 
     return {
       ...state,
@@ -245,8 +239,7 @@ export class CoachAgent implements BaseAgent {
       `## Seller Analysis:\n${sellerData}\n\n` +
       `## Meeting Transcript:\n${transcriptText}`;
 
-    const response =
-      await this.geminiClient.generateJSON<Agent6Output>(prompt);
+    const response = await this.geminiClient.generateJSON<Agent6Output>(prompt);
 
     return {
       ...state,

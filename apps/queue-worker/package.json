@@ -1,0 +1,28 @@
+{
+  "name": "@Sales_ai_automation_v3/queue-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler deploy --dry-run --outdir=dist",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "check-types": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@Sales_ai_automation_v3/db": "workspace:*",
+    "@Sales_ai_automation_v3/env": "workspace:*",
+    "@Sales_ai_automation_v3/services": "workspace:*",
+    "@sales_ai_automation_v3/shared": "workspace:*",
+    "@neondatabase/serverless": "^1.0.2",
+    "@slack/web-api": "^7.11.0",
+    "drizzle-orm": "^0.45.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250117.0",
+    "typescript": "^5.7.3",
+    "wrangler": "^3.100.0"
+  }
+}

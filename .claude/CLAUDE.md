@@ -104,6 +104,42 @@ Write code that is **accessible, performant, type-safe, and maintainable**. Focu
 
 ---
 
+## Documentation Management
+
+All project documentation files follow a consistent organization structure to maintain clarity and discoverability.
+
+### File Organization Rules
+
+- **All `.md` files (except `CLAUDE.md`) must be placed in the `.doc/` directory**
+- **All files MUST start with date prefix in `YYYYMMDD_` format** (using file modification date)
+- Files should be renamed to be self-explanatory based on their content
+- Use descriptive names in Traditional Chinese for better readability
+- Avoid generic names like "TROUBLESHOOTING" - use specific names like "Slack_Bot問題排查手冊"
+
+### Naming Examples
+
+**Good:**
+- `.doc/20260115_Queue_Worker_Bug修復與Shared整合報告.md` (bug fix report)
+- `.doc/20260115_Queue架構部署指南.md` (deployment guide)
+- `.doc/20260113_Slack_Bot問題排查手冊.md` (troubleshooting reference)
+- `.doc/20260115_Agent_A_基礎設施與核心服務實作計畫.md` (development plan)
+
+**Bad:**
+- `BUG_FIX.md` (not in .doc, no date, generic name)
+- `Queue架構部署指南.md` (missing date prefix)
+- `20260115_DEPLOYMENT.md` (English only, not descriptive enough)
+- `docs.md` (unclear purpose)
+
+### When Creating New Documentation
+
+1. Always create in `.doc/` directory
+2. **Always add YYYYMMDD_ date prefix at the beginning** (use current date or file modification date)
+3. Choose a descriptive name that explains the content
+4. Use Traditional Chinese for clarity
+5. Update this list if introducing new documentation categories
+
+---
+
 ## Testing
 
 - Write assertions inside `it()` or `test()` blocks

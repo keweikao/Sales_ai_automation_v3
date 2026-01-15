@@ -1,7 +1,7 @@
 name = "sales-ai-slack-bot"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
-compatibility_flags = ["nodejs_compat"]
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 
 [vars]
 ENVIRONMENT = "production"
@@ -20,6 +20,14 @@ ENVIRONMENT = "production"
 
 [observability]
 enabled = true
+
+# ============================================================
+# Cron Triggers - Slack Bot Ops Agent
+# ============================================================
+[triggers]
+crons = [
+  "*/5 * * * *",   # 每 5 分鐘檢查 Slack 相關警示
+]
 
 # 開發環境設定
 [env.dev]

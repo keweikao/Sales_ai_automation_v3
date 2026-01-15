@@ -163,9 +163,7 @@ export class SlackClient {
   /**
    * 取得使用者資訊
    */
-  async getUserInfo(
-    userId: string
-  ): Promise<{
+  async getUserInfo(userId: string): Promise<{
     ok: boolean;
     user?: { id: string; name: string; real_name?: string };
     error?: string;

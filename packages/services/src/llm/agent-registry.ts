@@ -3,12 +3,9 @@
  * 管理 Agent 的註冊、發現與依賴關係
  */
 
-import type { AnalysisState } from "./types.js";
 import type { RegisteredAgent } from "./base-agent.js";
-import {
-  AgentRegistrationError,
-  CyclicDependencyError,
-} from "./base-agent.js";
+import { AgentRegistrationError, CyclicDependencyError } from "./base-agent.js";
+import type { AnalysisState } from "./types.js";
 
 // ============================================================
 // Agent Registry Class
@@ -150,7 +147,9 @@ export class AgentRegistry {
       if (agent.isApplicable(state)) {
         available.push(agent);
       } else if (this.enableLogging) {
-        console.log(`[AgentRegistry] Agent "${agent.id}" skipped (not applicable)`);
+        console.log(
+          `[AgentRegistry] Agent "${agent.id}" skipped (not applicable)`
+        );
       }
     }
 
@@ -173,9 +172,7 @@ export class AgentRegistry {
    * @param state - 目前的 AnalysisState (用於評估條件依賴)
    * @returns Map<agentId, dependsOn[]>
    */
-  getDependencyGraph(
-    state: AnalysisState
-  ): Map<string, string[]> {
+  getDependencyGraph(state: AnalysisState): Map<string, string[]> {
     const graph = new Map<string, string[]>();
 
     for (const agent of this.agents.values()) {
@@ -332,10 +329,10 @@ export class AgentRegistry {
    */
   getSummary(): string {
     const lines = [
-      `=== Agent Registry Summary ===`,
+      "=== Agent Registry Summary ===",
       `Total agents: ${this.agents.size}`,
-      ``,
-      `Registered agents:`,
+      "",
+      "Registered agents:",
     ];
 
     const sortedAgents = [...this.agents.values()].sort(
@@ -366,8 +363,8 @@ export class AgentRegistry {
  * @param options - 建立選項
  * @returns AgentRegistry 實例
  */
-export function createAgentRegistry(options: {
-  enableLogging?: boolean;
-} = {}): AgentRegistry {
+export function createAgentRegistry(
+  options: { enableLogging?: boolean } = {}
+): AgentRegistry {
   return new AgentRegistry(options);
 }

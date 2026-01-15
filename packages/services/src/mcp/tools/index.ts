@@ -82,3 +82,70 @@ export {
   GetTalkTracksTool,
   getTalkTracksToolDefinition,
 } from "./get-talk-tracks.js";
+
+// ============================================================
+// Ops Tools (Routine Operations & Auto-Repair)
+// ============================================================
+
+export * from "./ops/index.js";
+
+// ============================================================
+// External Service Tools (PostgreSQL, Filesystem, etc.)
+// ============================================================
+
+export {
+  filesystemListTool,
+  filesystemReadTool,
+  filesystemWriteTool,
+} from "../external/filesystem.js";
+export {
+  postgresQueryTool,
+  postgresSchemaInspectorTool,
+} from "../external/postgres.js";
+
+export {
+  slackPostAlertTool,
+  slackPostFormattedAnalysisTool,
+} from "../external/slack.js";
+
+// ============================================================
+// External Service Tools - Phase 2
+// ============================================================
+
+export {
+  geminiGenerateJSONTool,
+  geminiGenerateTextTool,
+  geminiMeddicAnalysisTool,
+} from "../external/gemini-llm.js";
+export {
+  groqCheckAudioSizeTool,
+  groqEstimateCostTool,
+  groqTranscribeAudioTool,
+} from "../external/groq-whisper.js";
+export {
+  r2CheckFileExistsTool,
+  r2DeleteFileTool,
+  r2DownloadFileTool,
+  r2GenerateSignedUrlTool,
+  r2UploadFileTool,
+} from "../external/r2-storage.js";
+
+// ============================================================
+// Query Templates & Report Templates
+// ============================================================
+
+export {
+  ANALYTICS_QUERIES,
+  QueryBuilder,
+} from "../templates/analytics-queries.js";
+export type {
+  DailySummary,
+  MEDDICAnalysis,
+  RepPerformance,
+  TeamPerformance,
+} from "../templates/report-templates.js";
+export {
+  generateDailySummary,
+  generateMeddicReport,
+  generateTeamReport,
+} from "../templates/report-templates.js";

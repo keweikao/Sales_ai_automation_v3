@@ -3,12 +3,13 @@
  * Aligned with V2 Groq Whisper implementation
  */
 
-export interface TranscriptSegment {
-  start: number; // seconds
-  end: number; // seconds
-  text: string;
-  speaker?: string; // Optional speaker diarization
-}
+import type {
+  Transcript,
+  TranscriptSegment,
+} from "@sales_ai_automation_v3/shared";
+
+// Re-export from shared for convenience
+export type { TranscriptSegment, Transcript };
 
 export interface TranscriptResult {
   fullText: string;

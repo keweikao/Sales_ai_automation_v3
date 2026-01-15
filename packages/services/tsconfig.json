@@ -2,7 +2,6 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "target": "ES2022",
@@ -14,13 +13,18 @@
     "skipLibCheck": true,
     "strict": true,
     "resolveJsonModule": true,
-    "downlevelIteration": true
+    "downlevelIteration": true,
+    "paths": {
+      "@sales_ai_automation_v3/shared": ["../shared/src"],
+      "@sales_ai_automation_v3/shared/*": ["../shared/src/*"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": [
     "node_modules",
     "dist",
     "src/agent/**/*",
-    "src/mcp/**/*"
+    "src/mcp/**/*",
+    "src/ops/**/*"
   ]
 }

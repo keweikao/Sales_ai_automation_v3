@@ -16,6 +16,17 @@
  * - Level 4: Coach
  */
 
+import { createAgentRegistry } from "./agent-registry.js";
+import {
+  createBuyerAgent,
+  createCoachAgent,
+  createContextAgent,
+  createCRMAgent,
+  createQualityLoopAgent,
+  createSellerAgent,
+  createSummaryAgent,
+} from "./agents.js";
+import { createDAGExecutor } from "./dag-executor.js";
 import type { GeminiClient } from "./gemini.js";
 import type {
   AnalysisMetadata,
@@ -23,17 +34,6 @@ import type {
   AnalysisState,
   TranscriptSegment,
 } from "./types.js";
-import { createAgentRegistry } from "./agent-registry.js";
-import { createDAGExecutor } from "./dag-executor.js";
-import {
-  createContextAgent,
-  createBuyerAgent,
-  createQualityLoopAgent,
-  createSellerAgent,
-  createSummaryAgent,
-  createCRMAgent,
-  createCoachAgent,
-} from "./agents.js";
 
 export class MeddicOrchestrator {
   private readonly geminiClient: GeminiClient;
@@ -143,8 +143,7 @@ export class MeddicOrchestrator {
         { agentId: "buyer" },
         {
           agentId: "quality_loop",
-          condition: (state) =>
-            state.refinementCount > 0, // 只有執行過 Quality Loop 才依賴它
+          condition: (state) => state.refinementCount > 0, // 只有執行過 Quality Loop 才依賴它
         },
       ],
       isApplicable: () => true,
@@ -187,7 +186,9 @@ export class MeddicOrchestrator {
     console.log(
       `[Orchestrator] Parallelization ratio: ${result.parallelizationRatio.toFixed(2)}x`
     );
-    console.log(`[Orchestrator] Execution order: ${result.executionOrder.join(" → ")}`);
+    console.log(
+      `[Orchestrator] Execution order: ${result.executionOrder.join(" → ")}`
+    );
 
     // 建立最終結果
     return this.buildResult(result.finalState);
@@ -200,9 +201,7 @@ export class MeddicOrchestrator {
   /**
    * V2 原始執行流程 (保留作為 Fallback)
    */
-  private async executeLegacy(
-    state: AnalysisState
-  ): Promise<AnalysisResult> {
+  private async executeLegacy(state: AnalysisState): Promise<AnalysisResult> {
     // Phase 1: Parallel execution (Context + Buyer)
     console.log(
       "[Orchestrator] Phase 1: Running Context + Buyer agents in parallel"
@@ -275,9 +274,7 @@ export class MeddicOrchestrator {
    * Checks if buyer analysis meets minimum quality standards
    */
   private isQualityPassed(
-    buyerData:
-      | import("./types.js").Agent2Output
-      | undefined
+    buyerData: import("./types.js").Agent2Output | undefined
   ): boolean {
     if (!buyerData) {
       return false;

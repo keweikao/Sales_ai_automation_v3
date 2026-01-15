@@ -131,4 +131,68 @@ app.get("/live", (c) => {
   return c.json({ alive: true }, 200);
 });
 
-export default app;
+// ============================================================
+// Cloudflare Workers Export
+// 合併 Hono fetch handler 和 Scheduled handler
+// ============================================================
+
+// Type declarations for Cloudflare Workers
+interface Env {
+  SLACK_BOT_TOKEN?: string;
+  [key: string]: unknown;
+}
+
+export default {
+  // HTTP 請求處理 (Hono app)
+  fetch: app.fetch,
+
+  // Cron Trigger 處理 - 定期健康檢查與自動修復
+  async scheduled(
+    event: ScheduledEvent,
+    env: Env,
+    ctx: ExecutionContext
+  ): Promise<void> {
+    console.log("[Ops] Scheduled event triggered:", event.cron);
+
+    try {
+      const { createOpsOrchestrator, sendOpsAlert } = await import(
+        "@Sales_ai_automation_v3/services/ops"
+      );
+
+      const orchestrator = createOpsOrchestrator({
+        enableParallelChecks: true,
+        enableAutoRepair: true,
+        checkTimeoutMs: 30_000,
+        repairTimeoutMs: 30_000,
+      });
+
+      // 執行健康檢查與自動修復
+      const summary = await orchestrator.execute();
+
+      // 產生報告
+      const report = orchestrator.generateReport(summary);
+      console.log("[Ops] Execution completed:");
+      console.log(report);
+
+      // 如果有 critical 問題，發送警示到 Slack
+      const criticalFailures = summary.checkResults.filter(
+        (r) => r.status === "critical"
+      );
+
+      if (criticalFailures.length > 0) {
+        console.warn("[Ops] Critical failures detected:", criticalFailures);
+
+        // 發送 Slack 警示
+        if (env.SLACK_BOT_TOKEN) {
+          await sendOpsAlert(summary, env.SLACK_BOT_TOKEN);
+        } else {
+          console.warn("[Ops] SLACK_BOT_TOKEN not configured, skipping alert");
+        }
+      }
+
+      // TODO: 將結果記錄到資料庫
+    } catch (error) {
+      console.error("[Ops] Scheduled event failed:", error);
+    }
+  },
+};

@@ -1,0 +1,46 @@
+{
+  "name": "@sales_ai_automation_v3/shared",
+  "version": "0.1.0-alpha.0",
+  "description": "Shared types, errors, and schemas for Sales AI Automation V3",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./errors": {
+      "types": "./src/errors/index.ts",
+      "import": "./src/errors/index.ts"
+    },
+    "./types": {
+      "types": "./src/types/index.ts",
+      "import": "./src/types/index.ts"
+    },
+    "./schemas": {
+      "types": "./src/schemas/index.ts",
+      "import": "./src/schemas/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "lint": "bun x ultracite check",
+    "fix": "bun x ultracite fix",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "keywords": [
+    "shared",
+    "types",
+    "errors",
+    "schemas"
+  ],
+  "author": "",
+  "license": "ISC"
+}

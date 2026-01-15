@@ -3,51 +3,22 @@
  * Aligned with V2 structure for seamless migration
  */
 
-// ============================================================
-// Transcript Types
-// ============================================================
+import type {
+  DimensionAnalysis,
+  MeddicDimensions,
+  MeddicScores,
+  Transcript,
+  TranscriptSegment,
+} from "@sales_ai_automation_v3/shared";
 
-export interface TranscriptSegment {
-  speaker: string;
-  text: string;
-  start: number; // seconds
-  end: number; // seconds
-}
-
-export interface Transcript {
-  segments: TranscriptSegment[];
-  fullText: string;
-  language: string;
-  duration?: number;
-}
-
-// ============================================================
-// MEDDIC Dimensions (1-5 scoring)
-// ============================================================
-
-export interface MeddicScores {
-  metrics: number;
-  economicBuyer: number;
-  decisionCriteria: number;
-  decisionProcess: number;
-  identifyPain: number;
-  champion: number;
-}
-
-export interface DimensionAnalysis {
-  evidence: string[];
-  gaps: string[];
-  recommendations: string[];
-}
-
-export interface MeddicDimensions {
-  metrics: DimensionAnalysis;
-  economicBuyer: DimensionAnalysis;
-  decisionCriteria: DimensionAnalysis;
-  decisionProcess: DimensionAnalysis;
-  identifyPain: DimensionAnalysis;
-  champion: DimensionAnalysis;
-}
+// Re-export from shared for convenience
+export type {
+  TranscriptSegment,
+  Transcript,
+  MeddicScores,
+  DimensionAnalysis,
+  MeddicDimensions,
+};
 
 // ============================================================
 // Agent Output Types (V2 compatibility)

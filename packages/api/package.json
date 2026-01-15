@@ -9,7 +9,12 @@
       "default": "./src/*.ts"
     }
   },
-  "scripts": {},
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "lint": "bun x ultracite check",
+    "fix": "bun x ultracite fix"
+  },
   "dependencies": {
     "@Sales_ai_automation_v3/auth": "workspace:*",
     "@Sales_ai_automation_v3/db": "workspace:*",

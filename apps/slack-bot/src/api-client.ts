@@ -40,9 +40,22 @@ export class ApiClient {
       headers.Authorization = `Bearer ${this.token}`;
     }
 
+    // oRPC 需要將 body 包裝在 {"json": ...} 中
+    let body = options.body;
+    if (body && typeof body === "string") {
+      try {
+        const parsed = JSON.parse(body);
+        body = JSON.stringify({ json: parsed });
+      } catch {
+        // 如果解析失敗，保持原樣
+      }
+    }
+
     const response = await fetch(url, {
       ...options,
+      method: options.method || "POST", // oRPC 所有端點都使用 POST
       headers,
+      body,
     });
 
     if (!response.ok) {
@@ -50,7 +63,9 @@ export class ApiClient {
       throw new Error(`API Error: ${response.status} - ${error}`);
     }
 
-    return response.json() as Promise<T>;
+    // oRPC 響應格式為 {"json": data, "meta": [...]}
+    const result = (await response.json()) as { json?: T };
+    return (result.json ?? result) as T;
   }
 
   // Opportunity 相關 API
@@ -59,25 +74,18 @@ export class ApiClient {
     limit?: number;
     offset?: number;
   }): Promise<{ opportunities: OpportunityResponse[]; total: number }> {
-    const searchParams = new URLSearchParams();
-    if (params?.status) {
-      searchParams.set("status", params.status);
-    }
-    if (params?.limit) {
-      searchParams.set("limit", String(params.limit));
-    }
-    if (params?.offset) {
-      searchParams.set("offset", String(params.offset));
-    }
-
-    const query = searchParams.toString();
-    return this.request(`/rpc/opportunities/list${query ? `?${query}` : ""}`);
+    return this.request("/rpc/opportunities/list", {
+      body: JSON.stringify(params || {}),
+    });
   }
 
   async getOpportunityById(id: string): Promise<OpportunityResponse | null> {
     try {
       const result = await this.request<{ opportunity: OpportunityResponse }>(
-        `/rpc/opportunities/get?opportunityId=${encodeURIComponent(id)}`
+        "/rpc/opportunities/get",
+        {
+          body: JSON.stringify({ opportunityId: id }),
+        }
       );
       return result.opportunity;
     } catch {
@@ -98,7 +106,6 @@ export class ApiClient {
     notes?: string;
   }): Promise<OpportunityResponse> {
     return this.request<OpportunityResponse>("/rpc/opportunities/create", {
-      method: "POST",
       body: JSON.stringify(data),
     });
   }
@@ -110,28 +117,18 @@ export class ApiClient {
     limit?: number;
     offset?: number;
   }): Promise<{ conversations: ConversationResponse[]; total: number }> {
-    const searchParams = new URLSearchParams();
-    if (params?.opportunityId) {
-      searchParams.set("opportunityId", params.opportunityId);
-    }
-    if (params?.status) {
-      searchParams.set("status", params.status);
-    }
-    if (params?.limit) {
-      searchParams.set("limit", String(params.limit));
-    }
-    if (params?.offset) {
-      searchParams.set("offset", String(params.offset));
-    }
-
-    const query = searchParams.toString();
-    return this.request(`/rpc/conversations/list${query ? `?${query}` : ""}`);
+    return this.request("/rpc/conversations/list", {
+      body: JSON.stringify(params || {}),
+    });
   }
 
   async getConversationById(id: string): Promise<ConversationResponse | null> {
     try {
       const result = await this.request<{ conversation: ConversationResponse }>(
-        `/rpc/conversations/get?conversationId=${encodeURIComponent(id)}`
+        "/rpc/conversations/get",
+        {
+          body: JSON.stringify({ conversationId: id }),
+        }
       );
       return result.conversation;
     } catch {
@@ -141,7 +138,9 @@ export class ApiClient {
 
   async uploadConversation(data: {
     opportunityId: string;
-    audioBase64: string;
+    audioBase64?: string;
+    slackFileUrl?: string;
+    slackBotToken?: string;
     title?: string;
     type: ConversationType;
     metadata?: {
@@ -156,7 +155,6 @@ export class ApiClient {
     return this.request<UploadConversationResponse>(
       "/rpc/conversations/upload",
       {
-        method: "POST",
         body: JSON.stringify(data),
       }
     );
@@ -164,7 +162,6 @@ export class ApiClient {
 
   async analyzeConversation(id: string): Promise<MeddicAnalysisResponse> {
     return this.request<MeddicAnalysisResponse>("/rpc/conversations/analyze", {
-      method: "POST",
       body: JSON.stringify({ conversationId: id }),
     });
   }
@@ -174,7 +171,6 @@ export class ApiClient {
     summary: string
   ): Promise<void> {
     await this.request("/rpc/conversations/updateSummary", {
-      method: "POST",
       body: JSON.stringify({ conversationId, summary }),
     });
   }
@@ -197,21 +193,18 @@ export class ApiClient {
   // Alert 相關 API
   async acknowledgeAlert(alertId: string): Promise<void> {
     await this.request("/rpc/alert/acknowledge", {
-      method: "POST",
       body: JSON.stringify({ alertId }),
     });
   }
 
   async dismissAlert(alertId: string): Promise<void> {
     await this.request("/rpc/alert/dismiss", {
-      method: "POST",
       body: JSON.stringify({ alertId }),
     });
   }
 
   async resolveAlert(alertId: string, resolution: string): Promise<void> {
     await this.request("/rpc/alert/resolve", {
-      method: "POST",
       body: JSON.stringify({ alertId, resolution }),
     });
   }
@@ -223,16 +216,9 @@ export class ApiClient {
     limit?: number;
     offset?: number;
   }): Promise<{ alerts: AlertResponse[]; total: number }> {
-    const searchParams = new URLSearchParams();
-    if (params?.status) searchParams.set("status", params.status);
-    if (params?.type) searchParams.set("type", params.type);
-    if (params?.opportunityId)
-      searchParams.set("opportunityId", params.opportunityId);
-    if (params?.limit) searchParams.set("limit", String(params.limit));
-    if (params?.offset) searchParams.set("offset", String(params.offset));
-
-    const query = searchParams.toString();
-    return this.request(`/rpc/alert/list${query ? `?${query}` : ""}`);
+    return this.request("/rpc/alert/list", {
+      body: JSON.stringify(params || {}),
+    });
   }
 
   async getAlertStats(): Promise<AlertStatsResponse> {
@@ -244,31 +230,22 @@ export class ApiClient {
     situation: string,
     customerType?: string
   ): Promise<TalkTrackResponse[]> {
-    const searchParams = new URLSearchParams();
-    searchParams.set("situation", situation);
-    if (customerType) {
-      searchParams.set("customerType", customerType);
-    }
-    return this.request<TalkTrackResponse[]>(
-      `/rpc/talkTracks/getBySituation?${searchParams.toString()}`
-    );
+    return this.request<TalkTrackResponse[]>("/rpc/talkTracks/getBySituation", {
+      body: JSON.stringify({ situation, customerType }),
+    });
   }
 
   async searchTalkTracks(
     keyword: string,
     limit = 5
   ): Promise<TalkTrackResponse[]> {
-    const searchParams = new URLSearchParams();
-    searchParams.set("keyword", keyword);
-    searchParams.set("limit", String(limit));
-    return this.request<TalkTrackResponse[]>(
-      `/rpc/talkTracks/search?${searchParams.toString()}`
-    );
+    return this.request<TalkTrackResponse[]>("/rpc/talkTracks/search", {
+      body: JSON.stringify({ keyword, limit }),
+    });
   }
 
   async recordTalkTrackUsage(talkTrackId: string): Promise<void> {
     await this.request("/rpc/talkTracks/recordUsage", {
-      method: "POST",
       body: JSON.stringify({ talkTrackId }),
     });
   }

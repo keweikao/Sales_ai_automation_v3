@@ -1,7 +1,7 @@
 name = "sales-ai-server"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
-compatibility_flags = ["nodejs_compat"]
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 
 [vars]
 ENVIRONMENT = "production"
@@ -18,11 +18,35 @@ CORS_ORIGIN = "https://sales-ai-web.salesaiautomationv3.workers.dev"
 # - CLOUDFLARE_R2_SECRET_KEY
 # - CLOUDFLARE_R2_BUCKET
 # - CLOUDFLARE_R2_ENDPOINT
+# - SLACK_BOT_TOKEN (Ops 警示通知用)
 # - GOOGLE_CLIENT_ID (可選)
 # - GOOGLE_CLIENT_SECRET (可選)
 
 [observability]
 enabled = true
+
+# ============================================================
+# CPU 時間限制 - 支援大音檔轉錄
+# 注意: 免費方案預設 30 秒 CPU 時間
+# 付費方案可調整至 120000ms (2 分鐘) 或更高
+# ============================================================
+# [limits]
+# cpu_ms = 120000  # 需要付費方案
+
+# ============================================================
+# Queues - Transcription Queue (Producer)
+# ============================================================
+[[queues.producers]]
+queue = "transcription-queue"
+binding = "TRANSCRIPTION_QUEUE"
+
+# ============================================================
+# Cron Triggers - Routine Ops Agent
+# ============================================================
+[triggers]
+crons = [
+  "*/15 * * * *",  # 每 15 分鐘執行健康檢查與自動修復
+]
 
 # 開發環境設定
 [env.dev]

@@ -1,0 +1,22 @@
+name = "sales-ai-queue-worker"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "production"
+
+# Queue Consumer 配置
+[[queues.consumers]]
+queue = "transcription-queue"
+max_batch_size = 1
+max_retries = 3
+max_wait_time_ms = 60000
+dead_letter_queue = "transcription-dlq"
+
+# 開發環境設定
+[env.dev]
+name = "sales-ai-queue-worker-dev"
+
+[env.dev.vars]
+ENVIRONMENT = "development"

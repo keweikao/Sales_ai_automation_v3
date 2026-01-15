@@ -102,6 +102,25 @@ export * from "./alerts/index.js";
 export * from "./lead-source/index.js";
 
 // ============================================================
+// Notification Services
+// ============================================================
+
+export type {
+  MEDDICAnalysisResult,
+  ProcessingCompletedParams,
+  ProcessingFailedParams,
+  ProcessingStartedParams,
+  SlackNotificationConfig,
+  SlackNotificationService,
+} from "./notifications/index.js";
+export {
+  buildProcessingCompletedBlocks,
+  buildProcessingFailedBlocks,
+  buildProcessingStartedBlocks,
+  createSlackNotificationService,
+} from "./notifications/index.js";
+
+// ============================================================
 // MCP Tools & Server
 // ============================================================
 

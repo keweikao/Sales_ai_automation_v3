@@ -328,3 +328,218 @@ export function createMCPServer(
 ): MCPServer {
   return new MCPServer(options);
 }
+
+// ============================================================
+// External MCP Server Integration
+// ============================================================
+
+import {
+  filesystemListTool,
+  filesystemReadTool,
+  filesystemWriteTool,
+} from "./external/filesystem.js";
+import {
+  geminiGenerateJSONTool,
+  geminiGenerateTextTool,
+  geminiMeddicAnalysisTool,
+} from "./external/gemini-llm.js";
+import {
+  gdriveCreateFolderTool,
+  gdriveSearchFilesTool,
+  gdriveShareFileTool,
+  gdriveUploadReportTool,
+} from "./external/google-drive.js";
+import {
+  calendarCreateEventTool,
+  calendarDeleteEventTool,
+  calendarListEventsTool,
+  calendarScheduleFollowUpTool,
+  calendarUpdateEventTool,
+} from "./external/google-calendar.js";
+import {
+  groqCheckAudioSizeTool,
+  groqEstimateCostTool,
+  groqTranscribeAudioTool,
+} from "./external/groq-whisper.js";
+import {
+  postgresQueryTool,
+  postgresSchemaInspectorTool,
+} from "./external/postgres.js";
+import {
+  r2CheckFileExistsTool,
+  r2DeleteFileTool,
+  r2DownloadFileTool,
+  r2GenerateSignedUrlTool,
+  r2UploadFileTool,
+} from "./external/r2-storage.js";
+import {
+  slackPostAlertTool,
+  slackPostFormattedAnalysisTool,
+} from "./external/slack.js";
+import {
+  // Analysis Ops Tools (6 tools)
+  analysisCompletenessCheckTool,
+  analysisLlmCheckTool,
+  analysisLlmRepairTool,
+  analysisQueueCheckTool,
+  analysisQueueRepairTool,
+  analysisRerunRepairTool,
+  slackChannelPermissionCheckTool,
+  slackChannelRepairTool,
+  // Slack Ops Tools (10 tools)
+  slackConnectionCheckTool,
+  slackConnectionRepairTool,
+  slackEventListenerCheckTool,
+  slackEventRepairTool,
+  slackFileDownloadCheckTool,
+  slackFileRepairTool,
+  slackMessageRetryRepairTool,
+  slackMessageSendCheckTool,
+  storageCleanupRepairTool,
+  storageIntegrityCheckTool,
+  storagePermissionCheckTool,
+  storagePermissionRepairTool,
+  storageReuploadRepairTool,
+  // Storage Ops Tools (6 tools)
+  storageUsageCheckTool,
+  // Transcription Ops Tools (6 tools)
+  transcriptionApiCheckTool,
+  transcriptionApiRepairTool,
+  transcriptionCancelRepairTool,
+  transcriptionExpiredTasksCheckTool,
+  transcriptionRetryRepairTool,
+  transcriptionStuckTasksCheckTool,
+} from "./tools/ops/index.js";
+import {
+  // Analytics MCP Tools (4 tools)
+  exportSheetsTo,
+  opportunityForecastTool,
+  repPerformanceTool,
+  teamDashboardTool,
+} from "./tools/analytics/index.js";
+
+/**
+ * 建立包含所有工具的完整 MCP Server
+ * 包含內部工具和外部 MCP Server 工具
+ *
+ * @param options - 建立選項
+ * @returns 已註冊所有工具的 MCPServer 實例
+ */
+export function createFullMCPServer(
+  options: { enableLogging?: boolean } = {}
+): MCPServer {
+  const server = new MCPServer(options);
+
+  // Phase 1: Core MCP Tools
+
+  // 註冊 PostgreSQL 工具
+  server.registerTools([postgresQueryTool, postgresSchemaInspectorTool]);
+
+  // 註冊 Filesystem 工具
+  server.registerTools([
+    filesystemReadTool,
+    filesystemWriteTool,
+    filesystemListTool,
+  ]);
+
+  // 註冊 Slack 工具
+  server.registerTools([slackPostFormattedAnalysisTool, slackPostAlertTool]);
+
+  // Phase 2: External Service Tools
+
+  // 註冊 Groq Whisper 工具
+  server.registerTools([
+    groqTranscribeAudioTool,
+    groqCheckAudioSizeTool,
+    groqEstimateCostTool,
+  ]);
+
+  // 註冊 R2 Storage 工具
+  server.registerTools([
+    r2UploadFileTool,
+    r2DownloadFileTool,
+    r2GenerateSignedUrlTool,
+    r2CheckFileExistsTool,
+    r2DeleteFileTool,
+  ]);
+
+  // 註冊 Gemini LLM 工具
+  server.registerTools([
+    geminiGenerateTextTool,
+    geminiGenerateJSONTool,
+    geminiMeddicAnalysisTool,
+  ]);
+
+  // Phase 3: Ops Tools (28 tools)
+
+  // 註冊 Slack Ops 工具 (10 tools)
+  server.registerTools([
+    slackConnectionCheckTool,
+    slackConnectionRepairTool,
+    slackFileDownloadCheckTool,
+    slackFileRepairTool,
+    slackEventListenerCheckTool,
+    slackEventRepairTool,
+    slackMessageSendCheckTool,
+    slackMessageRetryRepairTool,
+    slackChannelPermissionCheckTool,
+    slackChannelRepairTool,
+  ]);
+
+  // 註冊 Transcription Ops 工具 (6 tools)
+  server.registerTools([
+    transcriptionApiCheckTool,
+    transcriptionApiRepairTool,
+    transcriptionStuckTasksCheckTool,
+    transcriptionRetryRepairTool,
+    transcriptionExpiredTasksCheckTool,
+    transcriptionCancelRepairTool,
+  ]);
+
+  // 註冊 Storage Ops 工具 (6 tools)
+  server.registerTools([
+    storageUsageCheckTool,
+    storageCleanupRepairTool,
+    storageIntegrityCheckTool,
+    storageReuploadRepairTool,
+    storagePermissionCheckTool,
+    storagePermissionRepairTool,
+  ]);
+
+  // 註冊 Analysis Ops 工具 (6 tools)
+  server.registerTools([
+    analysisCompletenessCheckTool,
+    analysisRerunRepairTool,
+    analysisQueueCheckTool,
+    analysisQueueRepairTool,
+    analysisLlmCheckTool,
+    analysisLlmRepairTool,
+  ]);
+
+  // Phase 4: Analytics MCP Tools (4 tools)
+  server.registerTools([
+    teamDashboardTool,
+    repPerformanceTool,
+    opportunityForecastTool,
+    exportSheetsTo,
+  ]);
+
+  // Phase 4: Google Drive MCP Tools (4 tools)
+  server.registerTools([
+    gdriveUploadReportTool,
+    gdriveCreateFolderTool,
+    gdriveShareFileTool,
+    gdriveSearchFilesTool,
+  ]);
+
+  // Phase 4: Google Calendar MCP Tools (5 tools)
+  server.registerTools([
+    calendarScheduleFollowUpTool,
+    calendarCreateEventTool,
+    calendarListEventsTool,
+    calendarUpdateEventTool,
+    calendarDeleteEventTool,
+  ]);
+
+  return server;
+}

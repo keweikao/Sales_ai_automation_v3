@@ -16,6 +16,12 @@ export const conversations = pgTable("conversations", {
   title: text("title"),
   type: text("type").notNull(), // discovery_call, demo, follow_up, negotiation, closing, support
   status: text("status").notNull().default("pending"), // pending, transcribing, analyzing, completed, failed
+  errorMessage: text("error_message"),
+  errorDetails: jsonb("error_details").$type<{
+    code?: string;
+    stack?: string;
+    timestamp?: string;
+  }>(),
 
   // Content
   audioUrl: text("audio_url"),

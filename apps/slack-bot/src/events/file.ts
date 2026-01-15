@@ -41,7 +41,9 @@ export async function handleFileSharedEvent(
   event: SlackEvent,
   env: Env
 ): Promise<void> {
-  console.log(`[FileEvent] Starting handleFileSharedEvent for file_id: ${event.file_id}`);
+  console.log(
+    `[FileEvent] Starting handleFileSharedEvent for file_id: ${event.file_id}`
+  );
 
   const fileId = event.file_id;
 
@@ -50,7 +52,9 @@ export async function handleFileSharedEvent(
     return;
   }
 
-  console.log(`[FileEvent] Creating SlackClient with token: ${env.SLACK_BOT_TOKEN?.substring(0, 10)}...`);
+  console.log(
+    `[FileEvent] Creating SlackClient with token: ${env.SLACK_BOT_TOKEN?.substring(0, 10)}...`
+  );
   const slackClient = new SlackClient(env.SLACK_BOT_TOKEN);
 
   // 取得檔案資訊
@@ -62,13 +66,41 @@ export async function handleFileSharedEvent(
     return;
   }
 
-  console.log(`[FileEvent] File info retrieved: ${fileInfo.file.name}, type: ${fileInfo.file.mimetype}`);
+  console.log(
+    `[FileEvent] File info retrieved: ${fileInfo.file.name}, type: ${fileInfo.file.mimetype}`
+  );
   const file = fileInfo.file;
 
-  // 檢查是否為音檔
-  console.log(`[FileEvent] Checking if file is audio. Mimetype: ${file.mimetype}`);
-  if (!SUPPORTED_AUDIO_TYPES.includes(file.mimetype)) {
-    console.log(`[FileEvent] Ignoring non-audio file: ${file.mimetype}`);
+  // 檢查是否為音檔 - 同時檢查 mimetype 和副檔名
+  console.log(
+    `[FileEvent] Checking if file is audio. Mimetype: ${file.mimetype}, filename: ${file.name}`
+  );
+
+  const isSupportedMimetype =
+    file.mimetype && SUPPORTED_AUDIO_TYPES.includes(file.mimetype);
+  const audioExtensions = [
+    ".mp3",
+    ".wav",
+    ".m4a",
+    ".webm",
+    ".ogg",
+    ".mp4",
+    ".mpeg",
+  ];
+  const hasAudioExtension = audioExtensions.some((ext) =>
+    file.name.toLowerCase().endsWith(ext)
+  );
+
+  const isAudioFile = isSupportedMimetype || hasAudioExtension;
+
+  console.log(
+    `[FileEvent] Audio check result: mimetype=${isSupportedMimetype}, extension=${hasAudioExtension}, isAudio=${isAudioFile}`
+  );
+
+  if (!isAudioFile) {
+    console.log(
+      `[FileEvent] Ignoring non-audio file: ${file.mimetype}, name: ${file.name}`
+    );
     return;
   }
 
@@ -86,10 +118,12 @@ export async function handleFileSharedEvent(
   }
 
   // 檢查是否有下載 URL
-  console.log(`[FileEvent] Checking download URL: ${file.url_private_download ? 'exists' : 'missing'}`);
+  console.log(
+    `[FileEvent] Checking download URL: ${file.url_private_download ? "exists" : "missing"}`
+  );
   const downloadUrl = file.url_private_download;
   if (!downloadUrl) {
-    console.log(`[FileEvent] No download URL available`);
+    console.log("[FileEvent] No download URL available");
     await slackClient.postMessage({
       channel: event.channel,
       text: `:warning: 無法取得檔案「${file.name}」的下載連結。`,
@@ -99,7 +133,7 @@ export async function handleFileSharedEvent(
   }
 
   // 取得上傳者的使用者名稱
-  console.log(`[FileEvent] Fetching user info for: ${event.user ?? 'unknown'}`);
+  console.log(`[FileEvent] Fetching user info for: ${event.user ?? "unknown"}`);
   let userName = "";
   if (event.user) {
     try {
@@ -124,10 +158,15 @@ export async function handleFileSharedEvent(
     downloadUrl,
   };
 
-  console.log(`[FileEvent] Prepared pending file data:`, JSON.stringify(pendingFile, null, 2));
+  console.log(
+    "[FileEvent] Prepared pending file data:",
+    JSON.stringify(pendingFile, null, 2)
+  );
 
   // 發送帶按鈕的訊息，請用戶填寫資訊
-  console.log(`[FileEvent] Sending message with button to channel: ${event.channel}`);
+  console.log(
+    `[FileEvent] Sending message with button to channel: ${event.channel}`
+  );
   try {
     const result = await slackClient.postMessage({
       channel: event.channel,
@@ -135,9 +174,12 @@ export async function handleFileSharedEvent(
       thread_ts: event.event_ts ?? event.ts,
       blocks: buildAudioDetectedBlocks(file.name, file.size, pendingFile),
     });
-    console.log(`[FileEvent] Message sent successfully:`, JSON.stringify(result, null, 2));
+    console.log(
+      "[FileEvent] Message sent successfully:",
+      JSON.stringify(result, null, 2)
+    );
   } catch (error) {
-    console.error(`[FileEvent] Failed to send message:`, error);
+    console.error("[FileEvent] Failed to send message:", error);
     throw error;
   }
 }
@@ -433,31 +475,68 @@ export async function processAudioWithMetadata(
   metadata: AudioUploadMetadata,
   env: Env
 ): Promise<void> {
+  const processingId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const startTime = Date.now();
+
+  console.log(`[SlackBot:${processingId}] 🎬 Started processing audio file`);
+  console.log(`[SlackBot:${processingId}] Details:`, {
+    fileName: pendingFile.fileName,
+    customer: metadata.customerName,
+    channel: pendingFile.channelId,
+  });
+
   const slackClient = new SlackClient(env.SLACK_BOT_TOKEN);
 
   // 發送處理中訊息
+  console.log(
+    `[SlackBot:${processingId}] 💬 Posting processing message to Slack...`
+  );
   const processingMsg = await slackClient.postMessage({
     channel: pendingFile.channelId,
     text: `:hourglass_flowing_sand: 正在處理音檔「${pendingFile.fileName}」...\n客戶：${metadata.customerName}\n轉錄和 MEDDIC 分析可能需要幾分鐘的時間。`,
     thread_ts: pendingFile.threadTs,
   });
+  console.log(`[SlackBot:${processingId}] ✓ Processing message posted`);
 
   try {
-    // 下載檔案
-    const audioData = await slackClient.downloadFile(pendingFile.downloadUrl);
-
-    // 呼叫 API 進行轉錄和分析
+    // 不在 Slack Bot 下載檔案,改為傳遞 URL 給 Server 下載
+    // 這樣可以避免 Slack Bot Worker 的 CPU 超時問題
+    console.log(`[SlackBot:${processingId}] 🌐 Creating API client...`);
+    console.log(`[SlackBot:${processingId}] API_BASE_URL: ${env.API_BASE_URL}`);
     const apiClient = new ApiClient(env.API_BASE_URL, env.API_TOKEN);
+
+    console.log(
+      `[SlackBot:${processingId}] 📤 Calling processAudioFile with Slack URL...`
+    );
+    console.log(
+      `[SlackBot:${processingId}] Download URL: ${pendingFile.downloadUrl.substring(0, 50)}...`
+    );
+    const apiCallStartTime = Date.now();
+
+    // 創建一個空的 ArrayBuffer(不會實際使用)
+    const dummyAudioData = new ArrayBuffer(0);
+
     const result = await processAudioFile(
       apiClient,
       pendingFile.fileName,
-      audioData,
+      dummyAudioData, // 不會使用,因為有 slackFileUrl
       metadata,
       // 傳遞 Slack 業務資訊
       pendingFile.userId
         ? { id: pendingFile.userId, username: pendingFile.userName ?? "" }
-        : undefined
+        : undefined,
+      // 傳遞 Slack 檔案 URL 和 token 讓 Server 下載
+      pendingFile.downloadUrl,
+      env.SLACK_BOT_TOKEN
     );
+    console.log(
+      `[SlackBot:${processingId}] ✓ processAudioFile completed in ${Date.now() - apiCallStartTime}ms`
+    );
+    console.log(`[SlackBot:${processingId}] Result:`, {
+      conversationId: result.conversationId,
+      caseNumber: result.caseNumber,
+      hasAnalysis: !!result.analysisResult,
+    });
 
     // 更新處理中訊息為簡短確認
     if (processingMsg.ts) {
@@ -518,8 +597,22 @@ export async function processAudioWithMetadata(
         ),
       });
     }
+
+    const totalDuration = Date.now() - startTime;
+    console.log(
+      `[SlackBot:${processingId}] ✅ Processing completed successfully in ${totalDuration}ms`
+    );
   } catch (error) {
-    console.error("Error processing audio file:", error);
+    const errorDuration = Date.now() - startTime;
+    console.error(
+      `[SlackBot:${processingId}] ❌ Error processing audio file after ${errorDuration}ms:`,
+      error
+    );
+    console.error(`[SlackBot:${processingId}] Error details:`, {
+      name: error instanceof Error ? error.name : "Unknown",
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
 
     // 更新訊息顯示錯誤
     if (processingMsg.ts) {
@@ -575,14 +668,18 @@ async function processAudioFile(
   fileName: string,
   audioData: ArrayBuffer,
   metadata?: AudioUploadMetadata,
-  slackUser?: { id: string; username: string }
+  slackUser?: { id: string; username: string },
+  slackFileUrl?: string,
+  slackBotToken?: string
 ): Promise<ProcessingResult> {
+  const fileProcessingId = `FILE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  console.log(`[${fileProcessingId}] 🎵 processAudioFile started`);
   console.log(
-    `Processing audio file: ${fileName}, size: ${audioData.byteLength}`
+    `[${fileProcessingId}] File: ${fileName}, size: ${audioData.byteLength} bytes`
   );
   if (metadata) {
     console.log(
-      `Customer: ${metadata.customerName}, Store: ${metadata.storeType}`
+      `[${fileProcessingId}] Customer: ${metadata.customerName}, Store: ${metadata.storeType}`
     );
   }
 
@@ -591,17 +688,42 @@ async function processAudioFile(
 
   if (metadata?.customerName) {
     // 先搜尋是否有相同名稱的商機
-    const opportunitiesResult = await apiClient.getOpportunities({
-      limit: 100,
-    });
-    opportunity = opportunitiesResult.opportunities.find(
-      (opp) =>
-        opp.companyName.toLowerCase() === metadata.customerName.toLowerCase()
+    console.log(
+      `[${fileProcessingId}] 🔍 Fetching opportunities for customer: ${metadata.customerName}`
     );
+    try {
+      const opportunitiesResult = await apiClient.getOpportunities({
+        limit: 100,
+      });
+      console.log(
+        `[${fileProcessingId}] ✓ Got ${opportunitiesResult.opportunities.length} opportunities`
+      );
+      opportunity = opportunitiesResult.opportunities.find(
+        (opp) =>
+          opp.companyName.toLowerCase() === metadata.customerName.toLowerCase()
+      );
+
+      if (opportunity) {
+        console.log(
+          `[${fileProcessingId}] ✓ Found existing opportunity: ${opportunity.companyName}`
+        );
+      } else {
+        console.log(
+          `[${fileProcessingId}] ⚠️ No existing opportunity found, creating new one`
+        );
+      }
+    } catch (fetchError) {
+      console.error(
+        `[${fileProcessingId}] ❌ Failed to fetch opportunities:`,
+        fetchError
+      );
+      throw fetchError;
+    }
 
     // 如果沒找到，建立新商機
     if (!opportunity) {
       try {
+        console.log(`[${fileProcessingId}] 🆕 Creating new opportunity...`);
         const createResult = await apiClient.createOpportunity({
           customerNumber: metadata.customerNumber,
           companyName: metadata.customerName,
@@ -609,102 +731,125 @@ async function processAudioFile(
           notes: formatMetadataNotes(metadata),
         });
         opportunity = createResult;
+        console.log(
+          `[${fileProcessingId}] ✓ Created opportunity: ${opportunity.id}`
+        );
       } catch (createError) {
-        console.error("Failed to create opportunity:", createError);
+        console.error(
+          `[${fileProcessingId}] ❌ Failed to create opportunity:`,
+          createError
+        );
         // 如果建立失敗，嘗試使用最近的商機
+        console.log(
+          `[${fileProcessingId}] 🔄 Falling back to most recent opportunity`
+        );
         const fallbackResult = await apiClient.getOpportunities({ limit: 1 });
         opportunity = fallbackResult.opportunities[0];
       }
     }
   } else {
     // 沒有提供 metadata，使用最近的商機
+    console.log(
+      `[${fileProcessingId}] 📋 No metadata provided, using most recent opportunity`
+    );
     const opportunitiesResult = await apiClient.getOpportunities({ limit: 5 });
     opportunity = opportunitiesResult.opportunities[0];
+    console.log(
+      `[${fileProcessingId}] ✓ Using opportunity: ${opportunity?.companyName || "N/A"}`
+    );
   }
 
   if (!opportunity) {
+    console.error(`[${fileProcessingId}] ❌ No opportunity available`);
     throw new Error(
       "尚無商機資料，請先使用 `/opportunity create <公司名稱>` 建立商機"
     );
   }
 
-  // 將音檔轉換為 base64
-  const base64 = arrayBufferToBase64(audioData);
-
   // 從檔名取得格式
   const format = getAudioFormat(fileName);
+  console.log(`[${fileProcessingId}] 🎧 Audio format: ${format}`);
 
   // 上傳對話
-  const uploadResult = await apiClient.uploadConversation({
+  console.log(`[${fileProcessingId}] 📤 Uploading conversation to server...`);
+  console.log(`[${fileProcessingId}] Upload details:`, {
     opportunityId: opportunity.id,
-    audioBase64: base64,
-    title: metadata?.customerName
-      ? `${metadata.customerName} - Slack 上傳`
-      : `Slack 上傳: ${fileName}`,
-    type: "discovery_call" as ConversationType,
-    metadata: {
-      format,
-      conversationDate: new Date().toISOString().split("T")[0],
-      // 將業務資訊存入 metadata
-      ...(metadata && {
-        storeType: metadata.storeType,
-        serviceType: metadata.serviceType,
-        currentPos: metadata.currentPos,
-        decisionMakerOnsite: metadata.decisionMakerOnsite,
-      }),
-    },
-    // 傳遞 Slack 業務資訊
-    slackUser,
+    audioSize: audioData.byteLength,
+    format,
+    hasSlackUser: !!slackUser,
+    usingSlackUrl: !!slackFileUrl,
   });
 
-  // 取得轉錄預覽
-  const transcriptPreview = uploadResult.transcript
-    ? uploadResult.transcript.slice(0, 200) +
-      (uploadResult.transcript.length > 200 ? "..." : "")
-    : "轉錄中...";
+  let uploadResult; // 宣告在 try 外部,讓後續代碼可以訪問
+  try {
+    const uploadStartTime = Date.now();
+    uploadResult = await apiClient.uploadConversation({
+      opportunityId: opportunity.id,
+      // 優先使用 Slack 檔案 URL,避免 base64 轉換的 CPU 開銷
+      slackFileUrl,
+      slackBotToken,
+      // 只有在沒有 Slack URL 時才轉換 base64(向後兼容)
+      audioBase64: slackFileUrl ? undefined : arrayBufferToBase64(audioData),
+      title: metadata?.customerName
+        ? `${metadata.customerName} - Slack 上傳`
+        : `Slack 上傳: ${fileName}`,
+      type: "discovery_call" as ConversationType,
+      metadata: {
+        format,
+        conversationDate: new Date().toISOString().split("T")[0],
+        // 將業務資訊存入 metadata
+        ...(metadata && {
+          storeType: metadata.storeType,
+          serviceType: metadata.serviceType,
+          currentPos: metadata.currentPos,
+          decisionMakerOnsite: metadata.decisionMakerOnsite,
+        }),
+      },
+      // 傳遞 Slack 業務資訊
+      slackUser,
+    });
 
-  // 嘗試執行 MEDDIC 分析（如果轉錄已完成）
-  let analysisResult: ProcessingResult["analysisResult"];
-
-  if (
-    uploadResult.status === "transcribed" ||
-    uploadResult.status === "completed"
-  ) {
-    try {
-      const analysis = await apiClient.analyzeConversation(
-        uploadResult.conversationId
-      );
-      analysisResult = {
-        overallScore: analysis.overallScore,
-        status: analysis.status as "strong" | "medium" | "weak" | "at_risk",
-        dimensions: {
-          metrics: analysis.dimensions.metrics.score,
-          economicBuyer: analysis.dimensions.economicBuyer.score,
-          decisionCriteria: analysis.dimensions.decisionCriteria.score,
-          decisionProcess: analysis.dimensions.decisionProcess.score,
-          identifyPain: analysis.dimensions.identifyPain.score,
-          champion: analysis.dimensions.champion.score,
-        },
-        keyFindings: analysis.keyFindings,
-        risks: analysis.risks,
-        recommendedActions: analysis.nextSteps, // 使用 nextSteps 作為建議行動
-        executiveSummary: analysis.keyFindings.slice(0, 2).join(" "), // 使用關鍵發現組成摘要
-        nextSteps: analysis.nextSteps.map((step) => ({ action: step })),
-      };
-    } catch (analysisError) {
-      console.log("MEDDIC analysis not ready yet:", analysisError);
-    }
+    const uploadDuration = Date.now() - uploadStartTime;
+    console.log(
+      `[${fileProcessingId}] ✅ Upload successful in ${uploadDuration}ms`
+    );
+    console.log(`[${fileProcessingId}] Upload result:`, {
+      conversationId: uploadResult.conversationId,
+      caseNumber: uploadResult.caseNumber,
+      status: uploadResult.status,
+      hasTranscript: !!uploadResult.transcript,
+    });
+  } catch (uploadError) {
+    console.error(`[${fileProcessingId}] ❌ Upload failed:`, uploadError);
+    console.error(`[${fileProcessingId}] Error details:`, {
+      name: uploadError instanceof Error ? uploadError.name : "Unknown",
+      message:
+        uploadError instanceof Error
+          ? uploadError.message
+          : String(uploadError),
+    });
+    throw uploadError;
   }
+
+  // Queue 架構:立即返回,不等待轉錄完成
+  // Queue Worker 會在完成後發送 Slack 通知
+  console.log(`[${fileProcessingId}] ✅ Audio file queued for processing`);
+  console.log(`[${fileProcessingId}] Status: ${uploadResult.status}`);
+  console.log(
+    `[${fileProcessingId}] Message: ${uploadResult.message || "Processing..."}`
+  );
 
   return {
     conversationId: uploadResult.conversationId,
     caseNumber: uploadResult.caseNumber,
-    transcriptPreview,
+    transcriptPreview:
+      uploadResult.message ||
+      "音檔已接收,正在處理轉錄和 MEDDIC 分析,完成後會通知您...",
     opportunityId: opportunity.id,
     opportunityName: opportunity.companyName,
     contactPhone: opportunity.contactPhone,
     contactEmail: opportunity.contactEmail,
-    analysisResult,
+    analysisResult: undefined, // 將由 Queue Worker 完成後通知
   };
 }
 
@@ -838,22 +983,26 @@ function buildProcessingResultBlocks(
         },
       }
     );
+  } else {
+    // 轉錄已完成,MEDDIC 分析將在背景自動執行
+    blocks.push(
+      {
+        type: "divider",
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "🤖 *MEDDIC 分析*\n自動分析中,完成後會通知您...",
+        },
+      }
+    );
   }
 
   blocks.push(
     {
       type: "actions",
       elements: [
-        {
-          type: "button",
-          text: {
-            type: "plain_text",
-            text: "📊 執行 MEDDIC 分析",
-            emoji: true,
-          },
-          action_id: "run_meddic_analysis",
-          value: result.conversationId,
-        },
         {
           type: "button",
           text: {

@@ -120,6 +120,7 @@ export class GroqWhisperService implements TranscriptionService {
       return {
         fullText: verboseResponse.text,
         segments: verboseResponse.segments?.map((s) => ({
+          speaker: "Speaker",
           start: s.start,
           end: s.end,
           text: s.text,
@@ -165,6 +166,7 @@ export class GroqWhisperService implements TranscriptionService {
       if (result?.segments) {
         for (const segment of result.segments) {
           allSegments.push({
+            speaker: segment.speaker || "Speaker",
             start: segment.start + cumulativeTime,
             end: segment.end + cumulativeTime,
             text: segment.text,

@@ -4,14 +4,14 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { AnalysisState } from "./types.js";
+import type { AgentRegistry } from "./agent-registry.js";
 import type {
-  RegisteredAgent,
   AgentExecutionResult,
   BatchExecutionResult,
+  RegisteredAgent,
 } from "./base-agent.js";
 import { CyclicDependencyError } from "./base-agent.js";
-import type { AgentRegistry } from "./agent-registry.js";
+import type { AnalysisState } from "./types.js";
 
 // ============================================================
 // DAG Executor Class
@@ -57,10 +57,7 @@ export class DAGExecutor {
     const dependencyGraph = registry.getDependencyGraph(initialState);
 
     // 3. 拓撲排序 + 分組
-    const parallelGroups = this.groupByLevel(
-      availableAgents,
-      dependencyGraph
-    );
+    const parallelGroups = this.groupByLevel(availableAgents, dependencyGraph);
 
     if (this.enableLogging) {
       this.logExecutionPlan(parallelGroups);
@@ -410,8 +407,8 @@ export class DAGExecutor {
  * @param options - 建立選項
  * @returns DAGExecutor 實例
  */
-export function createDAGExecutor(options: {
-  enableLogging?: boolean;
-} = {}): DAGExecutor {
+export function createDAGExecutor(
+  options: { enableLogging?: boolean } = {}
+): DAGExecutor {
   return new DAGExecutor(options);
 }
