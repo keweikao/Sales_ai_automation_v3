@@ -3,22 +3,40 @@
  * Aligned with V2 structure for seamless migration
  */
 
-import type {
-  DimensionAnalysis,
-  MeddicDimensions,
-  MeddicScores,
-  Transcript,
-  TranscriptSegment,
-} from "@sales_ai_automation_v3/shared";
-
-// Re-export from shared for convenience
-export type {
-  TranscriptSegment,
-  Transcript,
-  MeddicScores,
-  DimensionAnalysis,
-  MeddicDimensions,
+// TODO: Add @sales_ai_automation_v3/shared to package.json dependencies
+// Temporarily using local type definitions
+export type TranscriptSegment = {
+  speaker: string;
+  text: string;
+  timestamp?: number;
+  start?: number;  // Start time in seconds
+  end?: number;    // End time in seconds
 };
+
+export type Transcript = {
+  fullText: string;
+  segments: TranscriptSegment[];
+  language?: string;
+  duration?: number;
+};
+
+export type MeddicScores = {
+  metrics: number;
+  economicBuyer: number;
+  decisionCriteria: number;
+  decisionProcess: number;
+  identifyPain: number;
+  champion: number;
+};
+
+export type DimensionAnalysis = {
+  score: number;
+  confidence: number;
+  evidence: string[];
+  suggestions: string[];
+};
+
+export type MeddicDimensions = "metrics" | "economicBuyer" | "decisionCriteria" | "decisionProcess" | "identifyPain" | "champion";
 
 // ============================================================
 // Agent Output Types (V2 compatibility)

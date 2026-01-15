@@ -3,13 +3,14 @@
  * Aligned with V2 Groq Whisper implementation
  */
 
+// Import from local types.ts instead of shared package
 import type {
   Transcript,
   TranscriptSegment,
-} from "@sales_ai_automation_v3/shared";
+} from "../llm/types.js";
 
-// Re-export from shared for convenience
-export type { TranscriptSegment, Transcript };
+// Re-export for compatibility
+export type { Transcript, TranscriptSegment };
 
 export interface TranscriptResult {
   fullText: string;
