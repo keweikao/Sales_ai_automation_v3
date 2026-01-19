@@ -137,10 +137,15 @@ export function buildProcessingCompletedBlocks(
         },
       });
 
-      blocks.push({
-        type: "section",
-        fields: dimensionFields,
-      });
+      // Slack API 限制: fields 最多 10 個 items
+      // 如果超過 10 個,分成多個 blocks
+      const MAX_FIELDS_PER_BLOCK = 10;
+      for (let i = 0; i < dimensionFields.length; i += MAX_FIELDS_PER_BLOCK) {
+        blocks.push({
+          type: "section",
+          fields: dimensionFields.slice(i, i + MAX_FIELDS_PER_BLOCK),
+        });
+      }
     }
   }
 
