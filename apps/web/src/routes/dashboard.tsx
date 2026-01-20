@@ -26,12 +26,21 @@ function RouteComponent() {
   const { session } = Route.useRouteContext();
 
   // 查詢用戶的 conversations
-  const conversationsQuery = useQuery(
-    orpc.conversations.list.queryOptions({ limit: 10, offset: 0 })
-  );
+  // 注意: 不傳參數,使用後端的 default 值 (limit: 20, offset: 0)
+  const conversationsQuery = useQuery(orpc.conversations.list.queryOptions({}));
 
   const conversations = conversationsQuery.data?.items || [];
   const isLoading = conversationsQuery.isLoading;
+
+  // Debug: 顯示完整的錯誤資訊
+  if (conversationsQuery.isError) {
+    console.error("Conversations Query Error:", {
+      error: conversationsQuery.error,
+      message: conversationsQuery.error?.message,
+      status: (conversationsQuery.error as any)?.status,
+      details: JSON.stringify(conversationsQuery.error, null, 2),
+    });
+  }
 
   return (
     <div className="container mx-auto space-y-6 p-8">
@@ -77,11 +86,29 @@ function RouteComponent() {
               <Skeleton className="h-16 w-full" />
             </div>
           ) : conversationsQuery.isError ? (
-            <div className="text-center text-red-600">
+            <div className="text-red-600">
               <p className="mb-2 font-semibold">載入失敗</p>
               <p className="text-muted-foreground text-sm">
                 {conversationsQuery.error?.message || "無法載入對話列表"}
               </p>
+              <details className="mt-4 text-left">
+                <summary className="cursor-pointer text-sm hover:underline">
+                  顯示詳細錯誤資訊
+                </summary>
+                <pre className="mt-2 overflow-auto rounded bg-gray-100 p-2 text-xs">
+                  {JSON.stringify(
+                    {
+                      message: conversationsQuery.error?.message,
+                      error: conversationsQuery.error,
+                      status: (conversationsQuery.error as any)?.status,
+                      userId: session.data?.user.id,
+                      email: session.data?.user.email,
+                    },
+                    null,
+                    2
+                  )}
+                </pre>
+              </details>
               <Button
                 className="mt-4"
                 onClick={() => conversationsQuery.refetch()}
