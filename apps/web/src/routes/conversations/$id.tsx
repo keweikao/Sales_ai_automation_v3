@@ -114,6 +114,32 @@ function ConversationDetailPage() {
     );
   }
 
+  if (conversationQuery.isError) {
+    return (
+      <main className="container mx-auto p-6">
+        <Card>
+          <CardContent className="py-10 text-center">
+            <p className="mb-2 font-semibold text-red-600">載入失敗</p>
+            <p className="text-muted-foreground text-sm">
+              {conversationQuery.error?.message || "找不到此對話"}
+            </p>
+            <div className="mt-4 flex justify-center gap-2">
+              <Button asChild variant="outline">
+                <Link to="/conversations">返回對話列表</Link>
+              </Button>
+              <Button
+                onClick={() => conversationQuery.refetch()}
+                variant="default"
+              >
+                重試
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
   if (!conversation) {
     return (
       <main className="container mx-auto p-6">
