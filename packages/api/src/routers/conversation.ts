@@ -639,12 +639,24 @@ export const listConversations = protectedProcedure
   .handler(async ({ input, context }) => {
     const { opportunityId, limit, offset } = input;
     const userId = context.session?.user.id;
+    const userEmail = context.session?.user.email;
 
     if (!userId) {
       throw new ORPCError("UNAUTHORIZED");
     }
 
-    const conditions = [eq(opportunities.userId, userId)];
+    // 檢查用戶角色
+    const userRole = getUserRole(userEmail);
+    const hasAdminAccess = userRole === "admin" || userRole === "manager";
+
+    // 根據角色設定查詢條件
+    const conditions = [];
+
+    // 一般業務只能看自己的，管理者和主管可以看全部
+    if (!hasAdminAccess) {
+      conditions.push(eq(opportunities.userId, userId));
+    }
+
     if (opportunityId) {
       conditions.push(eq(conversations.opportunityId, opportunityId));
     }
@@ -674,13 +686,13 @@ export const listConversations = protectedProcedure
         meddicAnalyses,
         eq(meddicAnalyses.conversationId, conversations.id)
       )
-      .where(and(...conditions))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(conversations.conversationDate))
       .limit(limit)
       .offset(offset);
 
     return {
-      conversations: results.map((r) => ({
+      items: results.map((r) => ({
         id: r.id,
         opportunityId: r.opportunityId,
         opportunityCompanyName: r.opportunityCompanyName,
@@ -694,6 +706,7 @@ export const listConversations = protectedProcedure
         conversationDate: r.conversationDate,
         createdAt: r.createdAt,
         hasAnalysis: !!r.hasAnalysis,
+        meddicScore: null, // TODO: 從 meddicAnalyses 取得
       })),
       total: results.length,
       limit,
@@ -704,11 +717,19 @@ export const listConversations = protectedProcedure
 // ============================================================
 // 權限控制 - 三級權限：管理者、主管、一般業務
 // ============================================================
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean);
-const MANAGER_EMAILS = (process.env.MANAGER_EMAILS || "").split(",").map(e => e.trim()).filter(Boolean);
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
+  .split(",")
+  .map((e) => e.trim())
+  .filter(Boolean);
+const MANAGER_EMAILS = (process.env.MANAGER_EMAILS || "")
+  .split(",")
+  .map((e) => e.trim())
+  .filter(Boolean);
 
 // 檢查用戶角色
-function getUserRole(userEmail: string | null | undefined): "admin" | "manager" | "sales" {
+function getUserRole(
+  userEmail: string | null | undefined
+): "admin" | "manager" | "sales" {
   if (!userEmail) return "sales";
   if (ADMIN_EMAILS.includes(userEmail)) return "admin";
   if (MANAGER_EMAILS.includes(userEmail)) return "manager";
@@ -747,7 +768,7 @@ export const getConversation = protectedProcedure
     const hasAdminAccess = userRole === "admin" || userRole === "manager";
 
     // 一般業務只能看自己的，管理者和主管可以看全部
-    if (!isOwner && !hasAdminAccess) {
+    if (!(isOwner || hasAdminAccess)) {
       throw new ORPCError("FORBIDDEN");
     }
 
