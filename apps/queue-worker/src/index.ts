@@ -60,8 +60,18 @@ export interface Env {
   // Slack
   SLACK_BOT_TOKEN: string;
 
+  // Server API
+  SERVER_URL: string;
+  SERVICE_API_TOKEN?: string;
+
+  // Web App
+  WEB_APP_URL: string;
+
   // Environment
   ENVIRONMENT: string;
+
+  // KV Cache
+  CACHE_KV: KVNamespace;
 }
 
 // Extended TranscriptionMessage with Slack user info
@@ -322,6 +332,41 @@ export default {
         console.log("[Queue] ✓ Conversation status updated to completed");
 
         // ========================================
+        // Step 5.5: 生成公開分享 Token
+        // ========================================
+        let shareToken: string | undefined;
+        try {
+          console.log("[Queue] 🔗 Generating share token...");
+          const tokenResponse = await fetch(
+            `${env.SERVER_URL}/rpc/share.create`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${env.SERVICE_API_TOKEN || ""}`,
+              },
+              body: JSON.stringify({ conversationId }),
+            }
+          );
+
+          if (tokenResponse.ok) {
+            const tokenData = (await tokenResponse.json()) as {
+              token: string;
+              expiresAt: string;
+            };
+            shareToken = tokenData.token;
+            console.log(`[Queue] ✓ Share token generated: ${shareToken}`);
+          } else {
+            const errorText = await tokenResponse.text();
+            console.error(
+              `[Queue] ⚠️  Failed to generate share token: ${tokenResponse.status} ${errorText}`
+            );
+          }
+        } catch (error) {
+          console.error("[Queue] ⚠️  Error generating share token:", error);
+        }
+
+        // ========================================
         // Step 6: 發送 Slack 完成通知
         // ========================================
         if (slackUser?.id) {
@@ -471,6 +516,7 @@ export default {
               },
               processingTimeMs,
               threadTs, // 傳遞 thread_ts 以在同一個 thread 內回覆
+              shareToken, // 傳遞 shareToken (用於 SMS 按鈕)
             });
             console.log(
               `[Queue] ✓ Sent completion notification to ${slackUser.id}`
@@ -484,7 +530,104 @@ export default {
         }
 
         // ========================================
-        // Step 7: Ack 消息
+        // Step 7: 更新用戶快取 (基於 Single Source of Truth 策略)
+        // ========================================
+        try {
+          console.log("[Queue] 📦 Updating cache...");
+
+          // 查詢 opportunity 和 conversation 資料
+          const [opportunityData, conversationData] = await Promise.all([
+            db.query.opportunities.findFirst({
+              where: (opportunities, { eq }) =>
+                eq(opportunities.id, opportunityId),
+              columns: {
+                userId: true,
+                companyName: true,
+              },
+            }),
+            db.query.conversations.findFirst({
+              where: (conversations, { eq }) =>
+                eq(conversations.id, conversationId),
+              columns: {
+                createdAt: true,
+                audioUrl: true,
+                duration: true,
+              },
+            }),
+          ]);
+
+          if (opportunityData?.userId) {
+            const { createKVCacheService } = await import(
+              "@Sales_ai_automation_v3/services"
+            );
+            const { updateConversationCache } = await import(
+              "@Sales_ai_automation_v3/services"
+            );
+
+            const cacheService = createKVCacheService(env.CACHE_KV);
+
+            // 從 analysisResult 提取資料
+            const agentOutputs = analysisResult.agentOutputs as unknown as {
+              agent4?: { markdown?: string };
+            };
+            const summaryText = agentOutputs.agent4?.markdown as
+              | string
+              | undefined;
+
+            // 準備 Layer 1 快取資料 (詳細資料)
+            const conversationDetail = {
+              id: conversationId,
+              caseNumber,
+              title: summaryText?.substring(0, 100) || null,
+              status: "completed" as const,
+              opportunityCompanyName: opportunityData.companyName,
+              meddicScore: analysisResult.overallScore ?? 0,
+              createdAt:
+                conversationData?.createdAt?.toISOString() ||
+                new Date().toISOString(),
+              transcript: {
+                fullText: transcriptResult.text || "",
+                segments: (transcriptResult.segments || []).map((seg) => ({
+                  speaker: seg.speaker || "Unknown",
+                  text: seg.text,
+                  startTime: seg.start,
+                })),
+              },
+              meddicAnalysis: {
+                overallScore: analysisResult.overallScore ?? 0,
+                dimensions: analysisResult.dimensions || {},
+                keyFindings: analysisResult.keyFindings ?? [],
+                nextSteps: (analysisResult.nextSteps ?? []).map((step) => ({
+                  action: step.action,
+                  priority: "Medium",
+                })),
+              },
+              audioUrl: conversationData?.audioUrl,
+              duration: conversationData?.duration,
+            };
+
+            // 執行快取更新 (Layer 1 寫入 + Layer 2 & 3 失效)
+            await updateConversationCache(
+              cacheService,
+              opportunityData.userId,
+              conversationId,
+              conversationDetail
+            );
+
+            console.log(
+              `[Queue] ✅ Cache updated for user ${opportunityData.userId}`
+            );
+          } else {
+            console.warn("[Queue] ⚠️ No userId found, skipping cache update");
+          }
+        } catch (error) {
+          console.error("[Queue] ❌ Failed to update cache:", error);
+          // 快取更新失敗不應中斷主流程
+          // 下次 API 請求時會從資料庫重建快取
+        }
+
+        // ========================================
+        // Step 8: Ack 消息
         // ========================================
         message.ack();
 

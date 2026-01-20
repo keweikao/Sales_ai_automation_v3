@@ -74,7 +74,7 @@ const mockQueueMessage: QueueMessage = {
   productLine: "beauty",
   metadata: {
     fileName: "test.mp3",
-    fileSize: 1024000,
+    fileSize: 1_024_000,
     format: "mp3",
   },
 };
@@ -88,7 +88,7 @@ const mockLegacyMessage: QueueMessage = {
   // 沒有 productLine
   metadata: {
     fileName: "test2.mp3",
-    fileSize: 2048000,
+    fileSize: 2_048_000,
     format: "mp3",
   },
 };
@@ -145,8 +145,14 @@ const mockUploadConversationInput = {
   productLine: "beauty" as ProductLine | undefined,
 };
 
-console.log("✅ createOpportunity 接受 productLine:", mockCreateOpportunityInput.productLine);
-console.log("✅ uploadConversation 接受 productLine:", mockUploadConversationInput.productLine);
+console.log(
+  "✅ createOpportunity 接受 productLine:",
+  mockCreateOpportunityInput.productLine
+);
+console.log(
+  "✅ uploadConversation 接受 productLine:",
+  mockUploadConversationInput.productLine
+);
 
 // ============================================================
 // Test 6: 向後相容性驗證
@@ -172,8 +178,14 @@ const mockLegacyUploadConversation = {
 const resolvedOppLine = mockLegacyCreateOpportunity.productLine || "ichef";
 const resolvedConvLine = mockLegacyUploadConversation.productLine || "ichef";
 
-console.log("✅ 不傳 productLine 時預設為 ichef (Opportunity):", resolvedOppLine);
-console.log("✅ 不傳 productLine 時預設為 ichef (Conversation):", resolvedConvLine);
+console.log(
+  "✅ 不傳 productLine 時預設為 ichef (Opportunity):",
+  resolvedOppLine
+);
+console.log(
+  "✅ 不傳 productLine 時預設為 ichef (Conversation):",
+  resolvedConvLine
+);
 
 // ============================================================
 // 總結

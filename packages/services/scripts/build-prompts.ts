@@ -125,11 +125,12 @@ function buildPrompts(): ProductLinePrompts {
 /**
  * Generate TypeScript object from prompts
  */
-function generatePromptsObject(prompts: PromptEntry[], indent = "    "): string {
+function generatePromptsObject(
+  prompts: PromptEntry[],
+  indent = "    "
+): string {
   return prompts
-    .map(
-      (p) => `${indent}${toCamelCase(p.name)}: \`${p.content}\`,`
-    )
+    .map((p) => `${indent}${toCamelCase(p.name)}: \`${p.content}\`,`)
     .join("\n");
 }
 

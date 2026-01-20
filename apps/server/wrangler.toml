@@ -7,6 +7,7 @@ compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 ENVIRONMENT = "production"
 BETTER_AUTH_URL = "https://sales-ai-server.salesaiautomationv3.workers.dev"
 CORS_ORIGIN = "https://sales-ai-web.pages.dev"
+WEB_APP_URL = "https://sales-ai-web.pages.dev"
 # ============================================================
 # 權限白名單 - 三級權限：管理者、主管、一般業務
 # ============================================================
@@ -42,6 +43,17 @@ enabled = true
 # cpu_ms = 120000  # 需要付費方案
 
 # ============================================================
+# KV Namespaces - 快取層
+# ============================================================
+# 注意: 需要先執行以下命令建立 KV namespace:
+# cd apps/server
+# bun wrangler kv:namespace create "CACHE_KV"
+# 然後將產生的 ID 填入下方的 id 欄位
+[[kv_namespaces]]
+binding = "CACHE_KV"
+id = "066c8705db6f4f39955d7050ac12fe03"
+
+# ============================================================
 # Queues - Transcription Queue (Producer)
 # ============================================================
 [[queues.producers]]
@@ -67,3 +79,10 @@ CORS_ORIGIN = "http://localhost:5173"
 # 權限白名單 - 三級權限
 ADMIN_EMAILS = "stephen.kao@ichef.com.tw"
 MANAGER_EMAILS = "wade.lin@ichef.com.tw,benjamin.we@ichef.com.tw"
+
+# 開發環境 KV Namespace
+# 注意: 需要先執行: bun wrangler kv:namespace create "CACHE_KV" --preview
+[[env.dev.kv_namespaces]]
+binding = "CACHE_KV"
+id = "066c8705db6f4f39955d7050ac12fe03"
+preview_id = "a9add56705b7490dbe8c85ac5306bd64"

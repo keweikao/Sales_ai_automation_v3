@@ -204,3 +204,35 @@ export async function testAllConnections(): Promise<{
     prompts,
   };
 }
+
+// ============================================================
+// Cache Services
+// ============================================================
+
+export {
+  invalidateConversationsListCache,
+  updateConversationCache,
+  updateConversationDetailCache,
+} from "./cache/helpers";
+
+export { createKVCacheService, KVCacheService } from "./cache/kv-cache";
+export type {
+  CacheService,
+  ConversationDetail,
+  ConversationListItem,
+} from "./cache/types";
+
+// ============================================================
+// Share Services
+// ============================================================
+
+export {
+  generateShareToken,
+  getTokenExpiry,
+} from "./share/token-generator";
+
+// ============================================================
+// SMS Services
+// ============================================================
+
+export * from "./sms/every8d";

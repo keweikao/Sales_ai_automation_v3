@@ -22,7 +22,9 @@ const createOpportunitySchema = z.object({
   contactName: z.string().optional(),
   contactEmail: z.string().email().optional(),
   contactPhone: z.string().optional(),
-  source: z.enum(["manual", "import", "api", "referral"]).default("manual"),
+  source: z
+    .enum(["manual", "import", "api", "referral", "slack"])
+    .default("manual"),
   status: z
     .enum([
       "new",
@@ -39,6 +41,13 @@ const createOpportunitySchema = z.object({
   notes: z.string().optional(),
   // 產品線（可選，預設為 'ichef'）
   productLine: z.enum(["ichef", "beauty"]).optional(),
+
+  // Product-Specific Business Context
+  storeType: z.string().optional(),
+  serviceType: z.string().optional(),
+  staffCount: z.string().optional(),
+  currentSystem: z.string().optional(),
+  decisionMakerPresent: z.enum(["yes", "no", "unknown"]).optional(),
 });
 
 const updateOpportunitySchema = z.object({
@@ -48,7 +57,7 @@ const updateOpportunitySchema = z.object({
   contactName: z.string().optional(),
   contactEmail: z.string().email().optional(),
   contactPhone: z.string().optional(),
-  source: z.enum(["manual", "import", "api", "referral"]).optional(),
+  source: z.enum(["manual", "import", "api", "referral", "slack"]).optional(),
   status: z
     .enum([
       "new",
@@ -64,6 +73,13 @@ const updateOpportunitySchema = z.object({
   companySize: z.string().optional(),
   notes: z.string().optional(),
   productLine: z.enum(["ichef", "beauty"]).optional(),
+
+  // Product-Specific Business Context
+  storeType: z.string().optional(),
+  serviceType: z.string().optional(),
+  staffCount: z.string().optional(),
+  currentSystem: z.string().optional(),
+  decisionMakerPresent: z.enum(["yes", "no", "unknown"]).optional(),
 });
 
 const deleteOpportunitySchema = z.object({
@@ -126,6 +142,13 @@ export const createOpportunity = protectedProcedure
         companySize: input.companySize,
         notes: input.notes,
         productLine: input.productLine || "ichef",
+
+        // Product-Specific Business Context
+        storeType: input.storeType,
+        serviceType: input.serviceType,
+        staffCount: input.staffCount,
+        currentSystem: input.currentSystem,
+        decisionMakerPresent: input.decisionMakerPresent,
       })
       .returning();
 
@@ -146,6 +169,15 @@ export const createOpportunity = protectedProcedure
       industry: opportunity.industry,
       companySize: opportunity.companySize,
       notes: opportunity.notes,
+      productLine: opportunity.productLine,
+
+      // Product-Specific Business Context
+      storeType: opportunity.storeType,
+      serviceType: opportunity.serviceType,
+      staffCount: opportunity.staffCount,
+      currentSystem: opportunity.currentSystem,
+      decisionMakerPresent: opportunity.decisionMakerPresent,
+
       createdAt: opportunity.createdAt,
       updatedAt: opportunity.updatedAt,
     };
@@ -202,6 +234,15 @@ export const updateOpportunity = protectedProcedure
       industry: updatedOpportunity.industry,
       companySize: updatedOpportunity.companySize,
       notes: updatedOpportunity.notes,
+      productLine: updatedOpportunity.productLine,
+
+      // Product-Specific Business Context
+      storeType: updatedOpportunity.storeType,
+      serviceType: updatedOpportunity.serviceType,
+      staffCount: updatedOpportunity.staffCount,
+      currentSystem: updatedOpportunity.currentSystem,
+      decisionMakerPresent: updatedOpportunity.decisionMakerPresent,
+
       createdAt: updatedOpportunity.createdAt,
       updatedAt: updatedOpportunity.updatedAt,
     };

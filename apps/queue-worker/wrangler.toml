@@ -5,6 +5,16 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "production"
+SERVER_URL = "https://sales-ai-server.salesaiautomationv3.workers.dev"
+WEB_APP_URL = "https://sales-ai-web.pages.dev"
+
+# ============================================================
+# KV Namespaces - 快取層
+# ============================================================
+# 注意: 使用與 server 相同的 KV namespace
+[[kv_namespaces]]
+binding = "CACHE_KV"
+id = "066c8705db6f4f39955d7050ac12fe03"
 
 # Queue Consumer 配置
 [[queues.consumers]]
@@ -20,3 +30,11 @@ name = "sales-ai-queue-worker-dev"
 
 [env.dev.vars]
 ENVIRONMENT = "development"
+SERVER_URL = "http://localhost:3000"
+WEB_APP_URL = "http://localhost:5173"
+
+# 開發環境 KV Namespace
+[[env.dev.kv_namespaces]]
+binding = "CACHE_KV"
+id = "066c8705db6f4f39955d7050ac12fe03"
+preview_id = "a9add56705b7490dbe8c85ac5306bd64"

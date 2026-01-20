@@ -8,6 +8,8 @@ import { analyticsRouter } from "./analytics";
 import { conversationRouter } from "./conversation";
 import { leadSourceRouter } from "./lead-source";
 import { opportunityRouter } from "./opportunity";
+import { shareRouter } from "./share";
+import { smsRouter } from "./sms";
 // TODO: Talk Tracks 開發中，暫時停用
 // import { talkTrackRouter } from "./talk-track";
 
@@ -36,6 +38,12 @@ export const appRouter = {
 
   // Lead source & UTM tracking
   leadSources: leadSourceRouter,
+
+  // Public share links (不需登入)
+  share: shareRouter,
+
+  // SMS notifications
+  sms: smsRouter,
 
   // TODO: Sales Coach Agent 開發中，暫時停用
   // agent: agentRouter,

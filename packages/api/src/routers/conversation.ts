@@ -8,6 +8,7 @@ import {
   conversations,
   meddicAnalyses,
   opportunities,
+  // smsLogs, // TODO: 等 sms_logs 表建立後再啟用
 } from "@Sales_ai_automation_v3/db/schema";
 import {
   createAllServices,
@@ -649,12 +650,65 @@ export const listConversations = protectedProcedure
     const userRole = getUserRole(userEmail);
     const hasAdminAccess = userRole === "admin" || userRole === "manager";
 
+    // 初始化快取服務
+    const { createKVCacheService } = await import(
+      "@Sales_ai_automation_v3/services"
+    );
+    const cacheService = createKVCacheService(context.honoContext.env.CACHE_KV);
+    const cacheKey = `user:${userId}:conversations:list`;
+
+    // 1. 嘗試從快取讀取 (只有全列表查詢且非管理者才用快取)
+    if (!(opportunityId || hasAdminAccess)) {
+      try {
+        const cached =
+          await cacheService.get<
+            Array<{
+              id: string;
+              opportunityId: string;
+              opportunityCompanyName: string;
+              customerNumber: string | null;
+              caseNumber: string;
+              title: string | null;
+              type: string;
+              status: string;
+              audioUrl: string | null;
+              duration: number | null;
+              conversationDate: Date;
+              createdAt: Date;
+              hasAnalysis: boolean;
+              meddicScore: number | null;
+            }>
+          >(cacheKey);
+
+        if (cached && cached.length > 0) {
+          console.log("[Cache Hit] Returning cached conversations");
+          return {
+            items: cached.slice(offset, offset + limit),
+            total: cached.length,
+            limit,
+            offset,
+          };
+        }
+      } catch (error) {
+        console.warn(
+          "[Cache] Failed to read from cache, falling back to DB:",
+          error
+        );
+      }
+    }
+
+    // 2. 快取未命中或有錯誤,從資料庫查詢
+    console.log("[Cache Miss] Querying database");
+
     // 根據角色設定查詢條件
     const conditions = [];
 
-    // 一般業務只能看自己的，管理者和主管可以看全部
+    // 一般業務只能看自己的和 Slack 建立的（userId 為 null），管理者和主管可以看全部
     if (!hasAdminAccess) {
-      conditions.push(eq(opportunities.userId, userId));
+      // 使用 OR 條件：自己的 OR Slack 建立的
+      conditions.push(
+        sql`(${opportunities.userId} = ${userId} OR ${opportunities.userId} IS NULL)`
+      );
     }
 
     if (opportunityId) {
@@ -676,6 +730,7 @@ export const listConversations = protectedProcedure
         conversationDate: conversations.conversationDate,
         createdAt: conversations.createdAt,
         hasAnalysis: meddicAnalyses.id,
+        meddicScore: meddicAnalyses.overallScore,
       })
       .from(conversations)
       .innerJoin(
@@ -688,11 +743,41 @@ export const listConversations = protectedProcedure
       )
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(conversations.conversationDate))
-      .limit(limit)
-      .offset(offset);
+      .limit(100); // 查詢最多 100 筆
+
+    // 3. 寫入快取 (如果是全列表查詢且有資料且非管理者)
+    if (!opportunityId && results.length > 0 && !hasAdminAccess) {
+      try {
+        const cacheData = results.map((r) => ({
+          id: r.id,
+          opportunityId: r.opportunityId,
+          opportunityCompanyName: r.opportunityCompanyName,
+          customerNumber: r.customerNumber,
+          caseNumber: r.caseNumber,
+          title: r.title,
+          type: r.type,
+          status: r.status,
+          audioUrl: r.audioUrl,
+          duration: r.duration,
+          conversationDate: r.conversationDate,
+          createdAt: r.createdAt,
+          hasAnalysis: !!r.hasAnalysis,
+          meddicScore: r.meddicScore,
+        }));
+
+        await cacheService.set(cacheKey, cacheData, 3600); // 1 小時
+        console.log("[Cache] Wrote conversations list to cache");
+      } catch (error) {
+        console.warn("[Cache] Failed to write to cache:", error);
+        // 寫入失敗不影響主流程
+      }
+    }
+
+    // 4. 應用分頁
+    const paginatedResults = results.slice(offset, offset + limit);
 
     return {
-      items: results.map((r) => ({
+      items: paginatedResults.map((r) => ({
         id: r.id,
         opportunityId: r.opportunityId,
         opportunityCompanyName: r.opportunityCompanyName,
@@ -706,7 +791,7 @@ export const listConversations = protectedProcedure
         conversationDate: r.conversationDate,
         createdAt: r.createdAt,
         hasAnalysis: !!r.hasAnalysis,
-        meddicScore: null, // TODO: 從 meddicAnalyses 取得
+        meddicScore: r.meddicScore,
       })),
       total: results.length,
       limit,
@@ -766,17 +851,20 @@ export const getConversation = protectedProcedure
     const isOwner = conversation.opportunity.userId === userId;
     const userRole = getUserRole(userEmail);
     const hasAdminAccess = userRole === "admin" || userRole === "manager";
+    // 從 Slack 建立的對話（userId 為 null）視為團隊共享，所有人都可以查看
+    const isSlackGenerated = !conversation.opportunity.userId;
 
-    // 一般業務只能看自己的，管理者和主管可以看全部
-    if (!(isOwner || hasAdminAccess)) {
+    // 一般業務只能看自己的，管理者和主管可以看全部，Slack 建立的所有人都可以看
+    if (!(isOwner || hasAdminAccess || isSlackGenerated)) {
       throw new ORPCError("FORBIDDEN");
     }
 
     return {
       id: conversation.id,
       opportunityId: conversation.opportunityId,
-      opportunityCompanyName: conversation.opportunity.companyName,
-      customerNumber: conversation.opportunity.customerNumber,
+      opportunityCompanyName: conversation.opportunity?.companyName || null,
+      customerNumber: conversation.opportunity?.customerNumber || null,
+      customerPhone: conversation.opportunity?.contactPhone || null,
       caseNumber: conversation.caseNumber,
       title: conversation.title,
       type: conversation.type,
@@ -789,6 +877,8 @@ export const getConversation = protectedProcedure
       createdAt: conversation.createdAt,
       analyzedAt: conversation.analyzedAt,
       analysis: conversation.meddicAnalyses[0] || null,
+      smsSent: conversation.smsSent || false,
+      smsSentAt: conversation.smsSentAt || null,
     };
   });
 
@@ -818,7 +908,13 @@ export const updateSummary = protectedProcedure
       throw new ORPCError("NOT_FOUND");
     }
 
-    if (conversation.opportunity.userId !== userId) {
+    // 檢查權限：擁有者、管理者/主管、或 Slack 建立的對話
+    const isOwner = conversation.opportunity.userId === userId;
+    const userRole = getUserRole(context.session?.user.email);
+    const hasAdminAccess = userRole === "admin" || userRole === "manager";
+    const isSlackGenerated = !conversation.opportunity.userId;
+
+    if (!(isOwner || hasAdminAccess || isSlackGenerated)) {
       throw new ORPCError("FORBIDDEN");
     }
 

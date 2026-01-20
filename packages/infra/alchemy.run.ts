@@ -47,6 +47,19 @@ export const server = await Worker("server", {
     GOOGLE_CLIENT_SECRET:
       alchemy.secret.env.GOOGLE_CLIENT_SECRET || alchemy.secret(""),
 
+    // SMS Service (EVERY8D)
+    EVERY8D_API_URL:
+      alchemy.env.EVERY8D_API_URL ||
+      "https://oms.every8d.com/API21/HTTP/sendSMS.ashx",
+    EVERY8D_USERNAME: alchemy.secret.env.EVERY8D_USERNAME || alchemy.secret(""),
+    EVERY8D_PASSWORD: alchemy.secret.env.EVERY8D_PASSWORD || alchemy.secret(""),
+
+    // Share Token
+    SHARE_TOKEN_SECRET:
+      alchemy.secret.env.SHARE_TOKEN_SECRET ||
+      alchemy.secret("default-secret-change-in-prod"),
+    WEB_APP_URL: alchemy.env.WEB_APP_URL || "http://localhost:5173",
+
     // Environment
     ENVIRONMENT: alchemy.env.ENVIRONMENT!,
   },

@@ -3,51 +3,52 @@
   "version": "0.2.0",
   "description": "Shared types, errors, and schemas for Sales AI Automation V3",
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./errors": {
-      "types": "./src/errors/index.ts",
-      "import": "./src/errors/index.ts"
+      "types": "./dist/errors/index.d.ts",
+      "import": "./dist/errors/index.js"
     },
     "./product-configs": {
-      "types": "./src/product-configs/index.ts",
-      "import": "./src/product-configs/index.ts"
+      "types": "./dist/product-configs/index.d.ts",
+      "import": "./dist/product-configs/index.js"
     },
     "./types": {
-      "types": "./src/types/index.ts",
-      "import": "./src/types/index.ts"
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js"
     },
     "./types/conversation": {
-      "types": "./src/types/conversation/index.ts",
-      "import": "./src/types/conversation/index.ts"
+      "types": "./dist/types/conversation/index.d.ts",
+      "import": "./dist/types/conversation/index.js"
     },
     "./types/transcription": {
-      "types": "./src/types/transcription/index.ts",
-      "import": "./src/types/transcription/index.ts"
+      "types": "./dist/types/transcription/index.d.ts",
+      "import": "./dist/types/transcription/index.js"
     },
     "./types/meddic": {
-      "types": "./src/types/meddic/index.ts",
-      "import": "./src/types/meddic/index.ts"
+      "types": "./dist/types/meddic/index.d.ts",
+      "import": "./dist/types/meddic/index.js"
     },
     "./types/slack": {
-      "types": "./src/types/slack/index.ts",
-      "import": "./src/types/slack/index.ts"
+      "types": "./dist/types/slack/index.d.ts",
+      "import": "./dist/types/slack/index.js"
     },
     "./types/queue": {
-      "types": "./src/types/queue/index.ts",
-      "import": "./src/types/queue/index.ts"
+      "types": "./dist/types/queue/index.d.ts",
+      "import": "./dist/types/queue/index.js"
     },
     "./types/opportunity": {
-      "types": "./src/types/opportunity/index.ts",
-      "import": "./src/types/opportunity/index.ts"
+      "types": "./dist/types/opportunity/index.d.ts",
+      "import": "./dist/types/opportunity/index.js"
     },
     "./schemas": {
-      "types": "./src/schemas/index.ts",
-      "import": "./src/schemas/index.ts"
+      "types": "./dist/schemas/index.d.ts",
+      "import": "./dist/schemas/index.js"
     }
   },
   "scripts": {

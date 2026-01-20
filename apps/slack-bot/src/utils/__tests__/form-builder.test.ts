@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { PendingAudioFile } from "../../types";
 import {
   buildAudioUploadModal,
   parseAudioUploadFormValues,
 } from "../form-builder";
-import type { PendingAudioFile } from "../../types";
 
 describe("FormBuilder", () => {
   const mockFile: PendingAudioFile = {
@@ -97,7 +97,9 @@ describe("FormBuilder", () => {
         service_type: {
           service_type: { selected_option: { value: "dine_in" } },
         },
-        current_system: { current_system: { selected_option: { value: "none" } } },
+        current_system: {
+          current_system: { selected_option: { value: "none" } },
+        },
         decision_maker_present: {
           decision_maker_present: { selected_option: { value: "yes" } },
         },
@@ -118,9 +120,13 @@ describe("FormBuilder", () => {
       const values = {
         customer_number: { customer_number: { value: "CUST-002" } },
         customer_name: { customer_name: { value: "Beauty Salon" } },
-        store_type: { store_type: { selected_option: { value: "hair_salon" } } },
+        store_type: {
+          store_type: { selected_option: { value: "hair_salon" } },
+        },
         staff_count: { staff_count: { selected_option: { value: "4-10" } } },
-        current_system: { current_system: { selected_option: { value: "excel" } } },
+        current_system: {
+          current_system: { selected_option: { value: "excel" } },
+        },
         decision_maker_present: {
           decision_maker_present: { selected_option: { value: "no" } },
         },
@@ -141,8 +147,12 @@ describe("FormBuilder", () => {
       const values = {
         customer_number: { customer_number: { value: "CUST-003" } },
         customer_name: { customer_name: { value: "Minimal Data" } },
-        store_type: { store_type: { selected_option: { value: "restaurant" } } },
-        current_system: { current_system: { selected_option: { value: "pos" } } },
+        store_type: {
+          store_type: { selected_option: { value: "restaurant" } },
+        },
+        current_system: {
+          current_system: { selected_option: { value: "pos" } },
+        },
       };
 
       const metadata = parseAudioUploadFormValues(values, "ichef");

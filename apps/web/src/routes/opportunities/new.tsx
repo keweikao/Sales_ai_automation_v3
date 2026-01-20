@@ -2,11 +2,13 @@
  * 新增商機頁面
  */
 
+import type { ProductLine } from "@sales_ai_automation_v3/shared/product-configs";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Building2, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ProductConfigFormFields } from "@/components/opportunities/ProductConfigFormFields";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -71,6 +73,14 @@ function NewOpportunityPage() {
     industry: "",
     companySize: "",
     notes: "",
+
+    // Product Line and Business Context
+    productLine: "ichef" as ProductLine,
+    storeType: "",
+    serviceType: "",
+    staffCount: "",
+    currentSystem: "",
+    decisionMakerPresent: undefined as "yes" | "no" | "unknown" | undefined,
   });
 
   const createMutation = useMutation({
@@ -87,10 +97,34 @@ function NewOpportunityPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 驗證必填欄位
     if (!(formData.customerNumber && formData.companyName)) {
       toast.error("請填寫客戶編號和公司名稱");
       return;
     }
+
+    // 驗證業務脈絡必填欄位 (與 Slack 一致)
+    if (!formData.storeType) {
+      toast.error("請選擇店型");
+      return;
+    }
+
+    if (formData.productLine === "ichef" && !formData.serviceType) {
+      toast.error("請選擇營運型態");
+      return;
+    }
+
+    if (formData.productLine === "beauty" && !formData.staffCount) {
+      toast.error("請選擇員工數量");
+      return;
+    }
+
+    if (!formData.currentSystem) {
+      toast.error("請選擇現有POS系統");
+      return;
+    }
+
     createMutation.mutate();
   };
 
@@ -99,6 +133,10 @@ function NewOpportunityPage() {
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleProductConfigChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   return (
@@ -156,6 +194,71 @@ function NewOpportunityPage() {
                   value={formData.companyName}
                 />
               </div>
+            </div>
+
+            {/* Product Line Selection */}
+            <div className="space-y-2">
+              <Label>
+                產品線 <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                onValueChange={(value) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    productLine: value as ProductLine,
+                    // 切換產品線時清空產品線特定欄位
+                    serviceType: value === "beauty" ? "" : prev.serviceType,
+                    staffCount: value === "ichef" ? "" : prev.staffCount,
+                  }))
+                }
+                value={formData.productLine}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ichef">🍽️ iCHEF POS 系統</SelectItem>
+                  <SelectItem value="beauty">💇 美業管理系統</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Product-Specific Business Context Fields */}
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="font-semibold text-lg">業務資訊</h3>
+              <ProductConfigFormFields
+                onChange={handleProductConfigChange}
+                productLine={formData.productLine}
+                values={{
+                  storeType: formData.storeType,
+                  serviceType: formData.serviceType,
+                  staffCount: formData.staffCount,
+                  currentSystem: formData.currentSystem,
+                }}
+              />
+            </div>
+
+            {/* Decision Maker Present */}
+            <div className="space-y-2">
+              <Label>決策者在場</Label>
+              <Select
+                onValueChange={(value) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    decisionMakerPresent: value as "yes" | "no" | "unknown",
+                  }))
+                }
+                value={formData.decisionMakerPresent}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="選擇決策者在場情況" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">✅ 是</SelectItem>
+                  <SelectItem value="no">❌ 否</SelectItem>
+                  <SelectItem value="unknown">❓ 不確定</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Contact Info */}

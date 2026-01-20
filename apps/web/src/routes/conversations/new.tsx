@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { client, orpc } from "@/utils/orpc";
+import { client } from "@/utils/orpc";
 
 const searchSchema = z.object({
   opportunityId: z.string().optional(),

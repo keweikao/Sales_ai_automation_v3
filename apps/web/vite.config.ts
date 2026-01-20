@@ -14,4 +14,15 @@ export default defineConfig({
   server: {
     port: 3001,
   },
+  optimizeDeps: {
+    include: [
+      "@sales_ai_automation_v3/shared",
+      "@sales_ai_automation_v3/shared/product-configs",
+    ],
+  },
+  build: {
+    commonjsOptions: {
+      include: [/node_modules/, /packages/],
+    },
+  },
 });

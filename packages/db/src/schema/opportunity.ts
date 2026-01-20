@@ -58,6 +58,13 @@ export const opportunities = pgTable("opportunities", {
   companySize: text("company_size"),
   notes: text("notes"),
 
+  // Product-Specific Business Context
+  storeType: text("store_type"),
+  serviceType: text("service_type"),
+  staffCount: text("staff_count"),
+  currentSystem: text("current_system"),
+  decisionMakerPresent: text("decision_maker_present"),
+
   // Timestamps
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

@@ -474,6 +474,7 @@ async function processAudioFile(
         const createResult = await apiClient.createOpportunity({
           customerNumber: metadata.customerNumber,
           companyName: metadata.customerName,
+          contactPhone: metadata.contactPhone, // 新增客戶電話
           source: "slack",
           notes: formatMetadataNotes(metadata),
         });

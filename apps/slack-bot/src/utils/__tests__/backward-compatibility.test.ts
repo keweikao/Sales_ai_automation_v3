@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { Env, PendingAudioFile } from "../../types";
 import {
   buildAudioUploadModal,
   parseAudioUploadFormValues,
 } from "../form-builder";
 import { resolveProductLine } from "../product-line-resolver";
-import type { Env, PendingAudioFile } from "../../types";
 
 /**
  * 向後相容性測試
@@ -113,7 +113,9 @@ describe("Backward Compatibility", () => {
         service_type: {
           service_type: { selected_option: { value: "dine_in_main" } },
         },
-        current_system: { current_system: { selected_option: { value: "none" } } },
+        current_system: {
+          current_system: { selected_option: { value: "none" } },
+        },
         decision_maker_present: {
           decision_maker_present: { selected_option: { value: "yes" } },
         },

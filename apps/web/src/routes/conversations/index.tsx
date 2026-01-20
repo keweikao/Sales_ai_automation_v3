@@ -93,7 +93,7 @@ function ConversationsPage() {
     },
   });
 
-  const conversations = conversationsQuery.data?.conversations ?? [];
+  const conversations = conversationsQuery.data?.items ?? [];
   const isLoading = conversationsQuery.isLoading;
   const totalCount = conversationsQuery.data?.total ?? 0;
   const totalPages = Math.ceil(totalCount / pageSize);

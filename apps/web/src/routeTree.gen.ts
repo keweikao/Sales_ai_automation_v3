@@ -16,6 +16,7 @@ import { Route as ReportsIndexRouteImport } from './routes/reports/index'
 import { Route as OpportunitiesIndexRouteImport } from './routes/opportunities/index'
 import { Route as ConversationsIndexRouteImport } from './routes/conversations/index'
 import { Route as AlertsIndexRouteImport } from './routes/alerts/index'
+import { Route as ShareTokenRouteImport } from './routes/share/$token'
 import { Route as OpportunitiesNewRouteImport } from './routes/opportunities/new'
 import { Route as OpportunitiesIdRouteImport } from './routes/opportunities/$id'
 import { Route as ConversationsNewRouteImport } from './routes/conversations/new'
@@ -57,6 +58,11 @@ const AlertsIndexRoute = AlertsIndexRouteImport.update({
   path: '/alerts/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShareTokenRoute = ShareTokenRouteImport.update({
+  id: '/share/$token',
+  path: '/share/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OpportunitiesNewRoute = OpportunitiesNewRouteImport.update({
   id: '/opportunities/new',
   path: '/opportunities/new',
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/conversations/new': typeof ConversationsNewRoute
   '/opportunities/$id': typeof OpportunitiesIdRoute
   '/opportunities/new': typeof OpportunitiesNewRoute
+  '/share/$token': typeof ShareTokenRoute
   '/alerts': typeof AlertsIndexRoute
   '/conversations': typeof ConversationsIndexRoute
   '/opportunities': typeof OpportunitiesIndexRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/conversations/new': typeof ConversationsNewRoute
   '/opportunities/$id': typeof OpportunitiesIdRoute
   '/opportunities/new': typeof OpportunitiesNewRoute
+  '/share/$token': typeof ShareTokenRoute
   '/alerts': typeof AlertsIndexRoute
   '/conversations': typeof ConversationsIndexRoute
   '/opportunities': typeof OpportunitiesIndexRoute
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/conversations/new': typeof ConversationsNewRoute
   '/opportunities/$id': typeof OpportunitiesIdRoute
   '/opportunities/new': typeof OpportunitiesNewRoute
+  '/share/$token': typeof ShareTokenRoute
   '/alerts/': typeof AlertsIndexRoute
   '/conversations/': typeof ConversationsIndexRoute
   '/opportunities/': typeof OpportunitiesIndexRoute
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/conversations/new'
     | '/opportunities/$id'
     | '/opportunities/new'
+    | '/share/$token'
     | '/alerts'
     | '/conversations'
     | '/opportunities'
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/conversations/new'
     | '/opportunities/$id'
     | '/opportunities/new'
+    | '/share/$token'
     | '/alerts'
     | '/conversations'
     | '/opportunities'
@@ -165,6 +176,7 @@ export interface FileRouteTypes {
     | '/conversations/new'
     | '/opportunities/$id'
     | '/opportunities/new'
+    | '/share/$token'
     | '/alerts/'
     | '/conversations/'
     | '/opportunities/'
@@ -180,6 +192,7 @@ export interface RootRouteChildren {
   ConversationsNewRoute: typeof ConversationsNewRoute
   OpportunitiesIdRoute: typeof OpportunitiesIdRoute
   OpportunitiesNewRoute: typeof OpportunitiesNewRoute
+  ShareTokenRoute: typeof ShareTokenRoute
   AlertsIndexRoute: typeof AlertsIndexRoute
   ConversationsIndexRoute: typeof ConversationsIndexRoute
   OpportunitiesIndexRoute: typeof OpportunitiesIndexRoute
@@ -237,6 +250,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AlertsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/share/$token': {
+      id: '/share/$token'
+      path: '/share/$token'
+      fullPath: '/share/$token'
+      preLoaderRoute: typeof ShareTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/opportunities/new': {
       id: '/opportunities/new'
       path: '/opportunities/new'
@@ -284,6 +304,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConversationsNewRoute: ConversationsNewRoute,
   OpportunitiesIdRoute: OpportunitiesIdRoute,
   OpportunitiesNewRoute: OpportunitiesNewRoute,
+  ShareTokenRoute: ShareTokenRoute,
   AlertsIndexRoute: AlertsIndexRoute,
   ConversationsIndexRoute: ConversationsIndexRoute,
   OpportunitiesIndexRoute: OpportunitiesIndexRoute,

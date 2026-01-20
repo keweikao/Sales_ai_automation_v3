@@ -1,5 +1,5 @@
 {
-  "name": "slack-bot",
+  "name": "slack-bot-beauty",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {

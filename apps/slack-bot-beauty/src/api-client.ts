@@ -249,4 +249,17 @@ export class ApiClient {
       body: JSON.stringify({ talkTrackId }),
     });
   }
+
+  // SMS 相關 API
+  async sendCustomerSMS(data: {
+    conversationId: string;
+  }): Promise<{ success: boolean; message: string; phoneNumber?: string }> {
+    return this.request<{
+      success: boolean;
+      message: string;
+      phoneNumber?: string;
+    }>("/rpc/sms/sendCustomer", {
+      body: JSON.stringify(data),
+    });
+  }
 }

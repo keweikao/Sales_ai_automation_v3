@@ -6,30 +6,38 @@
  * 注意: 這是單元測試,不需要實際資料庫連線
  */
 
-import { describe, it, expect } from "bun:test";
+import { describe, expect, it } from "bun:test";
 
 // ============================================
 // 測試場景 1: iCHEF 流程向後相容性驗證
 // ============================================
 describe("測試場景 1: iCHEF 流程向後相容性", () => {
   it("應該能導入產品線類型", async () => {
-    const module = await import("../packages/shared/src/product-configs/types.js");
+    const module = await import(
+      "../packages/shared/src/product-configs/types.js"
+    );
     expect(module).toBeDefined();
   });
 
   it("getDefaultProductLine 應該返回 'ichef'", async () => {
-    const { getDefaultProductLine } = await import("../packages/shared/src/product-configs/registry.js");
+    const { getDefaultProductLine } = await import(
+      "../packages/shared/src/product-configs/registry.js"
+    );
     const defaultLine = getDefaultProductLine();
     expect(defaultLine).toBe("ichef");
   });
 
   it("isValidProductLine 應該接受 'ichef'", async () => {
-    const { isValidProductLine } = await import("../packages/shared/src/product-configs/registry.js");
+    const { isValidProductLine } = await import(
+      "../packages/shared/src/product-configs/registry.js"
+    );
     expect(isValidProductLine("ichef")).toBe(true);
   });
 
   it("getProductConfig 應該能取得 iCHEF 配置", async () => {
-    const { getProductConfig } = await import("../packages/shared/src/product-configs/registry.js");
+    const { getProductConfig } = await import(
+      "../packages/shared/src/product-configs/registry.js"
+    );
     const config = getProductConfig("ichef");
     expect(config).toBeDefined();
     expect(config.id).toBe("ichef");
@@ -37,7 +45,9 @@ describe("測試場景 1: iCHEF 流程向後相容性", () => {
   });
 
   it("iCHEF 配置應該包含表單欄位", async () => {
-    const { getProductConfig } = await import("../packages/shared/src/product-configs/registry.js");
+    const { getProductConfig } = await import(
+      "../packages/shared/src/product-configs/registry.js"
+    );
     const config = getProductConfig("ichef");
     expect(config.formFields).toBeDefined();
     expect(config.formFields.storeType).toBeDefined();
@@ -50,12 +60,16 @@ describe("測試場景 1: iCHEF 流程向後相容性", () => {
 // ============================================
 describe("測試場景 2: Beauty 流程新功能", () => {
   it("isValidProductLine 應該接受 'beauty'", async () => {
-    const { isValidProductLine } = await import("../packages/shared/src/product-configs/registry.js");
+    const { isValidProductLine } = await import(
+      "../packages/shared/src/product-configs/registry.js"
+    );
     expect(isValidProductLine("beauty")).toBe(true);
   });
 
   it("getProductConfig 應該能取得 Beauty 配置", async () => {
-    const { getProductConfig } = await import("../packages/shared/src/product-configs/registry.js");
+    const { getProductConfig } = await import(
+      "../packages/shared/src/product-configs/registry.js"
+    );
     const config = getProductConfig("beauty");
     expect(config).toBeDefined();
     expect(config.id).toBe("beauty");
@@ -63,7 +77,9 @@ describe("測試場景 2: Beauty 流程新功能", () => {
   });
 
   it("Beauty 配置應該包含美業特定表單欄位", async () => {
-    const { getProductConfig } = await import("../packages/shared/src/product-configs/registry.js");
+    const { getProductConfig } = await import(
+      "../packages/shared/src/product-configs/registry.js"
+    );
     const config = getProductConfig("beauty");
     expect(config.formFields).toBeDefined();
     expect(config.formFields.storeType).toBeDefined();
@@ -73,7 +89,9 @@ describe("測試場景 2: Beauty 流程新功能", () => {
   });
 
   it("Beauty 配置應該有不同的 displayName", async () => {
-    const { getProductConfig } = await import("../packages/shared/src/product-configs/registry.js");
+    const { getProductConfig } = await import(
+      "../packages/shared/src/product-configs/registry.js"
+    );
     const ichefConfig = getProductConfig("ichef");
     const beautyConfig = getProductConfig("beauty");
     expect(ichefConfig.displayName).not.toBe(beautyConfig.displayName);
@@ -85,18 +103,22 @@ describe("測試場景 2: Beauty 流程新功能", () => {
 // ============================================
 describe("測試場景 3: 產品線解析", () => {
   it("resolveProductLine 未設定環境變數時應返回 'ichef'", async () => {
-    const { resolveProductLine } = await import("../apps/slack-bot/src/utils/product-line-resolver.js");
+    const { resolveProductLine } = await import(
+      "../apps/slack-bot/src/utils/product-line-resolver.js"
+    );
     const env = {} as any;
     const result = resolveProductLine("C12345", env);
     expect(result).toBe("ichef");
   });
 
   it("resolveProductLine 應該能解析設定的 Channel", async () => {
-    const { resolveProductLine } = await import("../apps/slack-bot/src/utils/product-line-resolver.js");
+    const { resolveProductLine } = await import(
+      "../apps/slack-bot/src/utils/product-line-resolver.js"
+    );
     const env = {
       PRODUCT_LINE_CHANNELS: JSON.stringify({
-        "C12345": "ichef",
-        "C67890": "beauty",
+        C12345: "ichef",
+        C67890: "beauty",
       }),
     } as any;
 
@@ -105,10 +127,12 @@ describe("測試場景 3: 產品線解析", () => {
   });
 
   it("resolveProductLine 未配置的 Channel 應該預設為 'ichef'", async () => {
-    const { resolveProductLine } = await import("../apps/slack-bot/src/utils/product-line-resolver.js");
+    const { resolveProductLine } = await import(
+      "../apps/slack-bot/src/utils/product-line-resolver.js"
+    );
     const env = {
       PRODUCT_LINE_CHANNELS: JSON.stringify({
-        "C12345": "beauty",
+        C12345: "beauty",
       }),
     } as any;
 
@@ -117,11 +141,13 @@ describe("測試場景 3: 產品線解析", () => {
   });
 
   it("validateProductLineConfig 應該驗證正確的配置", async () => {
-    const { validateProductLineConfig } = await import("../apps/slack-bot/src/utils/product-line-resolver.js");
+    const { validateProductLineConfig } = await import(
+      "../apps/slack-bot/src/utils/product-line-resolver.js"
+    );
     const env = {
       PRODUCT_LINE_CHANNELS: JSON.stringify({
-        "C12345": "ichef",
-        "C67890": "beauty",
+        C12345: "ichef",
+        C67890: "beauty",
       }),
     } as any;
 
@@ -131,10 +157,12 @@ describe("測試場景 3: 產品線解析", () => {
   });
 
   it("validateProductLineConfig 應該拒絕無效的產品線", async () => {
-    const { validateProductLineConfig } = await import("../apps/slack-bot/src/utils/product-line-resolver.js");
+    const { validateProductLineConfig } = await import(
+      "../apps/slack-bot/src/utils/product-line-resolver.js"
+    );
     const env = {
       PRODUCT_LINE_CHANNELS: JSON.stringify({
-        "C12345": "invalid_product",
+        C12345: "invalid_product",
       }),
     } as any;
 
@@ -149,7 +177,9 @@ describe("測試場景 3: 產品線解析", () => {
 // ============================================
 describe("測試場景 4: Prompts 載入", () => {
   it("loadMeddicPrompts 應該能載入 iCHEF 提示詞", async () => {
-    const { loadMeddicPrompts } = await import("../packages/services/src/llm/prompt-loader.js");
+    const { loadMeddicPrompts } = await import(
+      "../packages/services/src/llm/prompt-loader.js"
+    );
     const prompts = loadMeddicPrompts("ichef");
 
     expect(prompts).toBeDefined();
@@ -161,7 +191,9 @@ describe("測試場景 4: Prompts 載入", () => {
   });
 
   it("loadMeddicPrompts 應該能載入 Beauty 提示詞", async () => {
-    const { loadMeddicPrompts } = await import("../packages/services/src/llm/prompt-loader.js");
+    const { loadMeddicPrompts } = await import(
+      "../packages/services/src/llm/prompt-loader.js"
+    );
     const prompts = loadMeddicPrompts("beauty");
 
     expect(prompts).toBeDefined();
@@ -172,28 +204,38 @@ describe("測試場景 4: Prompts 載入", () => {
   });
 
   it("iCHEF 和 Beauty 應該有相同的 shared prompts", async () => {
-    const { loadMeddicPrompts } = await import("../packages/services/src/llm/prompt-loader.js");
+    const { loadMeddicPrompts } = await import(
+      "../packages/services/src/llm/prompt-loader.js"
+    );
     const ichefPrompts = loadMeddicPrompts("ichef");
     const beautyPrompts = loadMeddicPrompts("beauty");
 
     // Shared prompts 應該相同
     expect(ichefPrompts.system).toBe(beautyPrompts.system);
-    expect(ichefPrompts.analysisFramework).toBe(beautyPrompts.analysisFramework);
+    expect(ichefPrompts.analysisFramework).toBe(
+      beautyPrompts.analysisFramework
+    );
     expect(ichefPrompts.outputFormat).toBe(beautyPrompts.outputFormat);
   });
 
   it("iCHEF 和 Beauty 應該有不同的 specific prompts", async () => {
-    const { loadMeddicPrompts } = await import("../packages/services/src/llm/prompt-loader.js");
+    const { loadMeddicPrompts } = await import(
+      "../packages/services/src/llm/prompt-loader.js"
+    );
     const ichefPrompts = loadMeddicPrompts("ichef");
     const beautyPrompts = loadMeddicPrompts("beauty");
 
     // Specific prompts 應該不同
     expect(ichefPrompts.metricsFocus).not.toBe(beautyPrompts.metricsFocus);
-    expect(ichefPrompts.decisionProcess).not.toBe(beautyPrompts.decisionProcess);
+    expect(ichefPrompts.decisionProcess).not.toBe(
+      beautyPrompts.decisionProcess
+    );
   });
 
   it("loadMeddicPrompts 預設應該載入 iCHEF", async () => {
-    const { loadMeddicPrompts } = await import("../packages/services/src/llm/prompt-loader.js");
+    const { loadMeddicPrompts } = await import(
+      "../packages/services/src/llm/prompt-loader.js"
+    );
     const defaultPrompts = loadMeddicPrompts();
     const ichefPrompts = loadMeddicPrompts("ichef");
 
@@ -201,7 +243,9 @@ describe("測試場景 4: Prompts 載入", () => {
   });
 
   it("buildAgentPrompt 應該能組合完整提示詞", async () => {
-    const { buildAgentPrompt } = await import("../packages/services/src/llm/prompt-loader.js");
+    const { buildAgentPrompt } = await import(
+      "../packages/services/src/llm/prompt-loader.js"
+    );
     const prompt = buildAgentPrompt("metricsFocus", "ichef");
 
     expect(prompt).toBeDefined();
@@ -212,7 +256,9 @@ describe("測試場景 4: Prompts 載入", () => {
   });
 
   it("getAvailableProductLines 應該返回所有產品線", async () => {
-    const { getAvailableProductLines } = await import("../packages/services/src/llm/prompt-loader.js");
+    const { getAvailableProductLines } = await import(
+      "../packages/services/src/llm/prompt-loader.js"
+    );
     const lines = getAvailableProductLines();
 
     expect(lines).toContain("ichef");
@@ -221,7 +267,9 @@ describe("測試場景 4: Prompts 載入", () => {
   });
 
   it("isProductLineSupported 應該正確判斷支援狀態", async () => {
-    const { isProductLineSupported } = await import("../packages/services/src/llm/prompt-loader.js");
+    const { isProductLineSupported } = await import(
+      "../packages/services/src/llm/prompt-loader.js"
+    );
 
     expect(isProductLineSupported("ichef")).toBe(true);
     expect(isProductLineSupported("beauty")).toBe(true);
@@ -234,7 +282,9 @@ describe("測試場景 4: Prompts 載入", () => {
 // ============================================
 describe("額外測試: 類型安全性", () => {
   it("getAllProductLines 應該返回所有產品線", async () => {
-    const { getAllProductLines } = await import("../packages/shared/src/product-configs/registry.js");
+    const { getAllProductLines } = await import(
+      "../packages/shared/src/product-configs/registry.js"
+    );
     const lines = getAllProductLines();
 
     expect(lines).toContain("ichef");
@@ -243,7 +293,9 @@ describe("額外測試: 類型安全性", () => {
   });
 
   it("getProductConfig 對於無效產品線應該拋出錯誤", async () => {
-    const { getProductConfig } = await import("../packages/shared/src/product-configs/registry.js");
+    const { getProductConfig } = await import(
+      "../packages/shared/src/product-configs/registry.js"
+    );
 
     expect(() => {
       getProductConfig("invalid" as any);
@@ -251,7 +303,9 @@ describe("額外測試: 類型安全性", () => {
   });
 
   it("iCHEF prompts 配置應該完整", async () => {
-    const { getProductConfig } = await import("../packages/shared/src/product-configs/registry.js");
+    const { getProductConfig } = await import(
+      "../packages/shared/src/product-configs/registry.js"
+    );
     const config = getProductConfig("ichef");
 
     expect(config.prompts).toBeDefined();
@@ -262,7 +316,9 @@ describe("額外測試: 類型安全性", () => {
   });
 
   it("Beauty prompts 配置應該完整", async () => {
-    const { getProductConfig } = await import("../packages/shared/src/product-configs/registry.js");
+    const { getProductConfig } = await import(
+      "../packages/shared/src/product-configs/registry.js"
+    );
     const config = getProductConfig("beauty");
 
     expect(config.prompts).toBeDefined();

@@ -35,6 +35,7 @@ export async function createContext({ context }: CreateContextOptions) {
         session: SERVICE_ACCOUNT_SESSION,
         isServiceAccount: true,
         honoContext: context, // 傳遞 Hono context 以訪問 executionCtx
+        env, // 加入環境變數
       };
     }
   }
@@ -47,6 +48,7 @@ export async function createContext({ context }: CreateContextOptions) {
     session,
     isServiceAccount: false,
     honoContext: context, // 傳遞 Hono context 以訪問 executionCtx
+    env, // 加入環境變數
   };
 }
 

@@ -77,7 +77,8 @@ export function buildProcessingCompletedBlocks(
   caseNumber: string,
   conversationId: string,
   analysisResult: MEDDICAnalysisResult,
-  processingTimeMs: number
+  processingTimeMs: number,
+  shareToken?: string // 新增: 公開分享 token
 ): KnownBlock[] {
   const processingTimeSec = (processingTimeMs / 1000).toFixed(1);
 
@@ -191,7 +192,7 @@ export function buildProcessingCompletedBlocks(
   }
 
   // Block 7: 操作按鈕 (完整分析 + 編輯摘要與簡訊)
-  const webAppUrl = process.env.WEB_APP_URL || "http://localhost:5173";
+  const webAppUrl = process.env.WEB_APP_URL || "https://sales-ai-web.pages.dev";
   const actionButtons: any[] = [
     {
       type: "button",
@@ -205,6 +206,25 @@ export function buildProcessingCompletedBlocks(
     },
   ];
 
+  // 如果有客戶電話和分享 token,新增「發送 SMS」按鈕
+  if (analysisResult.contactPhone && shareToken) {
+    actionButtons.push({
+      type: "button",
+      text: {
+        type: "plain_text",
+        text: "📱 發送 SMS 給客戶",
+        emoji: true,
+      },
+      action_id: "send_customer_sms",
+      value: JSON.stringify({
+        conversationId,
+        phoneNumber: analysisResult.contactPhone,
+        shareToken,
+      }),
+      style: "primary",
+    });
+  }
+
   // 如果有會議摘要或 SMS,新增編輯按鈕
   if (analysisResult.summary || analysisResult.smsText) {
     actionButtons.push({
@@ -214,7 +234,7 @@ export function buildProcessingCompletedBlocks(
         text: "編輯會議摘要與簡訊",
         emoji: true,
       },
-      url: webAppUrl + "/conversations/" + conversationId + "/summary",
+      url: webAppUrl + "/conversations/" + conversationId,
     });
   }
 

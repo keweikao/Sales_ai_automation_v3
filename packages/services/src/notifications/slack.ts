@@ -62,7 +62,8 @@ export class SlackNotificationServiceImpl implements SlackNotificationService {
       params.caseNumber,
       params.conversationId,
       params.analysisResult,
-      params.processingTimeMs
+      params.processingTimeMs,
+      params.shareToken // 傳遞 shareToken
     );
 
     const fallbackText =

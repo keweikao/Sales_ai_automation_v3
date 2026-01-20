@@ -1,5 +1,12 @@
 import { relations } from "drizzle-orm";
-import { integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import { meddicAnalyses } from "./meddic";
 import { opportunities } from "./opportunity";
 
@@ -60,6 +67,10 @@ export const conversations = pgTable("conversations", {
   slackThreadTs: text("slack_thread_ts"),
   slackUserId: text("slack_user_id"), // 業務的 Slack User ID
   slackUsername: text("slack_username"), // 業務的 Slack Username
+
+  // SMS notification
+  smsSent: boolean("sms_sent").default(false), // SMS 是否已發送給客戶
+  smsSentAt: timestamp("sms_sent_at"), // SMS 發送時間
 
   // Time
   duration: integer("duration"), // seconds

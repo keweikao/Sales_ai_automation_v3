@@ -67,6 +67,7 @@ export interface ProcessingCompletedParams {
   analysisResult: MEDDICAnalysisResult;
   processingTimeMs: number;
   threadTs?: string; // Slack thread timestamp (用於回覆在同一個 thread 內)
+  shareToken?: string; // 公開分享 token (用於 SMS 連結)
 }
 
 /**

@@ -15,13 +15,12 @@ import {
 import { handleSlackCommand } from "./commands";
 import { handleSlackEvent } from "./events";
 import { processAudioWithMetadata } from "./events/file";
+import { createNotificationService } from "./services/notification";
+import type { Env, PendingAudioFile, SlackRequestBody } from "./types";
 import {
   buildAudioUploadModal,
   parseAudioUploadFormValues,
 } from "./utils/form-builder";
-import { resolveProductLine } from "./utils/product-line-resolver";
-import { createNotificationService } from "./services/notification";
-import type { Env, PendingAudioFile, SlackRequestBody } from "./types";
 import { SlackClient } from "./utils/slack-client";
 import { verifySlackRequest } from "./utils/verify";
 
@@ -230,7 +229,7 @@ app.post("/slack/interactions", async (c) => {
                 );
 
                 // Beauty Bot 固定使用 beauty 產品線
-                const productLine = env.PRODUCT_LINE || 'beauty';
+                const productLine = env.PRODUCT_LINE || "beauty";
                 console.log(
                   `[Modal] Product line: ${productLine} (Beauty Bot)`
                 );
@@ -316,8 +315,87 @@ app.post("/slack/interactions", async (c) => {
               break;
             }
 
+            case "send_customer_sms": {
+              // 發送客戶 SMS (使用 API)
+              try {
+                const data = JSON.parse(value);
+                console.log(
+                  "[SMS] Sending customer SMS via API:",
+                  JSON.stringify(data, null, 2)
+                );
+
+                if (!(data.conversationId && data.phoneNumber)) {
+                  console.error("[SMS] Missing required fields:", data);
+                  if (payload.response_url) {
+                    await fetch(payload.response_url, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        text: ":x: 無法發送簡訊：缺少必要資訊",
+                        replace_original: false,
+                      }),
+                    });
+                  }
+                  break;
+                }
+
+                // 顯示確認對話框 (使用 Slack 的 response_url 更新訊息)
+                if (payload.response_url) {
+                  await fetch(payload.response_url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      text: `:hourglass_flowing_sand: 正在發送簡訊至 ${data.phoneNumber}...`,
+                      replace_original: false,
+                    }),
+                  });
+                }
+
+                // 調用 API 發送 SMS
+                const apiClient = new ApiClient(
+                  env.API_BASE_URL,
+                  env.API_TOKEN
+                );
+                const smsResult = await apiClient.sendCustomerSMS({
+                  conversationId: data.conversationId,
+                });
+
+                console.log(
+                  "[SMS] API response:",
+                  JSON.stringify(smsResult, null, 2)
+                );
+
+                // 發送結果通知
+                if (payload.response_url) {
+                  await fetch(payload.response_url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      text: smsResult.success
+                        ? `:white_check_mark: 簡訊已成功發送至 ${data.phoneNumber}`
+                        : `:x: 簡訊發送失敗: ${smsResult.message || "未知錯誤"}`,
+                      replace_original: false,
+                    }),
+                  });
+                }
+              } catch (error) {
+                console.error("[SMS] Error sending customer SMS:", error);
+                if (payload.response_url) {
+                  await fetch(payload.response_url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      text: `:x: 簡訊發送失敗: ${String(error)}`,
+                      replace_original: false,
+                    }),
+                  });
+                }
+              }
+              break;
+            }
+
             case "send_sms": {
-              // 發送簡訊給客戶
+              // 發送簡訊給客戶 (舊版,保留向後相容)
               try {
                 const data = JSON.parse(value);
                 const notificationService = createNotificationService(env);
@@ -438,6 +516,15 @@ app.post("/slack/interactions", async (c) => {
         }
         if (!metadata.customerName?.trim()) {
           errors.customer_name = "請輸入客戶名稱";
+        }
+        if (!metadata.contactPhone?.trim()) {
+          errors.contact_phone = "請輸入客戶電話";
+        } else {
+          // 驗證電話格式
+          const phoneDigits = metadata.contactPhone.replace(/\D/g, "");
+          if (!/^09\d{8}$/.test(phoneDigits)) {
+            errors.contact_phone = "請輸入有效的台灣手機號碼（例如：0912-345-678）";
+          }
         }
         if (!metadata.storeType) {
           errors.store_type = "請選擇店型";

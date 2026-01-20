@@ -10,12 +10,16 @@ import {
   BarChart3,
   Building2,
   Calendar,
+  CheckCircle2,
   Clock,
+  Edit,
+  ExternalLink,
   Loader2,
   MessageSquare,
+  Send,
 } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
-
 import { MeddicScoreCard } from "@/components/meddic/meddic-score-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,9 +30,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { client, orpc } from "@/utils/orpc";
+import { Textarea } from "@/components/ui/textarea";
+import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/conversations/$id")({
   component: ConversationDetailPage,
@@ -75,6 +88,10 @@ function ConversationDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  // 編輯 Summary Modal 狀態
+  const [isEditSummaryOpen, setIsEditSummaryOpen] = useState(false);
+  const [editedSummary, setEditedSummary] = useState("");
+
   const conversationQuery = useQuery({
     queryKey: ["conversations", "detail", id],
     queryFn: async () => {
@@ -86,13 +103,69 @@ function ConversationDetailPage() {
   const analyzeMutation = useMutation({
     mutationFn: () => client.conversations.analyze({ conversationId: id }),
     onSuccess: () => {
-      toast.success("分析完成！");
+      toast.success("分析完成!");
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
     onError: (error) => {
       toast.error(`分析失敗: ${error.message}`);
     },
   });
+
+  // 更新 Summary
+  const updateSummaryMutation = useMutation({
+    mutationFn: (summary: string) =>
+      client.conversations.updateSummary({ conversationId: id, summary }),
+    onSuccess: () => {
+      toast.success("會議摘要已更新!");
+      queryClient.invalidateQueries({
+        queryKey: ["conversations", "detail", id],
+      });
+      setIsEditSummaryOpen(false);
+    },
+    onError: (error) => {
+      toast.error(`更新失敗: ${error.message}`);
+    },
+  });
+
+  // 發送 SMS
+  const sendSmsMutation = useMutation({
+    mutationFn: () => client.sms.sendCustomer({ conversationId: id }),
+    onSuccess: (data) => {
+      toast.success(`簡訊已成功發送至 ${data.phoneNumber}!`);
+      queryClient.invalidateQueries({
+        queryKey: ["conversations", "detail", id],
+      });
+    },
+    onError: (error) => {
+      toast.error(`發送失敗: ${error.message}`);
+    },
+  });
+
+  // 開啟編輯 Modal
+  const handleEditSummary = () => {
+    setEditedSummary(conversation?.summary || "");
+    setIsEditSummaryOpen(true);
+  };
+
+  // 儲存 Summary
+  const handleSaveSummary = () => {
+    if (!editedSummary.trim()) {
+      toast.error("摘要內容不能為空");
+      return;
+    }
+    updateSummaryMutation.mutate(editedSummary);
+  };
+
+  // 預覽公開分享頁面
+  const handlePreviewShare = async () => {
+    try {
+      const tokenResult = await client.share.create({ conversationId: id });
+      const shareUrl = `${window.location.origin}/share/${tokenResult.token}`;
+      window.open(shareUrl, "_blank");
+    } catch (error) {
+      toast.error("無法生成預覽連結");
+    }
+  };
 
   const conversation = conversationQuery.data;
   const isLoading = conversationQuery.isLoading;
@@ -262,8 +335,18 @@ function ConversationDetailPage() {
               </div>
               {conversation.summary && (
                 <div className="mt-4 border-t pt-4">
-                  <p className="font-medium text-sm">摘要</p>
-                  <p className="mt-1 text-muted-foreground">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-sm">會議摘要 (Agent 4)</p>
+                    <Button
+                      onClick={handleEditSummary}
+                      size="sm"
+                      variant="ghost"
+                    >
+                      <Edit className="mr-1 h-3 w-3" />
+                      編輯
+                    </Button>
+                  </div>
+                  <p className="mt-2 whitespace-pre-wrap text-muted-foreground text-sm">
                     {conversation.summary}
                   </p>
                 </div>
@@ -272,12 +355,12 @@ function ConversationDetailPage() {
           </Card>
 
           {/* Tabs: Transcript / Analysis */}
-          <Tabs defaultValue="transcript">
+          <Tabs defaultValue={conversation.analysis ? "analysis" : "transcript"}>
             <TabsList>
-              <TabsTrigger value="transcript">轉錄文字</TabsTrigger>
-              <TabsTrigger disabled={!conversation.analysis} value="analysis">
+              <TabsTrigger value="analysis" disabled={!conversation.analysis}>
                 MEDDIC 分析
               </TabsTrigger>
+              <TabsTrigger value="transcript">轉錄文字</TabsTrigger>
             </TabsList>
 
             <TabsContent className="mt-4" value="transcript">
@@ -457,6 +540,62 @@ function ConversationDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* SMS 發送狀態 & 操作 */}
+          <Card>
+            <CardHeader>
+              <CardTitle>客戶通知</CardTitle>
+              <CardDescription>SMS 發送狀態與預覽</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* 預覽按鈕 */}
+              <Button
+                className="w-full"
+                onClick={handlePreviewShare}
+                variant="outline"
+              >
+                <ExternalLink className="mr-2 h-4 w-4" />
+                預覽公開分享頁面
+              </Button>
+
+              {/* 發送 SMS 按鈕 */}
+              <Button
+                className="w-full"
+                disabled={
+                  !conversation.customerPhone || sendSmsMutation.isPending
+                }
+                onClick={() => sendSmsMutation.mutate()}
+              >
+                {sendSmsMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="mr-2 h-4 w-4" />
+                )}
+                發送 SMS 給客戶
+              </Button>
+
+              {!conversation.customerPhone && (
+                <p className="text-destructive text-xs">客戶電話號碼未設定</p>
+              )}
+
+              {/* SMS 發送狀態 */}
+              {conversation.smsSent && conversation.smsSentAt && (
+                <div className="mt-4 space-y-2 border-t pt-3">
+                  <div className="rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-900 dark:bg-green-950">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      <span className="font-medium text-sm text-green-900 dark:text-green-100">
+                        已發送簡訊
+                      </span>
+                    </div>
+                    <p className="mt-1 text-green-700 text-xs dark:text-green-300">
+                      {new Date(conversation.smsSentAt).toLocaleString("zh-TW")}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Audio Player */}
           {conversation.audioUrl && (
             <Card>
@@ -550,6 +689,53 @@ function ConversationDetailPage() {
           </Card>
         </div>
       </div>
+
+      {/* 編輯 Summary Modal */}
+      <Dialog onOpenChange={setIsEditSummaryOpen} open={isEditSummaryOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>編輯會議摘要</DialogTitle>
+            <DialogDescription>
+              修改 Agent 4 生成的會議摘要,此內容將顯示在公開分享頁面
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Textarea
+              className="min-h-[300px] font-mono text-sm"
+              onChange={(e) => setEditedSummary(e.target.value)}
+              placeholder="輸入會議摘要..."
+              value={editedSummary}
+            />
+            <div className="rounded-md bg-muted p-3 text-sm">
+              <p className="font-medium">💡 提示:</p>
+              <ul className="mt-1 ml-4 list-disc space-y-1 text-muted-foreground">
+                <li>此內容將公開給客戶查看</li>
+                <li>請確保不包含內部敏感資訊</li>
+                <li>支援換行格式</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => setIsEditSummaryOpen(false)}
+              variant="outline"
+            >
+              取消
+            </Button>
+            <Button
+              disabled={
+                updateSummaryMutation.isPending || !editedSummary.trim()
+              }
+              onClick={handleSaveSummary}
+            >
+              {updateSummaryMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              儲存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

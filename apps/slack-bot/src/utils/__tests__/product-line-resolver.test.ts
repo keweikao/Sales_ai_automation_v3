@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { Env } from "../../types";
 import {
   resolveProductLine,
   validateProductLineConfig,
 } from "../product-line-resolver";
-import type { Env } from "../../types";
 
 describe("ProductLineResolver", () => {
   describe("resolveProductLine", () => {
