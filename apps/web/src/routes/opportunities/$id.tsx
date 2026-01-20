@@ -30,7 +30,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { orpc } from "@/utils/orpc";
+import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/opportunities/$id")({
   component: OpportunityDetailPage,
@@ -75,9 +75,13 @@ function OpportunityDetailPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
 
-  const opportunityQuery = useQuery(
-    orpc.opportunities.get.queryOptions({ opportunityId: id })
-  );
+  const opportunityQuery = useQuery({
+    queryKey: ["opportunities", "get", { opportunityId: id }],
+    queryFn: async () => {
+      const result = await client.opportunities.get({ opportunityId: id });
+      return result;
+    },
+  });
 
   const opportunity = opportunityQuery.data;
   const isLoading = opportunityQuery.isLoading;

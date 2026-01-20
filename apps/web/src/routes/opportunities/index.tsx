@@ -47,7 +47,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { client, orpc } from "@/utils/orpc";
+import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/opportunities/")({
   component: OpportunitiesPage,
@@ -82,24 +82,37 @@ function OpportunitiesPage() {
   const [page, setPage] = useState(0);
   const pageSize = 20;
 
-  const opportunitiesQuery = useQuery(
-    orpc.opportunities.list.queryOptions({
-      search: search || undefined,
-      status:
-        statusFilter !== "all"
-          ? (statusFilter as
-              | "new"
-              | "contacted"
-              | "qualified"
-              | "proposal"
-              | "negotiation"
-              | "won"
-              | "lost")
-          : undefined,
-      limit: pageSize,
-      offset: page * pageSize,
-    })
-  );
+  const opportunitiesQuery = useQuery({
+    queryKey: [
+      "opportunities",
+      "list",
+      {
+        search: search || undefined,
+        status: statusFilter !== "all" ? statusFilter : undefined,
+        limit: pageSize,
+        offset: page * pageSize,
+      },
+    ],
+    queryFn: async () => {
+      const result = await client.opportunities.list({
+        search: search || undefined,
+        status:
+          statusFilter !== "all"
+            ? (statusFilter as
+                | "new"
+                | "contacted"
+                | "qualified"
+                | "proposal"
+                | "negotiation"
+                | "won"
+                | "lost")
+            : undefined,
+        limit: pageSize,
+        offset: page * pageSize,
+      });
+      return result;
+    },
+  });
 
   const deleteMutation = useMutation({
     mutationFn: (opportunityId: string) =>

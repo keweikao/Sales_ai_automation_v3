@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { orpc } from "@/utils/orpc";
+import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/conversations/")({
   component: ConversationsPage,
@@ -78,12 +78,20 @@ function ConversationsPage() {
   const [page, setPage] = useState(0);
   const pageSize = 20;
 
-  const conversationsQuery = useQuery(
-    orpc.conversations.list.queryOptions({
-      limit: pageSize,
-      offset: page * pageSize,
-    })
-  );
+  const conversationsQuery = useQuery({
+    queryKey: [
+      "conversations",
+      "list",
+      { limit: pageSize, offset: page * pageSize },
+    ],
+    queryFn: async () => {
+      const result = await client.conversations.list({
+        limit: pageSize,
+        offset: page * pageSize,
+      });
+      return result;
+    },
+  });
 
   const conversations = conversationsQuery.data?.conversations ?? [];
   const isLoading = conversationsQuery.isLoading;

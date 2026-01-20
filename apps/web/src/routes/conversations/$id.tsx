@@ -75,9 +75,13 @@ function ConversationDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const conversationQuery = useQuery(
-    orpc.conversations.get.queryOptions({ conversationId: id })
-  );
+  const conversationQuery = useQuery({
+    queryKey: ["conversations", "detail", id],
+    queryFn: async () => {
+      const result = await client.conversations.get({ conversationId: id });
+      return result;
+    },
+  });
 
   const analyzeMutation = useMutation({
     mutationFn: () => client.conversations.analyze({ conversationId: id }),
