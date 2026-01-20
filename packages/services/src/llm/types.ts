@@ -9,8 +9,8 @@ export type TranscriptSegment = {
   speaker: string;
   text: string;
   timestamp?: number;
-  start: number;  // Start time in seconds
-  end: number;    // End time in seconds
+  start: number; // Start time in seconds
+  end: number; // End time in seconds
 };
 
 export type Transcript = {
@@ -36,7 +36,13 @@ export type DimensionAnalysis = {
   suggestions: string[];
 };
 
-export type MeddicDimensions = "metrics" | "economicBuyer" | "decisionCriteria" | "decisionProcess" | "identifyPain" | "champion";
+export type MeddicDimensions =
+  | "metrics"
+  | "economicBuyer"
+  | "decisionCriteria"
+  | "decisionProcess"
+  | "identifyPain"
+  | "champion";
 
 // ============================================================
 // Agent Output Types (V2 compatibility)
@@ -61,7 +67,12 @@ export interface Agent1Output {
  * Customer insight analysis - why not closed, switching concerns, customer type
  */
 export interface Agent2Output {
-  not_closed_reason: "價格太高" | "需老闆決定" | "功能不符" | "轉換顧慮" | "習慣現狀";
+  not_closed_reason:
+    | "價格太高"
+    | "需老闆決定"
+    | "功能不符"
+    | "轉換顧慮"
+    | "習慣現狀";
   not_closed_detail: string;
   switch_concerns: {
     detected: boolean;
@@ -192,6 +203,7 @@ export interface AnalysisMetadata {
   conversationId?: string;
   salesRep: string;
   conversationDate: Date;
+  productLine?: "ichef" | "beauty";
 }
 
 export interface AnalysisState {
