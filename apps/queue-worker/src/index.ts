@@ -34,8 +34,8 @@ import {
   errors,
   formatErrorForLog,
   isAppError,
-} from "@sales_ai_automation_v3/shared/errors";
-import type { TranscriptionMessage } from "@sales_ai_automation_v3/shared/types";
+} from "@Sales_ai_automation_v3/shared/errors";
+import type { TranscriptionMessage } from "@Sales_ai_automation_v3/shared/types";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-http";
 

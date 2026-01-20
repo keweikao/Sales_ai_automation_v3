@@ -6,7 +6,7 @@
 import type {
   ConversationStatus,
   TranscriptSegment,
-} from "@sales_ai_automation_v3/shared/types";
+} from "@Sales_ai_automation_v3/shared/types";
 import { z } from "zod";
 import { publicProcedure, router } from "../trpc.js";
 
