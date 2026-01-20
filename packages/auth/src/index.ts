@@ -20,13 +20,13 @@ export const auth = betterAuth({
       clientSecret: env.GOOGLE_CLIENT_SECRET,
     },
   },
-  // uncomment cookieCache setting when ready to deploy to Cloudflare using *.workers.dev domains
-  // session: {
-  //   cookieCache: {
-  //     enabled: true,
-  //     maxAge: 60,
-  //   },
-  // },
+  // cookieCache setting for Cloudflare deployment using *.workers.dev domains
+  session: {
+    cookieCache: {
+      enabled: true,
+      maxAge: 60,
+    },
+  },
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.BETTER_AUTH_URL,
   advanced: {
