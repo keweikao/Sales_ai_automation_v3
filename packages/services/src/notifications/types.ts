@@ -26,7 +26,16 @@ export interface MEDDICAnalysisResult {
     priority: string;
     owner: string;
   }>;
-  risks?: string[];
+  risks?: Array<{
+    risk: string;
+    severity: string;
+    mitigation?: string;
+  }>; // 風險列表 (含嚴重程度和緩解措施)
+  alerts?: string[]; // 新增: 高優先級警報列表 (從 Agent 6, Agent 2, dimensions 提取)
+  painPoints?: string[]; // 新增: 客戶痛點列表 (從 Agent 4 markdown 提取)
+  summary?: string; // 新增: Agent 4 生成的 markdown 摘要
+  smsText?: string; // 新增: Agent 4 生成的 SMS 文字
+  contactPhone?: string; // 新增: 客戶電話 (用於發送簡訊)
 }
 
 /**

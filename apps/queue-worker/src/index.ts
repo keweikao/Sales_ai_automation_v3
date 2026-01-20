@@ -28,6 +28,7 @@ import { neon, neonConfig } from "@neondatabase/serverless";
 
 // 配置 Neon 使用 Cloudflare Workers 的 fetch
 neonConfig.fetchFunction = fetch;
+
 import {
   type AppError,
   errors,
@@ -66,6 +67,7 @@ export interface Env {
 // Extended TranscriptionMessage with Slack user info
 export interface QueueTranscriptionMessage extends TranscriptionMessage {
   caseNumber: string;
+  productLine?: "ichef" | "beauty";
   slackUser?: {
     id: string;
     username: string;
@@ -104,7 +106,12 @@ export default {
         caseNumber,
         metadata,
         slackUser,
+        productLine,
       } = message.body;
+
+      // 解析 productLine (預設 'ichef')
+      // 優先順序: message payload -> DB conversation record -> 預設 'ichef'
+      const resolvedProductLine = productLine || "ichef";
 
       // threadTs 需要在 try block 之前宣告,以便在 catch block 中使用
       let threadTs: string | undefined;
@@ -114,6 +121,7 @@ export default {
         console.log(
           `[Queue]    File: ${metadata.fileName} (${(metadata.fileSize / 1024 / 1024).toFixed(2)}MB)`
         );
+        console.log(`[Queue]    Product Line: ${resolvedProductLine}`);
 
         // ========================================
         // Step 0: 發送處理開始通知
@@ -196,7 +204,12 @@ export default {
           );
 
           console.log("[Queue] DEBUG: Using raw SQL query...");
-          console.log("[Queue] DEBUG: duration =", duration, "type =", typeof duration);
+          console.log(
+            "[Queue] DEBUG: duration =",
+            duration,
+            "type =",
+            typeof duration
+          );
           const result = await sql`
             UPDATE conversations
             SET
@@ -237,6 +250,7 @@ export default {
             conversationId,
             salesRep: slackUser?.username || "Unknown",
             conversationDate: new Date(),
+            productLine: resolvedProductLine,
           }
         );
         console.log(
@@ -314,6 +328,16 @@ export default {
           try {
             const processingTimeMs = Date.now() - startTime;
 
+            // 提取 agentOutputs
+            const agentOutputs = analysisResult.agentOutputs as unknown as {
+              agent1?: Record<string, unknown>;
+              agent2?: Record<string, unknown>;
+              agent3?: Record<string, unknown>;
+              agent4?: Record<string, unknown>;
+              agent5?: Record<string, unknown>;
+              agent6?: Record<string, unknown>;
+            };
+
             // 轉換 dimensions 格式以符合 MEDDICAnalysisResult
             const convertedDimensions: Record<
               string,
@@ -343,13 +367,87 @@ export default {
               }
             }
 
+            // 提取高優先級警報
+            const alerts: string[] = [];
+
+            // 從 Agent 6 (Coach) 提取警報
+            if (
+              agentOutputs.agent6?.alert_triggered &&
+              agentOutputs.agent6.alert_message
+            ) {
+              alerts.push(agentOutputs.agent6.alert_message as string);
+            }
+
+            // 從 Agent 2 (Buyer) 提取錯失機會 (只取第一個)
+            const missedOpportunities =
+              agentOutputs.agent2?.missed_opportunities;
+            if (
+              Array.isArray(missedOpportunities) &&
+              missedOpportunities.length > 0
+            ) {
+              const firstOpportunity = missedOpportunities[0];
+              alerts.push(
+                "錯失推進機會 - " + String(firstOpportunity).substring(0, 100)
+              );
+            }
+
+            // 從 dimensions 提取高優先級 gaps (前 2 個)
+            const highPriorityGaps = Object.values(convertedDimensions)
+              .filter((dim) => dim.gaps && dim.gaps.length > 0)
+              .flatMap((dim) => dim.gaps || [])
+              .slice(0, 2);
+
+            alerts.push(...highPriorityGaps);
+
+            // 提取 Agent 4 的 summary 和 sms_text
+            const summary = agentOutputs.agent4?.markdown as string | undefined;
+            const smsText = agentOutputs.agent4?.sms_text as string | undefined;
+
+            // 從 Agent 4 的 markdown 提取客戶痛點
+            const painPoints: string[] = [];
+            if (summary) {
+              // 提取 "您目前遇到的挑戰" 部分的痛點
+              const painPointsMatch = summary.match(
+                /##\s*🔍\s*您目前遇到的挑戰\s*\n\n((?:- \*\*.*?\*\*:.*?\n)+)/
+              );
+              if (painPointsMatch?.[1]) {
+                const painPointsText = painPointsMatch[1];
+                const matches = Array.from(
+                  painPointsText.matchAll(/- \*\*(.*?)\*\*:/g)
+                );
+                for (const match of matches) {
+                  if (match[1]) {
+                    painPoints.push(match[1]);
+                  }
+                }
+              }
+            }
+
+            // 從 opportunity 取得客戶電話
+            let contactPhone: string | undefined;
+            try {
+              const oppResult = await db.query.opportunities.findFirst({
+                where: (opportunities, { eq }) =>
+                  eq(opportunities.id, message.body.opportunityId),
+                columns: {
+                  contactPhone: true,
+                },
+              });
+              contactPhone = oppResult?.contactPhone ?? undefined;
+            } catch (error) {
+              console.log(
+                "[Queue] ⚠️  Could not fetch contact phone (non-critical)"
+              );
+            }
+
             await slackService.notifyProcessingCompleted({
               userId: slackUser.id,
               conversationId,
               caseNumber,
               analysisResult: {
                 overallScore: analysisResult.overallScore ?? 0,
-                qualificationStatus: analysisResult.qualificationStatus ?? "unknown",
+                qualificationStatus:
+                  analysisResult.qualificationStatus ?? "unknown",
                 dimensions: convertedDimensions,
                 keyFindings: analysisResult.keyFindings ?? [],
                 // 轉換 nextSteps 格式: {action, owner?, deadline?} -> {action, priority, owner}
@@ -358,8 +456,18 @@ export default {
                   priority: "Medium", // 預設優先級
                   owner: step.owner || "Unassigned",
                 })),
-                // 轉換 risks 格式: {risk, severity, mitigation?}[] -> string[]
-                risks: (analysisResult.risks ?? []).map((r) => r.risk),
+                // 保留完整 risks 格式: {risk, severity, mitigation?}[]
+                risks: analysisResult.risks ?? [],
+                // 高優先級警報
+                alerts: alerts.filter(
+                  (alert) => alert && alert.trim().length > 0
+                ), // 過濾空字串
+                // 客戶痛點 (從 Agent 4 markdown 提取)
+                painPoints,
+                // Agent 4 生成的內容
+                summary, // 會議摘要 (markdown 格式)
+                smsText, // SMS 簡訊內容
+                contactPhone, // 客戶電話
               },
               processingTimeMs,
               threadTs, // 傳遞 thread_ts 以在同一個 thread 內回覆

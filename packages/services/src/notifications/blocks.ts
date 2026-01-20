@@ -117,80 +117,110 @@ export function buildProcessingCompletedBlocks(
     },
   ];
 
-  // 添加各維度評分
-  if (analysisResult.dimensions) {
-    const dimensionFields: Array<{ type: "mrkdwn"; text: string }> = [];
+  // Block 2: 分隔線
+  blocks.push({ type: "divider" });
 
-    for (const dimension of Object.values(analysisResult.dimensions)) {
-      dimensionFields.push({
-        type: "mrkdwn",
-        text: "*" + dimension.name + ":*\n" + dimension.score + "/100",
-      });
-    }
-
-    if (dimensionFields.length > 0) {
-      blocks.push({
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: "*🎯 各維度評分:*",
-        },
-      });
-
-      // Slack API 限制: fields 最多 10 個 items
-      // 如果超過 10 個,分成多個 blocks
-      const MAX_FIELDS_PER_BLOCK = 10;
-      for (let i = 0; i < dimensionFields.length; i += MAX_FIELDS_PER_BLOCK) {
-        blocks.push({
-          type: "section",
-          fields: dimensionFields.slice(i, i + MAX_FIELDS_PER_BLOCK),
-        });
-      }
-    }
-  }
-
-  // 添加關鍵發現
-  if (analysisResult.keyFindings && analysisResult.keyFindings.length > 0) {
-    const findingsText = analysisResult.keyFindings
-      .slice(0, 3)
-      .map((finding) => "• " + finding)
+  // Block 3: 高優先級警報 (僅當有 alerts 時)
+  if (analysisResult.alerts && analysisResult.alerts.length > 0) {
+    const alertsText = analysisResult.alerts
+      .map((alert) => "• " + alert)
       .join("\n");
 
     blocks.push({
       type: "section",
       text: {
         type: "mrkdwn",
-        text: "*💡 關鍵發現:*\n" + findingsText,
+        text: "⚠️ *需要注意:*\n" + alertsText,
       },
+    });
+    blocks.push({ type: "divider" });
+  }
+
+  // Block 4: 客戶痛點 (從 painPoints 提取)
+  if (analysisResult.painPoints && analysisResult.painPoints.length > 0) {
+    const painPointsText = analysisResult.painPoints
+      .map((point) => "• " + point)
+      .join("\n");
+
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: "💡 *客戶痛點*\n" + painPointsText,
+      },
+    });
+    blocks.push({ type: "divider" });
+  }
+
+  // Block 5: 風險與緩解措施 (從 risks 提取)
+  if (analysisResult.risks && analysisResult.risks.length > 0) {
+    const risksText = analysisResult.risks
+      .map((risk) => {
+        const emoji = getSeverityEmoji(risk.severity);
+        let text = emoji + " *" + risk.risk + "*";
+        if (risk.mitigation) {
+          text += "\n_緩解措施:_ " + risk.mitigation;
+        }
+        return text;
+      })
+      .join("\n\n");
+
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: risksText,
+      },
+    });
+    blocks.push({ type: "divider" });
+  }
+
+  // Block 6: 建議 SMS 跟進訊息 (顯示完整內容)
+  if (analysisResult.smsText) {
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text:
+          "📱 *建議 SMS 跟進訊息*\n" +
+          analysisResult.smsText +
+          "\n\n_點擊下方「編輯會議摘要與簡訊」可修改內容並發送_",
+      },
+    });
+    blocks.push({ type: "divider" });
+  }
+
+  // Block 7: 操作按鈕 (完整分析 + 編輯摘要與簡訊)
+  const webAppUrl = process.env.WEB_APP_URL || "http://localhost:5173";
+  const actionButtons: any[] = [
+    {
+      type: "button",
+      text: {
+        type: "plain_text",
+        text: "查看完整分析",
+        emoji: true,
+      },
+      url: webAppUrl + "/conversations/" + conversationId,
+      style: "primary",
+    },
+  ];
+
+  // 如果有會議摘要或 SMS,新增編輯按鈕
+  if (analysisResult.summary || analysisResult.smsText) {
+    actionButtons.push({
+      type: "button",
+      text: {
+        type: "plain_text",
+        text: "編輯會議摘要與簡訊",
+        emoji: true,
+      },
+      url: webAppUrl + "/conversations/" + conversationId + "/summary",
     });
   }
 
-  // 添加操作按鈕
   blocks.push({
     type: "actions",
-    elements: [
-      {
-        type: "button",
-        text: {
-          type: "plain_text",
-          text: "📝 查看完整轉錄",
-          emoji: true,
-        },
-        action_id: "view_full_transcript",
-        value: conversationId,
-      },
-      {
-        type: "button",
-        text: {
-          type: "plain_text",
-          text: "📊 查看詳細分析",
-          emoji: true,
-        },
-        action_id: "view_analysis",
-        value: conversationId,
-        style: "primary",
-      },
-    ],
+    elements: actionButtons,
   });
 
   return blocks;
@@ -277,4 +307,17 @@ function getStatusEmoji(status: string): string {
   };
 
   return statusMap[status.toLowerCase()] || "⚪";
+}
+
+/**
+ * 根據風險嚴重程度返回對應的 emoji
+ */
+function getSeverityEmoji(severity: string): string {
+  const severityMap: Record<string, string> = {
+    high: "🔴",
+    medium: "🟡",
+    low: "🟢",
+  };
+
+  return severityMap[severity.toLowerCase()] || "🟡";
 }
