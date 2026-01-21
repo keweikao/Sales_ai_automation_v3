@@ -12,7 +12,7 @@ import {
   user,
   userProfiles,
 } from "@Sales_ai_automation_v3/db/schema";
-import { MEDDIC_DIMENSION_NAMES } from "@Sales_ai_automation_v3/shared";
+import { MEDDIC_DIMENSION_NAMES } from "@sales_ai_automation_v3/shared";
 import { ORPCError } from "@orpc/server";
 import { and, avg, count, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { z } from "zod";
