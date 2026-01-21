@@ -1,14 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  AlertCircle,
-  CheckCircle2,
-  Clock,
-  FileText,
-  XCircle,
-} from "lucide-react";
+import { FileText, XCircle } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -68,50 +61,17 @@ function PublicSharePage() {
     return null;
   }
 
-  const meddicScore = conversation.meddicAnalysis?.overallScore || 0;
-  const meddicStatus = conversation.meddicAnalysis?.status || "未知";
-
   return (
     <div className="container mx-auto max-w-4xl space-y-6 p-8">
       {/* Header */}
       <div className="text-center">
         <h1 className="mb-2 font-bold text-3xl">
-          {conversation.companyName} - 銷售對話分析
+          {conversation.companyName} - 會議記錄
         </h1>
         <p className="text-muted-foreground">
           案件編號: {conversation.caseNumber}
         </p>
       </div>
-
-      {/* MEDDIC Score Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-green-500" />
-            MEDDIC 資格評估
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-muted-foreground text-sm">綜合評分</p>
-              <p className="font-bold text-4xl">{meddicScore}/100</p>
-            </div>
-            <Badge
-              className="text-lg"
-              variant={
-                meddicScore >= 70
-                  ? "default"
-                  : meddicScore >= 40
-                    ? "secondary"
-                    : "destructive"
-              }
-            >
-              {meddicStatus}
-            </Badge>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Agent 4 會議摘要 */}
       {conversation.summary && (
@@ -132,7 +92,7 @@ function PublicSharePage() {
                     客戶編號
                   </dt>
                   <dd className="mt-1">
-                    {conversation.opportunity?.customerId || "N/A"}
+                    {conversation.opportunity?.customerNumber || "N/A"}
                   </dd>
                 </div>
                 <div>
@@ -173,91 +133,6 @@ function PublicSharePage() {
         </Card>
       )}
 
-      {/* MEDDIC Dimensions */}
-      {conversation.meddicAnalysis?.dimensions && (
-        <Card>
-          <CardHeader>
-            <CardTitle>MEDDIC 六維度分析</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {Object.entries(conversation.meddicAnalysis.dimensions).map(
-                ([key, dim]: [string, any]) => (
-                  <div className="space-y-1" key={key}>
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-sm">{key}</span>
-                      <span className="text-muted-foreground text-sm">
-                        {dim.score}/5
-                      </span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className={`h-full ${
-                          dim.score >= 4
-                            ? "bg-green-500"
-                            : dim.score >= 3
-                              ? "bg-yellow-500"
-                              : "bg-red-500"
-                        }`}
-                        style={{ width: `${(dim.score / 5) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                )
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Next Steps */}
-      {conversation.meddicAnalysis?.nextSteps && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              下一步行動
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {conversation.meddicAnalysis.nextSteps.map(
-                (step: any, i: number) => (
-                  <li className="flex items-start gap-2" key={i}>
-                    <span className="text-muted-foreground">•</span>
-                    <span>{step.action || step}</span>
-                  </li>
-                )
-              )}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Risks */}
-      {conversation.meddicAnalysis?.risks &&
-        conversation.meddicAnalysis.risks.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-orange-600">
-                <AlertCircle className="h-5 w-5" />
-                風險提醒
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2">
-                {conversation.meddicAnalysis.risks.map(
-                  (risk: any, i: number) => (
-                    <li className="flex items-start gap-2" key={i}>
-                      <span className="text-orange-600">⚠️</span>
-                      <span>{risk.risk || risk}</span>
-                    </li>
-                  )
-                )}
-              </ul>
-            </CardContent>
-          </Card>
-        )}
 
       {/* Footer */}
       <div className="text-center text-muted-foreground text-sm">

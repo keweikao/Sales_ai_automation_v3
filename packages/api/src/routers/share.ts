@@ -22,56 +22,95 @@ const createShareToken = protectedProcedure
   .handler(async ({ input, context }) => {
     const { conversationId } = input;
 
-    // 檢查 conversation 是否存在
-    const conversation = await db.query.conversations.findFirst({
-      where: eq(conversations.id, conversationId),
-    });
+    try {
+      console.log(`[Share] Creating token for conversation: ${conversationId}`);
 
-    if (!conversation) {
+      // 檢查 conversation 是否存在
+      console.log(`[Share] Checking conversation exists...`);
+      const conversation = await db.query.conversations.findFirst({
+        where: eq(conversations.id, conversationId),
+      });
+
+      if (!conversation) {
+        console.warn(`[Share] Conversation not found: ${conversationId}`);
+        throw new ORPCError({
+          code: "NOT_FOUND",
+          message: "Conversation not found",
+        });
+      }
+
+      console.log(`[Share] Conversation found: ${conversation.id}`);
+
+      // 檢查是否已有有效的 token
+      console.log(`[Share] Checking for existing valid token...`);
+      const existingToken = await db.query.shareTokens.findFirst({
+        where: and(
+          eq(shareTokens.conversationId, conversationId),
+          eq(shareTokens.isRevoked, false)
+        ),
+      });
+
+      if (existingToken && new Date(existingToken.expiresAt) > new Date()) {
+        // 返回現有 token
+        console.log(
+          `[Share] Returning existing token: ${existingToken.token.substring(0, 10)}...`
+        );
+        return {
+          token: existingToken.token,
+          expiresAt: existingToken.expiresAt,
+        };
+      }
+
+      if (existingToken && new Date(existingToken.expiresAt) <= new Date()) {
+        console.log(`[Share] Existing token expired, creating new one`);
+      } else {
+        console.log(`[Share] No existing token, creating new one`);
+      }
+
+      // 生成新 token
+      const secret = context.env.SHARE_TOKEN_SECRET || "default-secret";
+      console.log(`[Share] Generating new token...`);
+      const token = await generateShareToken(conversationId, secret);
+      const expiresAt = getTokenExpiry(14); // 14 天有效
+
+      console.log(
+        `[Share] Token generated: ${token.substring(0, 10)}..., expires: ${expiresAt.toISOString()}`
+      );
+
+      // 儲存到資料庫
+      console.log(`[Share] Saving token to database...`);
+      const [newToken] = await db
+        .insert(shareTokens)
+        .values({
+          id: nanoid(),
+          conversationId,
+          token,
+          expiresAt,
+          isRevoked: false,
+          viewCount: "0",
+        })
+        .returning();
+
+      console.log(`[Share] Token saved successfully: ${newToken.id}`);
+
+      return {
+        token: newToken.token,
+        expiresAt: newToken.expiresAt,
+      };
+    } catch (error) {
+      console.error(`[Share] Error creating token:`, error);
+
+      // 如果是已知的 ORPCError，直接拋出
+      if (error instanceof ORPCError) {
+        throw error;
+      }
+
+      // 否則包裝為 INTERNAL_SERVER_ERROR
       throw new ORPCError({
-        code: "NOT_FOUND",
-        message: "Conversation not found",
+        code: "INTERNAL_SERVER_ERROR",
+        message: `Failed to create share token: ${error instanceof Error ? error.message : String(error)}`,
       });
     }
-
-    // 檢查是否已有有效的 token
-    const existingToken = await db.query.shareTokens.findFirst({
-      where: and(
-        eq(shareTokens.conversationId, conversationId),
-        eq(shareTokens.isRevoked, false)
-      ),
-    });
-
-    if (existingToken && new Date(existingToken.expiresAt) > new Date()) {
-      // 返回現有 token
-      return {
-        token: existingToken.token,
-        expiresAt: existingToken.expiresAt,
-      };
-    }
-
-    // 生成新 token
-    const secret = context.env.SHARE_TOKEN_SECRET || "default-secret"; // 從環境變數取得
-    const token = generateShareToken(conversationId, secret);
-    const expiresAt = getTokenExpiry(14); // 14 天有效
-
-    // 儲存到資料庫
-    const [newToken] = await db
-      .insert(shareTokens)
-      .values({
-        id: nanoid(),
-        conversationId,
-        token,
-        expiresAt,
-        isRevoked: false,
-        viewCount: "0",
-      })
-      .returning();
-
-    return {
-      token: newToken.token,
-      expiresAt: newToken.expiresAt,
-    };
   });
 
 /**
@@ -129,8 +168,6 @@ const getConversationByToken = publicProcedure
       where: eq(conversations.id, shareToken.conversationId),
       with: {
         opportunity: true,
-        meddicAnalysis: true,
-        slackUser: true,
       },
     });
 
@@ -142,38 +179,24 @@ const getConversationByToken = publicProcedure
     }
 
     // 返回公開可見的資料（移除敏感資訊）
+    // 注意：不返回 MEDDIC 分析、轉錄文字等內部資訊
     return {
       id: conversation.id,
       caseNumber: conversation.caseNumber,
-      status: conversation.status,
       companyName: conversation.opportunity?.companyName || "",
       conversationDate: conversation.conversationDate,
-      duration: conversation.duration,
-      transcript: conversation.transcript,
       summary: conversation.summary, // Agent 4 生成的會議摘要
-      meddicAnalysis: conversation.meddicAnalysis
-        ? {
-            overallScore: conversation.meddicAnalysis.overallScore,
-            status: conversation.meddicAnalysis.status,
-            dimensions: conversation.meddicAnalysis.dimensions,
-            keyFindings: conversation.meddicAnalysis.keyFindings,
-            nextSteps: conversation.meddicAnalysis.nextSteps,
-            risks: conversation.meddicAnalysis.risks,
-          }
-        : null,
       opportunity: conversation.opportunity
         ? {
-            customerId: conversation.opportunity.customerId,
+            customerNumber: conversation.opportunity.customerNumber,
             companyName: conversation.opportunity.companyName,
           }
         : null,
-      slackUser: conversation.slackUser
+      slackUser: conversation.slackUsername
         ? {
-            slackUsername: conversation.slackUser.slackUsername,
-            slackEmail: conversation.slackUser.slackEmail,
+            slackUsername: conversation.slackUsername,
           }
         : null,
-      createdAt: conversation.createdAt,
     };
   });
 

@@ -313,10 +313,16 @@ export default {
         // Step 6: 更新 conversation 狀態為 completed
         // ========================================
         console.log("[Queue] 💾 Updating conversation status to completed...");
+
+        // 提取 Agent 4 的 summary markdown
+        const agent4Summary = analysisResult.agentOutputs?.agent4?.markdown as string | undefined;
+        console.log(`[Queue] Agent 4 Summary: ${agent4Summary ? `${agent4Summary.length} characters` : 'not found'}`);
+
         await db
           .update(conversations)
           .set({
             status: "completed",
+            summary: agent4Summary || null,
             meddicAnalysis: {
               overallScore: analysisResult.overallScore,
               status: analysisResult.qualificationStatus,

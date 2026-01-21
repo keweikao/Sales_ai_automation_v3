@@ -159,11 +159,16 @@ function ConversationDetailPage() {
   // 預覽公開分享頁面
   const handlePreviewShare = async () => {
     try {
+      console.log("[Share] Creating share token for conversation:", id);
       const tokenResult = await client.share.create({ conversationId: id });
+      console.log("[Share] Token created:", tokenResult.token);
       const shareUrl = `${window.location.origin}/share/${tokenResult.token}`;
+      console.log("[Share] Opening share URL:", shareUrl);
       window.open(shareUrl, "_blank");
     } catch (error) {
-      toast.error("無法生成預覽連結");
+      console.error("[Share] Error creating share link:", error);
+      const errorMessage = error instanceof Error ? error.message : "未知錯誤";
+      toast.error(`無法生成預覽連結: ${errorMessage}`);
     }
   };
 
