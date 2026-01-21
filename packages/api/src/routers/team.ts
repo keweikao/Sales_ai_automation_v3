@@ -1,5 +1,4 @@
-import { ORPCError } from "@orpc/server";
-import { db } from "@sales_ai_automation_v3/db";
+import { db } from "@Sales_ai_automation_v3/db";
 import {
   account,
   alerts,
@@ -13,7 +12,8 @@ import {
   teamMembers,
   user,
   userProfiles,
-} from "@sales_ai_automation_v3/db/schema";
+} from "@Sales_ai_automation_v3/db/schema";
+import { ORPCError } from "@orpc/server";
 import { eq, or } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure } from "../index";

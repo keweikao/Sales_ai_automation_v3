@@ -16,18 +16,37 @@ const nanoid = customAlphabet(
  * @param secret - 加密密鑰（從環境變數取得）
  * @returns 加密的 token 字串
  */
-export function generateShareToken(
+export async function generateShareToken(
   conversationId: string,
   secret: string
-): string {
+): Promise<string> {
   const randomPart = nanoid(); // 16 字元隨機字串
   const timestamp = Date.now().toString(36); // 時間戳轉 base36
 
   // 組合原始資料
   const rawData = `${conversationId}:${timestamp}:${randomPart}`;
 
-  // 使用簡單的編碼（生產環境應使用 HMAC-SHA256）
-  const signature = btoa(rawData + secret).slice(0, 12);
+  // 使用 Web Crypto API 生成 HMAC-SHA256 簽名
+  const encoder = new TextEncoder();
+  const data = encoder.encode(rawData);
+  const keyData = encoder.encode(secret);
+
+  // 匯入密鑰
+  const key = await crypto.subtle.importKey(
+    "raw",
+    keyData,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  // 生成簽名
+  const signatureBuffer = await crypto.subtle.sign("HMAC", key, data);
+  const signatureArray = Array.from(new Uint8Array(signatureBuffer));
+  const signature = signatureArray
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 12);
 
   // 最終 token: {randomPart}-{timestamp}-{signature}
   return `${randomPart}-${timestamp}-${signature}`;

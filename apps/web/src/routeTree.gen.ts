@@ -22,6 +22,7 @@ import { Route as OpportunitiesIdRouteImport } from './routes/opportunities/$id'
 import { Route as ConversationsNewRouteImport } from './routes/conversations/new'
 import { Route as ConversationsIdRouteImport } from './routes/conversations/$id'
 import { Route as AlertsAlertIdRouteImport } from './routes/alerts/$alertId'
+import { Route as AdminTeamRouteImport } from './routes/admin/team'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -88,11 +89,17 @@ const AlertsAlertIdRoute = AlertsAlertIdRouteImport.update({
   path: '/alerts/$alertId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminTeamRoute = AdminTeamRouteImport.update({
+  id: '/admin/team',
+  path: '/admin/team',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/admin/team': typeof AdminTeamRoute
   '/alerts/$alertId': typeof AlertsAlertIdRoute
   '/conversations/$id': typeof ConversationsIdRoute
   '/conversations/new': typeof ConversationsNewRoute
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/admin/team': typeof AdminTeamRoute
   '/alerts/$alertId': typeof AlertsAlertIdRoute
   '/conversations/$id': typeof ConversationsIdRoute
   '/conversations/new': typeof ConversationsNewRoute
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/admin/team': typeof AdminTeamRoute
   '/alerts/$alertId': typeof AlertsAlertIdRoute
   '/conversations/$id': typeof ConversationsIdRoute
   '/conversations/new': typeof ConversationsNewRoute
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/login'
+    | '/admin/team'
     | '/alerts/$alertId'
     | '/conversations/$id'
     | '/conversations/new'
@@ -156,6 +166,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/login'
+    | '/admin/team'
     | '/alerts/$alertId'
     | '/conversations/$id'
     | '/conversations/new'
@@ -171,6 +182,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/login'
+    | '/admin/team'
     | '/alerts/$alertId'
     | '/conversations/$id'
     | '/conversations/new'
@@ -187,6 +199,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
+  AdminTeamRoute: typeof AdminTeamRoute
   AlertsAlertIdRoute: typeof AlertsAlertIdRoute
   ConversationsIdRoute: typeof ConversationsIdRoute
   ConversationsNewRoute: typeof ConversationsNewRoute
@@ -292,6 +305,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AlertsAlertIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/team': {
+      id: '/admin/team'
+      path: '/admin/team'
+      fullPath: '/admin/team'
+      preLoaderRoute: typeof AdminTeamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -299,6 +319,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
+  AdminTeamRoute: AdminTeamRoute,
   AlertsAlertIdRoute: AlertsAlertIdRoute,
   ConversationsIdRoute: ConversationsIdRoute,
   ConversationsNewRoute: ConversationsNewRoute,

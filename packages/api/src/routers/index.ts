@@ -10,6 +10,7 @@ import { leadSourceRouter } from "./lead-source";
 import { opportunityRouter } from "./opportunity";
 import { shareRouter } from "./share";
 import { smsRouter } from "./sms";
+import { teamRouter } from "./team";
 // TODO: Talk Tracks 開發中，暫時停用
 // import { talkTrackRouter } from "./talk-track";
 
@@ -44,6 +45,9 @@ export const appRouter = {
 
   // SMS notifications
   sms: smsRouter,
+
+  // Team management (Admin only)
+  team: teamRouter,
 
   // TODO: Sales Coach Agent 開發中，暫時停用
   // agent: agentRouter,

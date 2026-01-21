@@ -703,11 +703,11 @@ export const listConversations = protectedProcedure
     // 根據角色設定查詢條件
     const conditions = [];
 
-    // 一般業務只能看自己的和 Slack 建立的（userId 為 null），管理者和主管可以看全部
+    // 一般業務只能看自己的和 Slack 建立的（userId 為 null 或 "service-account"），管理者和主管可以看全部
     if (!hasAdminAccess) {
       // 使用 OR 條件：自己的 OR Slack 建立的
       conditions.push(
-        sql`(${opportunities.userId} = ${userId} OR ${opportunities.userId} IS NULL)`
+        sql`(${opportunities.userId} = ${userId} OR ${opportunities.userId} IS NULL OR ${opportunities.userId} = 'service-account')`
       );
     }
 
@@ -857,11 +857,33 @@ export const getConversation = protectedProcedure
     const isOwner = conversation.opportunity.userId === userId;
     const userRole = getUserRole(userEmail);
     const hasAdminAccess = userRole === "admin" || userRole === "manager";
-    // 從 Slack 建立的對話（userId 為 null）視為團隊共享，所有人都可以查看
-    const isSlackGenerated = !conversation.opportunity.userId;
+    // 從 Slack 建立的對話（userId 為 null 或 "service-account"）視為團隊共享，所有人都可以查看
+    const isSlackGenerated =
+      !conversation.opportunity.userId ||
+      conversation.opportunity.userId === "service-account";
+
+    // DEBUG: 記錄權限檢查詳情
+    console.log("[getConversation] 權限檢查:", {
+      conversationId,
+      userId,
+      userEmail,
+      opportunityUserId: conversation.opportunity.userId,
+      isOwner,
+      userRole,
+      hasAdminAccess,
+      isSlackGenerated,
+      ADMIN_EMAILS,
+      MANAGER_EMAILS,
+    });
 
     // 一般業務只能看自己的，管理者和主管可以看全部，Slack 建立的所有人都可以看
     if (!(isOwner || hasAdminAccess || isSlackGenerated)) {
+      console.error("[getConversation] 權限拒絕:", {
+        userId,
+        userEmail,
+        userRole,
+        conversationId,
+      });
       throw new ORPCError("FORBIDDEN");
     }
 
@@ -918,7 +940,9 @@ export const updateSummary = protectedProcedure
     const isOwner = conversation.opportunity.userId === userId;
     const userRole = getUserRole(context.session?.user.email);
     const hasAdminAccess = userRole === "admin" || userRole === "manager";
-    const isSlackGenerated = !conversation.opportunity.userId;
+    const isSlackGenerated =
+      !conversation.opportunity.userId ||
+      conversation.opportunity.userId === "service-account";
 
     if (!(isOwner || hasAdminAccess || isSlackGenerated)) {
       throw new ORPCError("FORBIDDEN");

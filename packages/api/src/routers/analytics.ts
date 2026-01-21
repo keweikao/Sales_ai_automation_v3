@@ -9,7 +9,6 @@ import {
   conversations,
   meddicAnalyses,
   opportunities,
-  teamMembers,
   user,
   userProfiles,
 } from "@Sales_ai_automation_v3/db/schema";
@@ -437,16 +436,25 @@ export const getRepPerformance = protectedProcedure
         });
       }
 
-      // 檢查目標用戶是否是當前經理的團隊成員
-      const teamMember = await db.query.teamMembers.findFirst({
-        where: and(
-          eq(teamMembers.managerId, currentUserId),
-          eq(teamMembers.memberId, targetUserId)
-        ),
+      // 檢查目標用戶是否與當前經理同一個 department
+      const targetUserProfile = await db.query.userProfiles.findFirst({
+        where: eq(userProfiles.userId, targetUserId),
       });
 
-      if (!teamMember && currentUserProfile?.role !== "admin") {
-        throw new ORPCError("FORBIDDEN", { message: "該用戶不是您的團隊成員" });
+      if (!targetUserProfile && currentUserProfile?.role !== "admin") {
+        throw new ORPCError("NOT_FOUND", { message: "找不到該用戶" });
+      }
+
+      // 如果當前用戶的 department 是 'all',可以查看所有用戶
+      // 否則只能查看同 department 的用戶
+      if (
+        currentUserProfile?.role !== "admin" &&
+        currentUserProfile?.department !== "all" &&
+        targetUserProfile?.department !== currentUserProfile?.department
+      ) {
+        throw new ORPCError("FORBIDDEN", {
+          message: "該用戶不在您的團隊標籤內",
+        });
       }
 
       queryUserId = targetUserId;
@@ -694,19 +702,22 @@ export const getRepPerformance = protectedProcedure
       },
     };
 
-    // 查找該用戶的經理
-    const memberRelation = await db.query.teamMembers.findFirst({
-      where: eq(teamMembers.memberId, queryUserId),
+    // 查找該用戶的 department
+    const userProfile = await db.query.userProfiles.findFirst({
+      where: eq(userProfiles.userId, queryUserId),
     });
 
-    if (memberRelation) {
-      // 取得同團隊所有成員
-      const teamMembersList = await db
-        .select({ memberId: teamMembers.memberId })
-        .from(teamMembers)
-        .where(eq(teamMembers.managerId, memberRelation.managerId));
+    if (userProfile?.department) {
+      // 如果 department 是 'all',取得所有成員
+      // 否則只取得同 department 的成員
+      const teamProfiles =
+        userProfile.department === "all"
+          ? await db.query.userProfiles.findMany()
+          : await db.query.userProfiles.findMany({
+              where: eq(userProfiles.department, userProfile.department),
+            });
 
-      const memberIds = teamMembersList.map((m) => m.memberId);
+      const memberIds = teamProfiles.map((p) => p.userId);
 
       if (memberIds.length > 1) {
         // 計算每個成員的平均分數
@@ -997,14 +1008,25 @@ export const getTeamPerformance = protectedProcedure
     const previousPeriodEnd = new Date(currentPeriodStart.getTime() - 1);
 
     // 取得團隊成員列表
-    const teamMembersList = await db
-      .select({
-        memberId: teamMembers.memberId,
-      })
-      .from(teamMembers)
-      .where(eq(teamMembers.managerId, currentUserId));
+    // Admin 或 department='all' 的 Manager 可以查看所有成員
+    // 其他 Manager 只能查看同 department 的成員
+    let teamMemberProfiles: Awaited<
+      ReturnType<typeof db.query.userProfiles.findMany>
+    >;
+    if (
+      currentUserProfile?.role === "admin" ||
+      currentUserProfile?.department === "all"
+    ) {
+      teamMemberProfiles = await db.query.userProfiles.findMany();
+    } else if (currentUserProfile?.department) {
+      teamMemberProfiles = await db.query.userProfiles.findMany({
+        where: eq(userProfiles.department, currentUserProfile.department),
+      });
+    } else {
+      teamMemberProfiles = [];
+    }
 
-    const memberIds = teamMembersList.map((m) => m.memberId);
+    const memberIds = teamMemberProfiles.map((p) => p.userId);
 
     if (memberIds.length === 0) {
       return {
