@@ -263,6 +263,12 @@ export async function processAudioWithMetadata(
     // 創建一個空的 ArrayBuffer(不會實際使用)
     const dummyAudioData = new ArrayBuffer(0);
 
+    // 取得產品線 (從 metadata 或環境變數)
+    const productLine = (metadata.productLine ||
+      env.PRODUCT_LINE ||
+      "beauty") as "ichef" | "beauty";
+    console.log(`[SlackBot:${processingId}] Product line: ${productLine}`);
+
     const result = await processAudioFile(
       apiClient,
       pendingFile.fileName,
@@ -274,7 +280,8 @@ export async function processAudioWithMetadata(
         : undefined,
       // 傳遞 Slack 檔案 URL 和 token 讓 Server 下載
       pendingFile.downloadUrl,
-      env.SLACK_BOT_TOKEN
+      env.SLACK_BOT_TOKEN,
+      productLine
     );
     console.log(
       `[SlackBot:${processingId}] ✓ processAudioFile completed in ${Date.now() - apiCallStartTime}ms`
@@ -417,7 +424,8 @@ async function processAudioFile(
   metadata?: AudioUploadMetadata,
   slackUser?: { id: string; username: string },
   slackFileUrl?: string,
-  slackBotToken?: string
+  slackBotToken?: string,
+  productLine?: "ichef" | "beauty"
 ): Promise<ProcessingResult> {
   const fileProcessingId = `FILE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   console.log(`[${fileProcessingId}] 🎵 processAudioFile started`);
@@ -477,6 +485,7 @@ async function processAudioFile(
           contactPhone: metadata.contactPhone, // 新增客戶電話
           source: "slack",
           notes: formatMetadataNotes(metadata),
+          productLine, // 傳遞產品線
         });
         opportunity = createResult;
         console.log(
@@ -542,6 +551,7 @@ async function processAudioFile(
         ? `${metadata.customerName} - Slack 上傳`
         : `Slack 上傳: ${fileName}`,
       type: "discovery_call" as ConversationType,
+      productLine: productLine || "ichef",
       metadata: {
         format,
         conversationDate: new Date().toISOString().split("T")[0],

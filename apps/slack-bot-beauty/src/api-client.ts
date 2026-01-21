@@ -104,6 +104,7 @@ export class ApiClient {
     industry?: string;
     companySize?: string;
     notes?: string;
+    productLine?: "ichef" | "beauty";
   }): Promise<OpportunityResponse> {
     return this.request<OpportunityResponse>("/rpc/opportunities/create", {
       body: JSON.stringify(data),
@@ -143,6 +144,7 @@ export class ApiClient {
     slackBotToken?: string;
     title?: string;
     type: ConversationType;
+    productLine?: "ichef" | "beauty";
     metadata?: {
       format?: string;
       conversationDate?: string;
