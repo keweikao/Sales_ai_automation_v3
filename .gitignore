@@ -49,3 +49,17 @@ coverage
 .cache
 tmp
 temp
+
+# Wrangler
+.wrangler
+*.wrangler
+
+# Temporary test files
+temp-chunks/
+transcription-compressed.json
+
+# Audio/Video files
+*.mp3
+*.wav
+*.mp4
+*.avi
