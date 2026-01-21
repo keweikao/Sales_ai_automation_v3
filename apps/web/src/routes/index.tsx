@@ -6,17 +6,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
+  Activity,
   ArrowRight,
   BarChart3,
   Building2,
   MessageSquare,
-  TrendingUp,
-  Activity,
   Target,
+  TrendingUp,
   Zap,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,7 +24,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { client } from "@/utils/orpc";
 
@@ -49,7 +47,7 @@ function StatCard({
   trend?: "up" | "down" | "neutral";
 }) {
   return (
-    <div className="stat-card group relative overflow-hidden rounded-lg border border-slate-800 bg-gradient-to-br from-slate-950 to-slate-900 p-6 transition-all duration-300 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/10">
+    <div className="stat-card group relative overflow-hidden rounded-lg border border-slate-800 bg-gradient-to-br from-slate-950 to-slate-900 p-6 transition-all duration-300 hover:border-cyan-500/50 hover:shadow-cyan-500/10 hover:shadow-lg">
       {/* Background pattern */}
       <div className="pointer-events-none absolute inset-0 opacity-5">
         <div className="grid-pattern h-full w-full" />
@@ -88,7 +86,7 @@ function StatCard({
           {loading ? (
             <Skeleton className="h-10 w-24" />
           ) : (
-            <div className="font-mono font-bold text-4xl text-white tracking-tight">
+            <div className="font-bold font-mono text-4xl text-white tracking-tight">
               {value}
             </div>
           )}
@@ -315,7 +313,7 @@ function DashboardPage() {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/20">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 shadow-cyan-500/20 shadow-lg">
                   <Target className="h-6 w-6 text-white" />
                 </div>
                 <div>
@@ -342,7 +340,7 @@ function DashboardPage() {
               </Button>
               <Button
                 asChild
-                className="action-button border-cyan-500/50 bg-gradient-to-r from-cyan-600 to-blue-600 font-mono text-sm shadow-lg shadow-cyan-500/20 hover:from-cyan-500 hover:to-blue-500"
+                className="action-button border-cyan-500/50 bg-gradient-to-r from-cyan-600 to-blue-600 font-mono text-sm shadow-cyan-500/20 shadow-lg hover:from-cyan-500 hover:to-blue-500"
                 size="lg"
               >
                 <Link to="/conversations">
@@ -426,7 +424,8 @@ function DashboardPage() {
                         (sum, s) => sum + s.count,
                         0
                       );
-                      const percentage = total > 0 ? (item.count / total) * 100 : 0;
+                      const percentage =
+                        total > 0 ? (item.count / total) * 100 : 0;
                       const colors = getStatusColor(item.status);
                       return (
                         <div className="space-y-2" key={item.status}>
@@ -435,9 +434,13 @@ function DashboardPage() {
                               <div
                                 className={`flex h-8 w-8 items-center justify-center rounded ${colors.bg} ring-1 ${colors.ring}`}
                               >
-                                <div className={`h-2 w-2 rounded-full ${colors.text.replace('text-', 'bg-')}`} />
+                                <div
+                                  className={`h-2 w-2 rounded-full ${colors.text.replace("text-", "bg-")}`}
+                                />
                               </div>
-                              <span className={`data-font font-semibold text-sm uppercase tracking-wider ${colors.text}`}>
+                              <span
+                                className={`data-font font-semibold text-sm uppercase tracking-wider ${colors.text}`}
+                              >
                                 {getStatusLabel(item.status)}
                               </span>
                             </div>
@@ -452,7 +455,7 @@ function DashboardPage() {
                           </div>
                           <div className="status-bar relative h-2 overflow-hidden rounded-full bg-slate-800">
                             <div
-                              className={`h-full transition-all duration-1000 ${colors.text.replace('text-', 'bg-')}`}
+                              className={`h-full transition-all duration-1000 ${colors.text.replace("text-", "bg-")}`}
                               style={{ width: `${percentage}%` }}
                             />
                           </div>
@@ -529,9 +532,9 @@ function DashboardPage() {
                                 </span>
                                 <span className="text-slate-700">•</span>
                                 <span className="data-font text-slate-500">
-                                  {new Date(analysis.createdAt).toLocaleDateString(
-                                    "zh-TW"
-                                  )}
+                                  {new Date(
+                                    analysis.createdAt
+                                  ).toLocaleDateString("zh-TW")}
                                 </span>
                               </div>
                             </div>
