@@ -3,7 +3,11 @@
  * Handles audio upload, transcription, and MEDDIC analysis
  */
 
-import { db, generateCaseNumberFromDate } from "@Sales_ai_automation_v3/db";
+import {
+  db,
+  generateCaseNumberFromDate,
+  type ProductLine,
+} from "@Sales_ai_automation_v3/db";
 import {
   conversations,
   meddicAnalyses,
@@ -102,14 +106,23 @@ const updateSummarySchema = z.object({
 // Helper: Generate next case number
 // ============================================================
 
-async function getNextCaseNumber(): Promise<string> {
+// Product line prefix mapping
+const PRODUCT_LINE_PREFIXES: Record<ProductLine, string> = {
+  ichef: "IC",
+  beauty: "BT",
+};
+
+async function getNextCaseNumber(
+  productLine: ProductLine = "ichef"
+): Promise<string> {
   const now = new Date();
   const year = now.getFullYear();
   const month = (now.getMonth() + 1).toString().padStart(2, "0");
   const yearMonth = `${year}${month}`;
-  const prefix = `${yearMonth}-IC`;
+  const prefixCode = PRODUCT_LINE_PREFIXES[productLine] || "IC";
+  const prefix = `${yearMonth}-${prefixCode}`;
 
-  // Get the highest sequence number for this month
+  // Get the highest sequence number for this month and product line
   const result = await db
     .select({ caseNumber: conversations.caseNumber })
     .from(conversations)
@@ -120,13 +133,14 @@ async function getNextCaseNumber(): Promise<string> {
   let nextSequence = 1;
   const firstResult = result[0];
   if (result.length > 0 && firstResult?.caseNumber) {
-    const match = firstResult.caseNumber.match(/-IC(\d+)$/);
-    if (match?.[1]) {
-      nextSequence = Number.parseInt(match[1], 10) + 1;
+    // Match both IC and BT prefixes
+    const match = firstResult.caseNumber.match(/-(IC|BT)(\d+)$/);
+    if (match?.[2]) {
+      nextSequence = Number.parseInt(match[2], 10) + 1;
     }
   }
 
-  return generateCaseNumberFromDate(nextSequence);
+  return generateCaseNumberFromDate(nextSequence, productLine);
 }
 
 // ============================================================
@@ -348,9 +362,9 @@ export const uploadConversation = protectedProcedure
       let caseNumber: string;
       const conversationId = randomUUID();
       try {
-        caseNumber = await getNextCaseNumber();
+        caseNumber = await getNextCaseNumber(resolvedProductLine as ProductLine);
         console.log(
-          `[${requestId}] 🎫 Generated conversationId: ${conversationId}, caseNumber: ${caseNumber}`
+          `[${requestId}] 🎫 Generated conversationId: ${conversationId}, caseNumber: ${caseNumber} (${resolvedProductLine})`
         );
       } catch (error) {
         console.error(`[${requestId}] ❌ Failed to generate case number:`, error);
