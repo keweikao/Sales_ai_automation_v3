@@ -190,6 +190,7 @@ const getConversationByToken = publicProcedure
         : null,
       slackUser: conversation.slackUsername
         ? {
+            slackUserId: conversation.slackUserId,
             slackUsername: conversation.slackUsername,
           }
         : null,

@@ -10,10 +10,9 @@ import {
   User,
   XCircle,
 } from "lucide-react";
-
-import { getConsultantDisplayName } from "@/lib/consultant-names";
-import { parseSummaryMarkdown, type ParsedSummary } from "@/lib/summary-parser";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getConsultantDisplayName } from "@/lib/consultant-names";
+import { parseSummaryMarkdown } from "@/lib/summary-parser";
 import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/share/$token")({
@@ -81,6 +80,7 @@ function PublicSharePage() {
 
   // 取得顧問顯示名稱
   const consultantName = getConsultantDisplayName(
+    conversation.slackUser?.slackUserId,
     conversation.slackUser?.slackUsername
   );
 
@@ -204,7 +204,9 @@ function PublicSharePage() {
           </div>
           {conversation.opportunity?.customerNumber && (
             <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 shadow-sm">
-              <span className="font-medium text-gray-700 text-sm">客戶編號</span>
+              <span className="font-medium text-gray-700 text-sm">
+                客戶編號
+              </span>
               <span className="font-mono font-semibold text-gray-600 text-sm">
                 {conversation.opportunity.customerNumber}
               </span>
@@ -244,22 +246,22 @@ function PublicSharePage() {
             {/* Challenges Section */}
             {parsedSummary.challenges.length > 0 && (
               <SummarySection
+                delay="delay-400"
                 icon={<AlertCircle className="h-5 w-5 text-amber-600" />}
                 iconBg="bg-amber-100"
-                title="您目前遇到的挑戰"
                 items={parsedSummary.challenges}
-                delay="delay-400"
+                title="您目前遇到的挑戰"
               />
             )}
 
             {/* Solutions Section */}
             {parsedSummary.solutions.length > 0 && (
               <SummarySection
+                delay="delay-500"
                 icon={<Lightbulb className="h-5 w-5 text-blue-600" />}
                 iconBg="bg-blue-100"
-                title="iCHEF 如何協助您"
                 items={parsedSummary.solutions}
-                delay="delay-500"
+                title="iCHEF 如何協助您"
               />
             )}
 
@@ -270,11 +272,16 @@ function PublicSharePage() {
                   <div className="section-icon bg-green-100">
                     <CheckCircle2 className="h-5 w-5 text-green-600" />
                   </div>
-                  <h3 className="font-bold text-gray-900 text-lg">已達成共識</h3>
+                  <h3 className="font-bold text-gray-900 text-lg">
+                    已達成共識
+                  </h3>
                 </div>
                 <ul className="space-y-3">
                   {parsedSummary.agreements.map((item, index) => (
-                    <li key={index} className="list-item text-gray-700 text-green-600">
+                    <li
+                      className="list-item text-gray-700 text-green-600"
+                      key={index}
+                    >
                       {item}
                     </li>
                   ))}
@@ -303,8 +310,8 @@ function PublicSharePage() {
                       <ul className="space-y-2">
                         {parsedSummary.actionItems.ichef.map((item, index) => (
                           <li
-                            key={index}
                             className="list-item text-gray-600 text-orange-500 text-sm"
+                            key={index}
                           >
                             {item}
                           </li>
@@ -320,14 +327,16 @@ function PublicSharePage() {
                         老闆您這邊
                       </h4>
                       <ul className="space-y-2">
-                        {parsedSummary.actionItems.customer.map((item, index) => (
-                          <li
-                            key={index}
-                            className="list-item text-gray-600 text-blue-500 text-sm"
-                          >
-                            {item}
-                          </li>
-                        ))}
+                        {parsedSummary.actionItems.customer.map(
+                          (item, index) => (
+                            <li
+                              className="list-item text-blue-500 text-gray-600 text-sm"
+                              key={index}
+                            >
+                              {item}
+                            </li>
+                          )
+                        )}
                       </ul>
                     </div>
                   )}
@@ -380,14 +389,16 @@ function SummarySection({
   delay: string;
 }) {
   return (
-    <div className={`section-card animate-fade-in-up rounded-2xl border border-gray-200 p-6 shadow-lg ${delay}`}>
+    <div
+      className={`section-card animate-fade-in-up rounded-2xl border border-gray-200 p-6 shadow-lg ${delay}`}
+    >
       <div className="mb-4 flex items-center gap-3">
         <div className={`section-icon ${iconBg}`}>{icon}</div>
         <h3 className="font-bold text-gray-900 text-lg">{title}</h3>
       </div>
       <div className="space-y-4">
         {items.map((item, index) => (
-          <div key={index} className="border-gray-100 border-l-2 pl-4">
+          <div className="border-gray-100 border-l-2 pl-4" key={index}>
             <h4 className="font-semibold text-gray-800">{item.title}</h4>
             {item.description && (
               <p className="mt-1 text-gray-600 text-sm">{item.description}</p>
@@ -423,7 +434,7 @@ function cleanAndRenderSummary(summary: string): React.ReactNode[] {
   const lines = cleaned.split("\n").filter((line) => line.trim());
 
   return lines.map((line, i) => (
-    <p key={i} className="text-gray-700">
+    <p className="text-gray-700" key={i}>
       {line.trim()}
     </p>
   ));
