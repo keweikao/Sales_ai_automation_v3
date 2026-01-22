@@ -1,22 +1,25 @@
 /**
- * Conversations 列表頁面
- * 顯示所有對話記錄
+ * Conversations 列表頁面 - Precision Analytics Design
+ * 工業風格的對話記錄管理介面
  */
 
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
+  AlertCircle,
+  BarChart3,
   Building2,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock,
+  Loader2,
   MessageSquare,
   Plus,
   Search,
 } from "lucide-react";
 import { useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -37,12 +40,48 @@ const typeOptions = [
 ] as const;
 
 const statusOptions = [
-  { value: "pending", label: "待處理", color: "bg-gray-500" },
-  { value: "transcribing", label: "轉錄中", color: "bg-blue-500" },
-  { value: "transcribed", label: "已轉錄", color: "bg-yellow-500" },
-  { value: "analyzing", label: "分析中", color: "bg-purple-500" },
-  { value: "completed", label: "已完成", color: "bg-green-500" },
-  { value: "failed", label: "失敗", color: "bg-red-500" },
+  {
+    value: "pending",
+    label: "PENDING",
+    color: "bg-slate-500",
+    textColor: "text-slate-400",
+    icon: Clock,
+  },
+  {
+    value: "transcribing",
+    label: "TRANSCRIBING",
+    color: "bg-purple-500",
+    textColor: "text-purple-400",
+    icon: Loader2,
+  },
+  {
+    value: "transcribed",
+    label: "TRANSCRIBED",
+    color: "bg-yellow-500",
+    textColor: "text-yellow-400",
+    icon: CheckCircle2,
+  },
+  {
+    value: "analyzing",
+    label: "ANALYZING",
+    color: "bg-purple-500",
+    textColor: "text-purple-400",
+    icon: BarChart3,
+  },
+  {
+    value: "completed",
+    label: "COMPLETED",
+    color: "bg-emerald-500",
+    textColor: "text-emerald-400",
+    icon: CheckCircle2,
+  },
+  {
+    value: "failed",
+    label: "FAILED",
+    color: "bg-red-500",
+    textColor: "text-red-400",
+    icon: AlertCircle,
+  },
 ] as const;
 
 function getTypeLabel(type: string): string {
@@ -53,8 +92,10 @@ function getStatusInfo(status: string) {
   return (
     statusOptions.find((s) => s.value === status) || {
       value: status,
-      label: status,
+      label: status.toUpperCase(),
       color: "bg-gray-500",
+      textColor: "text-gray-400",
+      icon: Clock,
     }
   );
 }
@@ -112,173 +153,308 @@ function ConversationsPage() {
     : conversations;
 
   return (
-    <main className="container mx-auto space-y-6 p-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-bold text-3xl tracking-tight">對話記錄</h1>
-          <p className="text-muted-foreground">管理銷售對話和 MEDDIC 分析</p>
-        </div>
-        <Button asChild>
-          <Link to="/conversations/new">
-            <Plus className="mr-2 h-4 w-4" />
-            上傳對話
-          </Link>
-        </Button>
-      </div>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
-      {/* Filters */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <div className="relative flex-1 sm:max-w-sm">
-          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="搜尋對話、公司名稱..."
-            value={search}
-          />
-        </div>
-      </div>
+        .grid-pattern {
+          background-image:
+            linear-gradient(rgba(99, 94, 246, 0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(99, 94, 246, 0.05) 1px, transparent 1px);
+          background-size: 20px 20px;
+        }
 
-      {/* Conversation Cards */}
-      {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card className="overflow-hidden" key={i}>
-              <CardContent className="p-0">
-                <div className="space-y-4 p-4">
-                  <Skeleton className="h-6 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
-                  <div className="flex gap-2">
-                    <Skeleton className="h-6 w-20" />
-                    <Skeleton className="h-6 w-16" />
-                  </div>
+        .conversation-card {
+          animation: fadeInUp 0.4s ease-out backwards;
+        }
+
+        .conversation-card:nth-child(1) { animation-delay: 0.05s; }
+        .conversation-card:nth-child(2) { animation-delay: 0.1s; }
+        .conversation-card:nth-child(3) { animation-delay: 0.15s; }
+        .conversation-card:nth-child(4) { animation-delay: 0.2s; }
+        .conversation-card:nth-child(5) { animation-delay: 0.25s; }
+        .conversation-card:nth-child(6) { animation-delay: 0.3s; }
+
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes pulse-glow {
+          0%, 100% {
+            opacity: 0.6;
+          }
+          50% {
+            opacity: 1;
+          }
+        }
+
+        .status-glow {
+          animation: pulse-glow 2s ease-in-out infinite;
+        }
+
+        .data-font {
+          font-family: 'JetBrains Mono', monospace;
+        }
+
+        .title-font {
+          font-family: 'Playfair Display', serif;
+        }
+
+        .search-glow {
+          box-shadow: 0 0 0 0 rgba(99, 94, 246, 0.4);
+          transition: box-shadow 0.3s ease;
+        }
+
+        .search-glow:focus-within {
+          box-shadow: 0 0 0 3px rgba(99, 94, 246, 0.2);
+        }
+      `}</style>
+
+      <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        {/* Background decorative elements */}
+        <div className="pointer-events-none fixed inset-0">
+          <div className="absolute top-0 right-0 h-96 w-96 bg-purple-600/5 blur-[120px]" />
+          <div className="absolute bottom-0 left-0 h-96 w-96 bg-purple-500/5 blur-[120px]" />
+        </div>
+
+        <div className="container relative mx-auto space-y-6 p-6">
+          {/* Page Header */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-purple-600 shadow-lg shadow-purple-600/20">
+                  <MessageSquare className="h-5 w-5 text-white" />
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : filteredConversations.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredConversations.map((conversation) => {
-            const statusInfo = getStatusInfo(conversation.status);
-            return (
-              <Card
-                className="cursor-pointer overflow-hidden transition-shadow hover:shadow-md"
-                key={conversation.id}
-                onClick={() =>
-                  navigate({
-                    to: "/conversations/$id",
-                    params: { id: conversation.id },
-                  })
-                }
-              >
-                <CardContent className="p-0">
-                  {/* Status Bar */}
-                  <div className={`h-1 ${statusInfo.color}`} />
-
-                  <div className="space-y-4 p-4">
-                    {/* Title */}
-                    <div>
-                      <h3 className="line-clamp-1 font-semibold">
-                        {conversation.title || "未命名對話"}
-                      </h3>
-                      <p className="text-muted-foreground text-sm">
-                        {conversation.caseNumber}
-                      </p>
-                    </div>
-
-                    {/* Company Info */}
-                    <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                      <Building2 className="h-4 w-4" />
-                      <span>{conversation.opportunityCompanyName}</span>
-                      <span className="text-xs">
-                        ({conversation.customerNumber})
-                      </span>
-                    </div>
-
-                    {/* Meta Info */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline">
-                        {getTypeLabel(conversation.type)}
-                      </Badge>
-                      <Badge className={statusInfo.color}>
-                        {statusInfo.label}
-                      </Badge>
-                      {conversation.hasAnalysis && (
-                        <Badge variant="secondary">已分析</Badge>
-                      )}
-                    </div>
-
-                    {/* Footer */}
-                    <div className="flex items-center justify-between border-t pt-3 text-muted-foreground text-xs">
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        <span>{formatDuration(conversation.duration)}</span>
-                      </div>
-                      {conversation.conversationDate && (
-                        <span>
-                          {new Date(
-                            conversation.conversationDate
-                          ).toLocaleDateString("zh-TW")}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="py-16 text-center">
-            <MessageSquare className="mx-auto h-12 w-12 text-muted-foreground" />
-            <h3 className="mt-4 font-semibold text-lg">尚無對話記錄</h3>
-            <p className="mt-2 text-muted-foreground">
-              上傳音檔開始分析銷售對話
-            </p>
-            <Button asChild className="mt-4">
-              <Link to="/conversations/new">
-                <Plus className="mr-2 h-4 w-4" />
-                上傳對話
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Pagination */}
-      {!isLoading && totalCount > pageSize && (
-        <div className="flex items-center justify-between">
-          <div className="text-muted-foreground text-sm">
-            共 {totalCount} 筆資料
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              disabled={page === 0}
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              size="sm"
-              variant="outline"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              上一頁
-            </Button>
-            <div className="text-sm">
-              第 {page + 1} / {Math.max(1, totalPages)} 頁
+                <div>
+                  <h1 className="title-font bg-gradient-to-r from-purple-400 to-purple-400 bg-clip-text font-bold text-3xl text-transparent tracking-tight">
+                    Conversations
+                  </h1>
+                  <p className="data-font text-slate-500 text-xs uppercase tracking-wider">
+                    Sales Call Records & Analysis
+                  </p>
+                </div>
+              </div>
             </div>
             <Button
-              disabled={page >= totalPages - 1}
-              onClick={() => setPage((p) => p + 1)}
-              size="sm"
-              variant="outline"
+              asChild
+              className="border-purple-600/50 bg-gradient-to-r from-purple-700 to-purple-600 font-mono text-sm shadow-lg shadow-purple-600/20 hover:from-purple-600 hover:to-purple-500"
+              size="lg"
             >
-              下一頁
-              <ChevronRight className="h-4 w-4" />
+              <Link to="/conversations/new">
+                <Plus className="mr-2 h-4 w-4" />
+                UPLOAD
+              </Link>
             </Button>
           </div>
+
+          {/* Search & Filters */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="search-glow relative flex-1 sm:max-w-md">
+              <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-purple-400" />
+              <Input
+                className="data-font h-12 border-slate-700 bg-slate-900/50 pl-11 text-white placeholder:text-slate-500 focus:border-purple-600/50 focus:ring-purple-600/20"
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search conversations, companies..."
+                value={search}
+              />
+            </div>
+            <div className="data-font flex items-center gap-2 text-slate-400 text-sm">
+              <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-800/50 ring-1 ring-slate-700">
+                <BarChart3 className="h-4 w-4 text-purple-400" />
+              </div>
+              <span className="uppercase tracking-wider">
+                {totalCount} RECORDS
+              </span>
+            </div>
+          </div>
+
+          {/* Conversation Cards */}
+          {isLoading ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  className="overflow-hidden rounded-lg border border-slate-800 bg-slate-950/50 p-4"
+                  key={i}
+                >
+                  <div className="space-y-3">
+                    <Skeleton className="h-6 w-3/4 bg-slate-800" />
+                    <Skeleton className="h-4 w-1/2 bg-slate-800" />
+                    <div className="flex gap-2">
+                      <Skeleton className="h-6 w-20 bg-slate-800" />
+                      <Skeleton className="h-6 w-16 bg-slate-800" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredConversations.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredConversations.map((conversation) => {
+                const statusInfo = getStatusInfo(conversation.status);
+                const StatusIcon = statusInfo.icon;
+                return (
+                  <div
+                    className="conversation-card group relative cursor-pointer overflow-hidden rounded-lg border border-slate-800 bg-gradient-to-br from-slate-950 to-slate-900 transition-all duration-300 hover:border-purple-600/50 hover:shadow-lg hover:shadow-purple-600/10"
+                    key={conversation.id}
+                    onClick={() =>
+                      navigate({
+                        to: "/conversations/$id",
+                        params: { id: conversation.id },
+                      })
+                    }
+                  >
+                    {/* Background pattern */}
+                    <div className="pointer-events-none absolute inset-0 opacity-5">
+                      <div className="grid-pattern h-full w-full" />
+                    </div>
+
+                    {/* Status indicator line */}
+                    <div
+                      className={`absolute top-0 left-0 h-1 w-full ${statusInfo.color}`}
+                    />
+
+                    <CardContent className="relative space-y-4 p-4">
+                      {/* Header with Status */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="line-clamp-2 font-semibold text-white leading-tight">
+                            {conversation.title || "Untitled Conversation"}
+                          </h3>
+                          <p className="data-font mt-1 text-slate-500 text-xs">
+                            {conversation.caseNumber}
+                          </p>
+                        </div>
+                        <div
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded ${statusInfo.color}/20 ring-1 ring-${statusInfo.color}/30`}
+                        >
+                          <StatusIcon
+                            className={`h-4 w-4 ${statusInfo.textColor} ${conversation.status === "transcribing" || conversation.status === "analyzing" ? "animate-spin" : ""}`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Company Info */}
+                      <div className="flex items-center gap-2 rounded bg-slate-800/30 px-3 py-2 ring-1 ring-slate-700/50">
+                        <Building2 className="h-4 w-4 shrink-0 text-purple-400" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm text-white">
+                            {conversation.opportunityCompanyName}
+                          </p>
+                          <p className="data-font text-slate-500 text-xs">
+                            {conversation.customerNumber}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Meta Tags */}
+                      <div className="flex flex-wrap gap-2">
+                        <div className="data-font rounded bg-slate-800/50 px-2 py-1 text-slate-400 text-xs uppercase tracking-wider ring-1 ring-slate-700/50">
+                          {getTypeLabel(conversation.type)}
+                        </div>
+                        <div
+                          className={`data-font rounded px-2 py-1 text-xs uppercase tracking-wider ${statusInfo.color}/20 ${statusInfo.textColor} ring-1 ring-${statusInfo.color}/30`}
+                        >
+                          {statusInfo.label}
+                        </div>
+                        {conversation.hasAnalysis && (
+                          <div className="data-font rounded bg-emerald-500/20 px-2 py-1 text-emerald-400 text-xs uppercase tracking-wider ring-1 ring-emerald-500/30">
+                            ANALYZED
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Footer Info */}
+                      <div className="flex items-center justify-between border-slate-800 border-t pt-3">
+                        <div className="data-font flex items-center gap-1.5 text-slate-500 text-xs">
+                          <Clock className="h-3.5 w-3.5" />
+                          <span>{formatDuration(conversation.duration)}</span>
+                        </div>
+                        {conversation.conversationDate && (
+                          <span className="data-font text-slate-500 text-xs">
+                            {new Date(
+                              conversation.conversationDate
+                            ).toLocaleDateString("zh-TW", {
+                              month: "2-digit",
+                              day: "2-digit",
+                            })}
+                          </span>
+                        )}
+                      </div>
+                    </CardContent>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <Card className="border-slate-800 bg-slate-950/50">
+              <CardContent className="py-16 text-center">
+                <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-slate-800/50 ring-1 ring-slate-700">
+                  <MessageSquare className="h-10 w-10 text-slate-600" />
+                </div>
+                <h3 className="title-font mb-2 font-semibold text-white text-xl">
+                  No Conversations Yet
+                </h3>
+                <p className="data-font mb-6 text-slate-500 text-sm uppercase tracking-wider">
+                  Upload audio to begin analysis
+                </p>
+                <Button
+                  asChild
+                  className="border-purple-600/50 bg-gradient-to-r from-purple-700 to-purple-600 font-mono shadow-lg shadow-purple-600/20 hover:from-purple-600 hover:to-purple-500"
+                  size="lg"
+                >
+                  <Link to="/conversations/new">
+                    <Plus className="mr-2 h-4 w-4" />
+                    UPLOAD CONVERSATION
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Pagination */}
+          {!isLoading && totalCount > pageSize && (
+            <div className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-950/50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="data-font text-slate-400 text-sm uppercase tracking-wider">
+                Total: {totalCount} Records
+              </div>
+              <div className="flex items-center gap-3">
+                <Button
+                  className="data-font border-slate-700 bg-slate-900/50 text-slate-300 hover:border-purple-600/50 hover:bg-slate-800 hover:text-white"
+                  disabled={page === 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  size="sm"
+                  variant="outline"
+                >
+                  <ChevronLeft className="mr-1 h-4 w-4" />
+                  PREV
+                </Button>
+                <div className="data-font flex h-9 items-center rounded border border-slate-700 bg-slate-900/50 px-4 text-sm text-white">
+                  <span className="text-purple-400">{page + 1}</span>
+                  <span className="mx-2 text-slate-600">/</span>
+                  <span>{Math.max(1, totalPages)}</span>
+                </div>
+                <Button
+                  className="data-font border-slate-700 bg-slate-900/50 text-slate-300 hover:border-purple-600/50 hover:bg-slate-800 hover:text-white"
+                  disabled={page >= totalPages - 1}
+                  onClick={() => setPage((p) => p + 1)}
+                  size="sm"
+                  variant="outline"
+                >
+                  NEXT
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
-      )}
-    </main>
+      </main>
+    </>
   );
 }
