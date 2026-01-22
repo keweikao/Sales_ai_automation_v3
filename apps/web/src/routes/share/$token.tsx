@@ -11,6 +11,8 @@ import {
   User,
   XCircle,
 } from "lucide-react";
+import { PdcmScoreCard } from "@/components/meddic/pdcm-score-card";
+import { SpinProgressCard } from "@/components/meddic/spin-progress-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getConsultantDisplayName, getConsultantInfo } from "@/lib/consultant-names";
 import { parseSummaryMarkdown } from "@/lib/summary-parser";
@@ -241,6 +243,67 @@ function PublicSharePage() {
             </div>
           </div>
         </div>
+
+        {/* PDCM SPIN Analysis Section */}
+        {conversation.analysis?.agentOutputs && (
+          <div className="mb-8 grid animate-fade-in-up gap-6 delay-400 md:grid-cols-2">
+            {/* PDCM Score Card */}
+            <PdcmScoreCard
+              className="border-gray-200 bg-white shadow-lg"
+              pdcmScores={
+                (conversation.analysis.agentOutputs.agent2?.pdcm_scores as
+                  | {
+                      pain: {
+                        score: number;
+                        level?: string;
+                        urgency?: string;
+                        evidence?: string[];
+                      };
+                      decision: {
+                        score: number;
+                        level?: string;
+                        evidence?: string[];
+                      };
+                      champion: {
+                        score: number;
+                        level?: string;
+                        evidence?: string[];
+                      };
+                      metrics: {
+                        score: number;
+                        level?: string;
+                        evidence?: string[];
+                      };
+                      total_score?: number;
+                    }
+                  | undefined) ?? null
+              }
+            />
+
+            {/* SPIN Progress Card */}
+            <SpinProgressCard
+              className="border-gray-200 bg-white shadow-lg"
+              spinAnalysis={
+                (conversation.analysis.agentOutputs.agent3?.spin_analysis as
+                  | {
+                      situation: { score: number; achieved: boolean };
+                      problem: { score: number; achieved: boolean };
+                      implication: {
+                        score: number;
+                        achieved: boolean;
+                        gap?: string;
+                      };
+                      need_payoff: { score: number; achieved: boolean };
+                      overall_spin_score?: number;
+                      spin_completion_rate?: number;
+                      key_gap?: string;
+                      improvement_suggestion?: string;
+                    }
+                  | undefined) ?? null
+              }
+            />
+          </div>
+        )}
 
         {/* Summary Sections */}
         {parsedSummary ? (

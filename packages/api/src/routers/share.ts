@@ -1,11 +1,15 @@
 import { db } from "@Sales_ai_automation_v3/db";
-import { conversations, shareTokens } from "@Sales_ai_automation_v3/db/schema";
+import {
+  conversations,
+  meddicAnalyses,
+  shareTokens,
+} from "@Sales_ai_automation_v3/db/schema";
 import {
   generateShareToken,
   getTokenExpiry,
 } from "@Sales_ai_automation_v3/services";
 import { ORPCError } from "@orpc/server";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { protectedProcedure, publicProcedure } from "../index";
@@ -162,11 +166,15 @@ const getConversationByToken = publicProcedure
       })
       .where(eq(shareTokens.id, shareToken.id));
 
-    // 查詢完整的 conversation 資料
+    // 查詢完整的 conversation 資料（包含 MEDDIC 分析）
     const conversation = await db.query.conversations.findFirst({
       where: eq(conversations.id, shareToken.conversationId),
       with: {
         opportunity: true,
+        meddicAnalyses: {
+          orderBy: desc(meddicAnalyses.createdAt),
+          limit: 1,
+        },
       },
     });
 
@@ -174,8 +182,9 @@ const getConversationByToken = publicProcedure
       throw new ORPCError("NOT_FOUND", { message: "Conversation not found" });
     }
 
-    // 返回公開可見的資料（移除敏感資訊）
-    // 注意：不返回 MEDDIC 分析、轉錄文字等內部資訊
+    // 返回公開可見的資料（包含 PDCM SPIN 分析）
+    const latestAnalysis = conversation.meddicAnalyses[0];
+
     return {
       id: conversation.id,
       caseNumber: conversation.caseNumber,
@@ -192,6 +201,12 @@ const getConversationByToken = publicProcedure
         ? {
             slackUserId: conversation.slackUserId,
             slackUsername: conversation.slackUsername,
+          }
+        : null,
+      // PDCM SPIN 分析資料
+      analysis: latestAnalysis
+        ? {
+            agentOutputs: latestAnalysis.agentOutputs,
           }
         : null,
     };
