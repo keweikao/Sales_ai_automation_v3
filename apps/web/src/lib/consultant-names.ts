@@ -61,7 +61,7 @@ const consultantInfoMap: Record<string, ConsultantInfo> = {
   U0MATRQ2U: {
     name: "詹承峰",
     email: "eddie.chan@ichef.com.tw",
-    phone: "0989-849089",
+    phone: "0911-579160",
   },
   U041VGKJGA1: {
     name: "巫喬婷",
