@@ -17,7 +17,7 @@ interface LeadCardProps {
   className?: string;
 }
 
-function getMeddicScoreColor(score: number): string {
+function getPdcmScoreColor(score: number): string {
   if (score >= 70) {
     return "bg-green-500";
   }
@@ -120,10 +120,10 @@ export function LeadCard({ lead, onClick, className }: LeadCardProps) {
               <span
                 className={cn(
                   "inline-flex h-5 w-5 items-center justify-center rounded-full font-bold text-white text-xs",
-                  getMeddicScoreColor(lead.meddicScore.overall)
+                  getPdcmScoreColor(lead.meddicScore.overall)
                 )}
               >
-                M
+                P
               </span>
               <span className="font-medium text-sm">
                 {lead.meddicScore.overall}

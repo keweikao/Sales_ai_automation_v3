@@ -23,7 +23,9 @@ export interface SummaryItem {
 /**
  * 解析會議摘要的 Markdown 內容
  */
-export function parseSummaryMarkdown(markdown: string | null): ParsedSummary | null {
+export function parseSummaryMarkdown(
+  markdown: string | null
+): ParsedSummary | null {
   if (!markdown) return null;
 
   const result: ParsedSummary = {
@@ -58,21 +60,35 @@ export function parseSummaryMarkdown(markdown: string | null): ParsedSummary | n
     if (!section.trim()) continue;
 
     // 解析挑戰/痛點區塊
-    if (section.includes("挑戰") || section.includes("痛點") || section.includes("🔍")) {
+    if (
+      section.includes("挑戰") ||
+      section.includes("痛點") ||
+      section.includes("🔍")
+    ) {
       result.challenges = parseListItems(section);
     }
     // 解析解決方案區塊
-    else if (section.includes("協助") || section.includes("解決") || section.includes("💡")) {
+    else if (
+      section.includes("協助") ||
+      section.includes("解決") ||
+      section.includes("💡")
+    ) {
       result.solutions = parseListItems(section);
     }
     // 解析共識區塊
-    else if (section.includes("共識") || section.includes("決議") || section.includes("✅")) {
+    else if (
+      section.includes("共識") ||
+      section.includes("決議") ||
+      section.includes("✅")
+    ) {
       result.agreements = parseSimpleList(section);
     }
     // 解析待辦事項區塊
     else if (section.includes("待辦") || section.includes("📋")) {
       const ichefMatch = section.match(/【iCHEF[^】]*】([\s\S]*?)(?=【|$)/i);
-      const customerMatch = section.match(/【[老闆您這邊|客戶][^】]*】([\s\S]*?)(?=【|$)/i);
+      const customerMatch = section.match(
+        /【[老闆您這邊|客戶][^】]*】([\s\S]*?)(?=【|$)/i
+      );
 
       if (ichefMatch) {
         result.actionItems.ichef = parseSimpleList(ichefMatch[1]);
@@ -82,7 +98,10 @@ export function parseSummaryMarkdown(markdown: string | null): ParsedSummary | n
       }
 
       // 如果沒有明確分組，嘗試從整個區塊解析
-      if (result.actionItems.ichef.length === 0 && result.actionItems.customer.length === 0) {
+      if (
+        result.actionItems.ichef.length === 0 &&
+        result.actionItems.customer.length === 0
+      ) {
         const items = parseSimpleList(section);
         // 預設全部歸為 iCHEF 待辦
         result.actionItems.ichef = items;

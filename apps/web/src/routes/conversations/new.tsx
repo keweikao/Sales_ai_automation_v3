@@ -188,7 +188,7 @@ function NewConversationPage() {
         <div>
           <h1 className="font-bold text-3xl tracking-tight">上傳對話</h1>
           <p className="text-muted-foreground">
-            上傳銷售對話音檔進行 MEDDIC 分析
+            上傳銷售對話音檔進行 PDCM+SPIN 分析
           </p>
         </div>
       </div>
@@ -339,7 +339,7 @@ function NewConversationPage() {
                 <li>上傳音檔至雲端儲存</li>
                 <li>使用 Groq Whisper 進行語音轉錄</li>
                 <li>建立對話記錄</li>
-                <li>可選擇執行 MEDDIC 分析</li>
+                <li>可選擇執行 PDCM+SPIN 分析</li>
               </ol>
             </div>
 

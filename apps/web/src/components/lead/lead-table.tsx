@@ -166,10 +166,10 @@ export function LeadTable({
     },
     {
       accessorKey: "meddicScore",
-      header: "MEDDIC",
+      header: "PDCM",
       cell: ({ row }) => {
-        const meddic = row.original.meddicScore;
-        if (!meddic) {
+        const pdcm = row.original.meddicScore;
+        if (!pdcm) {
           return "-";
         }
         return (
@@ -177,12 +177,12 @@ export function LeadTable({
             <span
               className={cn(
                 "inline-flex h-6 w-6 items-center justify-center rounded-full font-bold text-white text-xs",
-                getScoreBarColor(meddic.overall)
+                getScoreBarColor(pdcm.overall)
               )}
             >
-              M
+              P
             </span>
-            <span className="font-medium">{meddic.overall}</span>
+            <span className="font-medium">{pdcm.overall}</span>
           </div>
         );
       },

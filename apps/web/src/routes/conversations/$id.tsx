@@ -1,6 +1,6 @@
 /**
  * Conversation 詳情頁面 - Precision Analytics Design
- * 顯示對話詳情、轉錄文字、MEDDIC 分析結果
+ * 顯示對話詳情、轉錄文字、PDCM+SPIN 分析結果
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -25,7 +25,16 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { MeddicScoreCard } from "@/components/meddic/meddic-score-card";
+import { PdcmScoreCard } from "@/components/meddic/pdcm-score-card";
+import {
+  PdcmSpinAlerts,
+  type PdcmSpinAlertsData,
+} from "@/components/meddic/pdcm-spin-alerts";
+import { SpinProgressCard } from "@/components/meddic/spin-progress-card";
+import {
+  type TacticalSuggestion,
+  TacticalSuggestions,
+} from "@/components/meddic/tactical-suggestions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -738,7 +747,7 @@ function ConversationDetailPage() {
                 ) : (
                   <BarChart3 className="mr-2 h-4 w-4" />
                 )}
-                執行 MEDDIC 分析
+                執行 PDCM+SPIN 分析
               </Button>
             )}
           </div>
@@ -837,7 +846,7 @@ function ConversationDetailPage() {
                   value="analysis"
                 >
                   <TrendingUp className="mr-2 h-4 w-4" />
-                  MEDDIC 分析
+                  銷售分析
                 </TabsTrigger>
                 <TabsTrigger className="custom-tab" value="transcript">
                   <MessageSquare className="mr-2 h-4 w-4" />
@@ -885,6 +894,214 @@ function ConversationDetailPage() {
               <TabsContent className="mt-6 px-6 pb-6" value="analysis">
                 {conversation.analysis ? (
                   <div className="space-y-6">
+                    {/* PDCM+SPIN Analysis Section */}
+                    {conversation.analysis.agentOutputs && (
+                      <>
+                        {/* Two Column Layout for PDCM and SPIN details */}
+                        <div className="grid gap-6 md:grid-cols-2">
+                          {/* PDCM Detailed Analysis */}
+                          {conversation.analysis.agentOutputs.agent2
+                            ?.pdcm_scores && (
+                            <Card className="detail-card border-purple-600/20">
+                              <CardHeader className="pb-3">
+                                <CardTitle className="section-title flex items-center gap-2 text-lg">
+                                  <BarChart3 className="h-5 w-5 text-purple-400" />
+                                  PDCM 詳細分析
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                {(() => {
+                                  const pdcmScores = conversation.analysis
+                                    ?.agentOutputs?.agent2?.pdcm_scores as
+                                    | Record<string, unknown>
+                                    | undefined;
+                                  if (!pdcmScores) {
+                                    return null;
+                                  }
+
+                                  const dimensions = [
+                                    {
+                                      key: "pain",
+                                      label: "P (痛點)",
+                                      color: "purple",
+                                    },
+                                    {
+                                      key: "decision",
+                                      label: "D (決策)",
+                                      color: "blue",
+                                    },
+                                    {
+                                      key: "champion",
+                                      label: "C (支持)",
+                                      color: "emerald",
+                                    },
+                                    {
+                                      key: "metrics",
+                                      label: "M (量化)",
+                                      color: "amber",
+                                    },
+                                  ];
+
+                                  return dimensions.map(
+                                    ({ key, label, color }) => {
+                                      const data = pdcmScores[key] as
+                                        | {
+                                            score?: number;
+                                            evidence?: string[];
+                                          }
+                                        | undefined;
+                                      if (!data) {
+                                        return null;
+                                      }
+                                      const score = data.score ?? 0;
+                                      const evidence = data.evidence?.[0];
+
+                                      return (
+                                        <div
+                                          className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-3"
+                                          key={key}
+                                        >
+                                          <div className="mb-1 flex items-center justify-between">
+                                            <span
+                                              className={`font-semibold text-sm text-${color}-400`}
+                                            >
+                                              {label}
+                                            </span>
+                                            <span
+                                              className={`font-bold ${score >= 60 ? "text-green-400" : score >= 30 ? "text-yellow-400" : "text-red-400"}`}
+                                            >
+                                              {score}分
+                                            </span>
+                                          </div>
+                                          {evidence && (
+                                            <p className="text-slate-400 text-xs leading-relaxed">
+                                              {evidence}
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    }
+                                  );
+                                })()}
+                              </CardContent>
+                            </Card>
+                          )}
+
+                          {/* SPIN Detailed Analysis */}
+                          {conversation.analysis.agentOutputs.agent3
+                            ?.spin_analysis && (
+                            <Card className="detail-card border-cyan-600/20">
+                              <CardHeader className="pb-3">
+                                <CardTitle className="section-title flex items-center gap-2 text-lg">
+                                  <TrendingUp className="h-5 w-5 text-cyan-400" />
+                                  SPIN 銷售技巧
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-3">
+                                {(() => {
+                                  const spinAnalysis = conversation.analysis
+                                    ?.agentOutputs?.agent3?.spin_analysis as
+                                    | Record<string, unknown>
+                                    | undefined;
+                                  if (!spinAnalysis) {
+                                    return null;
+                                  }
+
+                                  const stages = [
+                                    { key: "situation", label: "S 情境" },
+                                    { key: "problem", label: "P 問題" },
+                                    { key: "implication", label: "I 影響" },
+                                    { key: "need_payoff", label: "N 需求" },
+                                  ];
+
+                                  return (
+                                    <>
+                                      {stages.map(({ key, label }) => {
+                                        const data = spinAnalysis[key] as
+                                          | {
+                                              score?: number;
+                                              achieved?: boolean;
+                                            }
+                                          | undefined;
+                                        if (!data) {
+                                          return null;
+                                        }
+                                        const score = data.score ?? 0;
+                                        const achieved = data.achieved ?? false;
+
+                                        return (
+                                          <div
+                                            className="flex items-center justify-between rounded-lg border border-slate-700/50 bg-slate-800/30 p-2.5"
+                                            key={key}
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              <span
+                                                className={`${achieved && score >= 60 ? "text-green-400" : score >= 30 ? "text-yellow-400" : "text-red-400"}`}
+                                              >
+                                                {achieved && score >= 60
+                                                  ? "✅"
+                                                  : score >= 30
+                                                    ? "⚠️"
+                                                    : "❌"}
+                                              </span>
+                                              <span className="text-slate-300 text-sm">
+                                                {label}
+                                              </span>
+                                            </div>
+                                            <span
+                                              className={`font-bold text-sm ${score >= 60 ? "text-green-400" : score >= 30 ? "text-yellow-400" : "text-red-400"}`}
+                                            >
+                                              {score}分
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                      {spinAnalysis.spin_completion_rate !==
+                                        undefined && (
+                                        <div className="mt-3 rounded-lg border border-cyan-500/30 bg-cyan-500/5 p-3 text-center">
+                                          <p className="text-slate-400 text-xs">
+                                            達成率
+                                          </p>
+                                          <p className="font-bold text-2xl text-cyan-400">
+                                            {
+                                              spinAnalysis.spin_completion_rate as number
+                                            }
+                                            %
+                                          </p>
+                                        </div>
+                                      )}
+                                    </>
+                                  );
+                                })()}
+                              </CardContent>
+                            </Card>
+                          )}
+                        </div>
+
+                        {/* Tactical Suggestions */}
+                        <TacticalSuggestions
+                          suggestions={
+                            conversation.analysis.agentOutputs.agent6
+                              ?.tactical_suggestions as
+                              | TacticalSuggestion[]
+                              | null
+                              | undefined
+                          }
+                        />
+
+                        {/* PDCM+SPIN Alerts */}
+                        <PdcmSpinAlerts
+                          alerts={
+                            conversation.analysis.agentOutputs.agent6
+                              ?.pdcm_spin_alerts as
+                              | PdcmSpinAlertsData
+                              | null
+                              | undefined
+                          }
+                        />
+                      </>
+                    )}
+
                     {/* Key Findings */}
                     {conversation.analysis.keyFindings &&
                       conversation.analysis.keyFindings.length > 0 && (
@@ -1013,7 +1230,7 @@ function ConversationDetailPage() {
                         disabled={analyzeMutation.isPending}
                         onClick={() => analyzeMutation.mutate()}
                       >
-                        執行 MEDDIC 分析
+                        執行 PDCM+SPIN 分析
                       </Button>
                     )}
                   </div>
@@ -1100,39 +1317,65 @@ function ConversationDetailPage() {
               </Card>
             )}
 
-            {/* MEDDIC Score */}
-            {conversation.analysis ? (
-              <div style={{ animationDelay: "0.6s" }}>
-                <MeddicScoreCard
-                  dimensions={{
-                    metrics: conversation.analysis.metricsScore ?? 0,
-                    economicBuyer:
-                      conversation.analysis.economicBuyerScore ?? 0,
-                    decisionCriteria:
-                      conversation.analysis.decisionCriteriaScore ?? 0,
-                    decisionProcess:
-                      conversation.analysis.decisionProcessScore ?? 0,
-                    identifyPain: conversation.analysis.identifyPainScore ?? 0,
-                    champion: conversation.analysis.championScore ?? 0,
-                  }}
-                  overallScore={conversation.analysis.overallScore ?? 0}
-                />
-              </div>
-            ) : (
-              <Card className="detail-card" style={{ animationDelay: "0.6s" }}>
-                <CardHeader>
-                  <CardTitle className="section-title text-lg">
-                    MEDDIC 評分
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="py-8 text-center">
-                    <BarChart3 className="mx-auto h-12 w-12 text-slate-600" />
-                    <p className="mt-3 text-slate-400 text-sm">尚無分析</p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* PDCM Score */}
+            <div style={{ animationDelay: "0.6s" }}>
+              <PdcmScoreCard
+                pdcmScores={
+                  conversation.analysis?.agentOutputs?.agent2?.pdcm_scores as
+                    | {
+                        pain: {
+                          score: number;
+                          level?: string;
+                          urgency?: string;
+                          evidence?: string[];
+                        };
+                        decision: {
+                          score: number;
+                          level?: string;
+                          evidence?: string[];
+                        };
+                        champion: {
+                          score: number;
+                          level?: string;
+                          evidence?: string[];
+                        };
+                        metrics: {
+                          score: number;
+                          level?: string;
+                          evidence?: string[];
+                        };
+                        total_score?: number;
+                      }
+                    | null
+                    | undefined
+                }
+              />
+            </div>
+
+            {/* SPIN Progress */}
+            <div style={{ animationDelay: "0.65s" }}>
+              <SpinProgressCard
+                spinAnalysis={
+                  conversation.analysis?.agentOutputs?.agent3?.spin_analysis as
+                    | {
+                        situation: { score: number; achieved: boolean };
+                        problem: { score: number; achieved: boolean };
+                        implication: {
+                          score: number;
+                          achieved: boolean;
+                          gap?: string;
+                        };
+                        need_payoff: { score: number; achieved: boolean };
+                        overall_spin_score?: number;
+                        spin_completion_rate?: number;
+                        key_gap?: string;
+                        improvement_suggestion?: string;
+                      }
+                    | null
+                    | undefined
+                }
+              />
+            </div>
 
             {/* Timeline */}
             <Card className="detail-card" style={{ animationDelay: "0.7s" }}>

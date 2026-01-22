@@ -122,7 +122,7 @@ function AlertDetailPage() {
           </CardContent>
         </Card>
 
-        {/* MEDDIC 分數 & 觸發原因 */}
+        {/* PDCM 分數 & 觸發原因 */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">觸發詳情</CardTitle>
@@ -131,7 +131,7 @@ function AlertDetailPage() {
             {alert.context?.meddicScore !== undefined && (
               <div>
                 <h3 className="mb-1 font-medium text-muted-foreground text-sm">
-                  MEDDIC 分數
+                  PDCM 分數
                 </h3>
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-2xl">

@@ -412,7 +412,7 @@ export const mockConversations: Conversation[] = [
   },
 ];
 
-// Mock MEDDIC Analyses
+// Mock PDCM Analyses (legacy data structure - originally named MEDDIC)
 export const mockMeddicAnalyses: MeddicAnalysis[] = [
   {
     id: "meddic-001",
@@ -575,7 +575,7 @@ export const conversationStatusOptions = [
   { value: "failed", label: "失敗" },
 ] as const;
 
-// MEDDIC dimension labels
+// Legacy dimension labels (replaced by pdcmDimensionLabels below)
 export const meddicDimensionLabels = {
   metrics: "量化指標 (M)",
   economicBuyer: "經濟決策者 (E)",
@@ -585,7 +585,7 @@ export const meddicDimensionLabels = {
   champion: "內部支持者 (C)",
 } as const;
 
-// MEDDIC status options
+// Legacy status options (replaced by pdcmStatusOptions)
 export const meddicStatusOptions = [
   { value: "Strong", label: "強勢", color: "green", minScore: 70 },
   { value: "Medium", label: "中等", color: "yellow", minScore: 40 },
@@ -623,4 +623,90 @@ export function formatDuration(seconds: number): string {
     return `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   }
   return `${minutes}:${secs.toString().padStart(2, "0")}`;
+}
+
+// ============================================================
+// PDCM (Pain, Decision, Champion, Metrics) Dimension Labels
+// ============================================================
+
+export const pdcmDimensionLabels = {
+  pain: "痛點 (P)",
+  decision: "決策 (D)",
+  champion: "支持度 (C)",
+  metrics: "量化 (M)",
+} as const;
+
+export type PdcmDimension = keyof typeof pdcmDimensionLabels;
+
+export const pdcmWeights: Record<PdcmDimension, number> = {
+  pain: 35,
+  decision: 25,
+  champion: 25,
+  metrics: 15,
+} as const;
+
+// ============================================================
+// SPIN (Situation, Problem, Implication, Need-Payoff) Labels
+// ============================================================
+
+export const spinStageLabels = {
+  situation: "情境 (S)",
+  problem: "問題 (P)",
+  implication: "影響 (I)",
+  needPayoff: "需求 (N)",
+} as const;
+
+export type SpinStage = keyof typeof spinStageLabels;
+
+// ============================================================
+// Metrics Levels
+// ============================================================
+
+export const metricsLevels = {
+  M1_Complete: { label: "完整", color: "green", score: 100 },
+  M2_Partial: { label: "部分", color: "yellow", score: 60 },
+  M3_Weak: { label: "薄弱", color: "orange", score: 30 },
+  M4_Missing: { label: "缺失", color: "red", score: 0 },
+} as const;
+
+export type MetricsLevel = keyof typeof metricsLevels;
+
+// ============================================================
+// Helper functions for PDCM+SPIN
+// ============================================================
+
+export function getPdcmStatusColor(score: number): string {
+  if (score >= 70) {
+    return "green";
+  }
+  if (score >= 40) {
+    return "yellow";
+  }
+  if (score >= 20) {
+    return "orange";
+  }
+  return "red";
+}
+
+export function getSpinAchievementStatus(
+  achieved: boolean,
+  score: number
+): "achieved" | "partial" | "missing" {
+  if (achieved && score >= 60) {
+    return "achieved";
+  }
+  if (score >= 30) {
+    return "partial";
+  }
+  return "missing";
+}
+
+export function calculatePdcmTotal(
+  scores: Record<PdcmDimension, number>
+): number {
+  let total = 0;
+  for (const dimension of Object.keys(pdcmWeights) as PdcmDimension[]) {
+    total += (scores[dimension] * pdcmWeights[dimension]) / 100;
+  }
+  return Math.round(total);
 }

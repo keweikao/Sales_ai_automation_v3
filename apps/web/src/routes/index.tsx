@@ -25,6 +25,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TermTooltip } from "@/components/ui/term-tooltip";
 import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/")({
@@ -38,6 +39,7 @@ function StatCard({
   icon: Icon,
   loading,
   trend,
+  termKey,
 }: {
   title: string;
   value: string | number;
@@ -45,9 +47,10 @@ function StatCard({
   icon: React.ComponentType<{ className?: string }>;
   loading?: boolean;
   trend?: "up" | "down" | "neutral";
+  termKey?: string;
 }) {
   return (
-    <div className="stat-card group relative overflow-hidden rounded-lg border border-slate-800 bg-gradient-to-br from-slate-950 to-slate-900 p-6 transition-all duration-300 hover:border-purple-600/50 hover:shadow-lg hover:shadow-purple-600/10">
+    <div className="stat-card group relative rounded-lg border border-slate-800 bg-gradient-to-br from-slate-950 to-slate-900 p-6 transition-all duration-300 hover:border-purple-600/50 hover:shadow-lg hover:shadow-purple-600/10">
       {/* Background pattern */}
       <div className="pointer-events-none absolute inset-0 opacity-5">
         <div className="grid-pattern h-full w-full" />
@@ -81,7 +84,11 @@ function StatCard({
 
         <div className="space-y-2">
           <h3 className="font-medium text-slate-400 text-sm uppercase tracking-wider">
-            {title}
+            {termKey ? (
+              <TermTooltip termKey={termKey}>{title}</TermTooltip>
+            ) : (
+              title
+            )}
           </h3>
           {loading ? (
             <Skeleton className="h-10 w-24" />
@@ -141,15 +148,15 @@ function getStatusColor(status: string | null): {
 function getStatusLabel(status: string | null): string {
   switch (status) {
     case "Strong":
-      return "STRONG";
+      return "強";
     case "Medium":
-      return "MEDIUM";
+      return "中";
     case "Weak":
-      return "WEAK";
+      return "弱";
     case "At Risk":
-      return "AT RISK";
+      return "風險";
     default:
-      return "UNKNOWN";
+      return "未知";
   }
 }
 
@@ -318,10 +325,11 @@ function DashboardPage() {
                 </div>
                 <div>
                   <h1 className="brand-title font-bold text-4xl tracking-tight lg:text-5xl">
-                    Analytics Command
+                    分析儀表板
                   </h1>
                   <p className="data-font text-slate-400 text-sm uppercase tracking-wider">
-                    Sales Intelligence • MEDDIC Framework
+                    銷售智慧 •{" "}
+                    <TermTooltip termKey="PDCM+SPIN">PDCM+SPIN 框架</TermTooltip>
                   </p>
                 </div>
               </div>
@@ -335,7 +343,7 @@ function DashboardPage() {
               >
                 <Link to="/opportunities">
                   <Building2 className="mr-2 h-4 w-4" />
-                  OPPORTUNITIES
+                  商機管理
                 </Link>
               </Button>
               <Button
@@ -345,7 +353,7 @@ function DashboardPage() {
               >
                 <Link to="/conversations">
                   <MessageSquare className="mr-2 h-4 w-4" />
-                  CONVERSATIONS
+                  對話記錄
                 </Link>
               </Button>
             </div>
@@ -354,34 +362,38 @@ function DashboardPage() {
           {/* Stats Grid */}
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
-              description="TOTAL OPPORTUNITIES"
+              description="所有銷售機會"
               icon={Building2}
               loading={isLoading}
-              title="Opportunities"
+              termKey="totalOpportunities"
+              title="商機總數"
               trend="up"
               value={dashboard?.summary.totalOpportunities ?? 0}
             />
             <StatCard
-              description="CONVERSATION RECORDS"
+              description="通話與會議記錄"
               icon={MessageSquare}
               loading={isLoading}
-              title="Conversations"
+              termKey="totalConversations"
+              title="對話總數"
               trend="neutral"
               value={dashboard?.summary.totalConversations ?? 0}
             />
             <StatCard
-              description="MEDDIC ANALYSES"
+              description="已完成分析報告"
               icon={BarChart3}
               loading={isLoading}
-              title="Analyses"
+              termKey="totalAnalyses"
+              title="分析總數"
               trend="up"
               value={dashboard?.summary.totalAnalyses ?? 0}
             />
             <StatCard
-              description="AVERAGE MEDDIC SCORE"
+              description="所有商機的平均分數"
               icon={TrendingUp}
               loading={isLoading}
-              title="Avg Score"
+              termKey="avgPdcmScore"
+              title="平均 PDCM 分數"
               trend="up"
               value={
                 dashboard?.summary.averageScore
@@ -401,10 +413,12 @@ function DashboardPage() {
                   </div>
                   <div>
                     <CardTitle className="data-font text-white">
-                      QUALIFICATION STATUS
+                      <TermTooltip termKey="qualificationStatus">
+                        資格認定狀態
+                      </TermTooltip>
                     </CardTitle>
                     <CardDescription className="data-font text-slate-500 text-xs uppercase tracking-wider">
-                      MEDDIC Distribution
+                      PDCM 分佈
                     </CardDescription>
                   </div>
                 </div>
@@ -469,7 +483,7 @@ function DashboardPage() {
                       <BarChart3 className="h-full w-full text-slate-600" />
                     </div>
                     <p className="data-font text-slate-500 text-sm uppercase tracking-wider">
-                      No Analysis Data
+                      尚無分析資料
                     </p>
                   </div>
                 )}
@@ -485,10 +499,10 @@ function DashboardPage() {
                   </div>
                   <div>
                     <CardTitle className="data-font text-white">
-                      RECENT ANALYSES
+                      <TermTooltip termKey="analysis">最近分析</TermTooltip>
                     </CardTitle>
                     <CardDescription className="data-font text-slate-500 text-xs uppercase tracking-wider">
-                      Latest MEDDIC Results
+                      最新 PDCM 結果
                     </CardDescription>
                   </div>
                 </div>
@@ -499,7 +513,7 @@ function DashboardPage() {
                   variant="ghost"
                 >
                   <Link to="/conversations">
-                    VIEW ALL
+                    查看全部
                     <ArrowRight className="ml-2 h-3 w-3" />
                   </Link>
                 </Button>
@@ -556,7 +570,7 @@ function DashboardPage() {
                       <MessageSquare className="h-full w-full text-slate-600" />
                     </div>
                     <p className="data-font text-slate-500 text-sm uppercase tracking-wider">
-                      No Recent Analyses
+                      尚無分析記錄
                     </p>
                   </div>
                 )}
@@ -573,10 +587,10 @@ function DashboardPage() {
                 </div>
                 <div>
                   <CardTitle className="data-font text-white">
-                    QUICK ACTIONS
+                    快速操作
                   </CardTitle>
                   <CardDescription className="data-font text-slate-500 text-xs uppercase tracking-wider">
-                    Rapid Access Controls
+                    常用功能入口
                   </CardDescription>
                 </div>
               </div>
@@ -591,7 +605,7 @@ function DashboardPage() {
                   <Link className="flex flex-col gap-3" to="/opportunities/new">
                     <Building2 className="h-8 w-8 text-purple-400" />
                     <span className="data-font text-sm uppercase tracking-wider">
-                      New Opportunity
+                      新增商機
                     </span>
                   </Link>
                 </Button>
@@ -603,7 +617,7 @@ function DashboardPage() {
                   <Link className="flex flex-col gap-3" to="/conversations/new">
                     <MessageSquare className="h-8 w-8 text-purple-400" />
                     <span className="data-font text-sm uppercase tracking-wider">
-                      Upload Audio
+                      上傳錄音
                     </span>
                   </Link>
                 </Button>
@@ -615,7 +629,7 @@ function DashboardPage() {
                   <Link className="flex flex-col gap-3" to="/opportunities">
                     <BarChart3 className="h-8 w-8 text-purple-400" />
                     <span className="data-font text-sm uppercase tracking-wider">
-                      All Opportunities
+                      所有商機
                     </span>
                   </Link>
                 </Button>
@@ -627,7 +641,7 @@ function DashboardPage() {
                   <Link className="flex flex-col gap-3" to="/conversations">
                     <TrendingUp className="h-8 w-8 text-emerald-400" />
                     <span className="data-font text-sm uppercase tracking-wider">
-                      All Conversations
+                      所有對話
                     </span>
                   </Link>
                 </Button>

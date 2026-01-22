@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TermTooltip } from "@/components/ui/term-tooltip";
 import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/conversations/")({
@@ -42,42 +43,42 @@ const typeOptions = [
 const statusOptions = [
   {
     value: "pending",
-    label: "PENDING",
+    label: "等待中",
     color: "bg-slate-500",
     textColor: "text-slate-400",
     icon: Clock,
   },
   {
     value: "transcribing",
-    label: "TRANSCRIBING",
+    label: "轉錄中",
     color: "bg-purple-500",
     textColor: "text-purple-400",
     icon: Loader2,
   },
   {
     value: "transcribed",
-    label: "TRANSCRIBED",
+    label: "已轉錄",
     color: "bg-yellow-500",
     textColor: "text-yellow-400",
     icon: CheckCircle2,
   },
   {
     value: "analyzing",
-    label: "ANALYZING",
+    label: "分析中",
     color: "bg-purple-500",
     textColor: "text-purple-400",
     icon: BarChart3,
   },
   {
     value: "completed",
-    label: "COMPLETED",
+    label: "已完成",
     color: "bg-emerald-500",
     textColor: "text-emerald-400",
     icon: CheckCircle2,
   },
   {
     value: "failed",
-    label: "FAILED",
+    label: "失敗",
     color: "bg-red-500",
     textColor: "text-red-400",
     icon: AlertCircle,
@@ -234,10 +235,10 @@ function ConversationsPage() {
                 </div>
                 <div>
                   <h1 className="title-font bg-gradient-to-r from-purple-400 to-purple-400 bg-clip-text font-bold text-3xl text-transparent tracking-tight">
-                    Conversations
+                    <TermTooltip termKey="conversation">對話記錄</TermTooltip>
                   </h1>
                   <p className="data-font text-slate-500 text-xs uppercase tracking-wider">
-                    Sales Call Records & Analysis
+                    銷售通話記錄與分析
                   </p>
                 </div>
               </div>
@@ -249,7 +250,7 @@ function ConversationsPage() {
             >
               <Link to="/conversations/new">
                 <Plus className="mr-2 h-4 w-4" />
-                UPLOAD
+                上傳錄音
               </Link>
             </Button>
           </div>
@@ -261,7 +262,7 @@ function ConversationsPage() {
               <Input
                 className="data-font h-12 border-slate-700 bg-slate-900/50 pl-11 text-white placeholder:text-slate-500 focus:border-purple-600/50 focus:ring-purple-600/20"
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search conversations, companies..."
+                placeholder="搜尋對話、公司名稱..."
                 value={search}
               />
             </div>
@@ -270,7 +271,7 @@ function ConversationsPage() {
                 <BarChart3 className="h-4 w-4 text-purple-400" />
               </div>
               <span className="uppercase tracking-wider">
-                {totalCount} RECORDS
+                共 {totalCount} 筆記錄
               </span>
             </div>
           </div>
@@ -325,7 +326,7 @@ function ConversationsPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <h3 className="line-clamp-2 font-semibold text-white leading-tight">
-                            {conversation.title || "Untitled Conversation"}
+                            {conversation.title || "未命名對話"}
                           </h3>
                           <p className="data-font mt-1 text-slate-500 text-xs">
                             {conversation.caseNumber}
@@ -365,7 +366,7 @@ function ConversationsPage() {
                         </div>
                         {conversation.hasAnalysis && (
                           <div className="data-font rounded bg-emerald-500/20 px-2 py-1 text-emerald-400 text-xs uppercase tracking-wider ring-1 ring-emerald-500/30">
-                            ANALYZED
+                            已分析
                           </div>
                         )}
                       </div>
@@ -399,10 +400,10 @@ function ConversationsPage() {
                   <MessageSquare className="h-10 w-10 text-slate-600" />
                 </div>
                 <h3 className="title-font mb-2 font-semibold text-white text-xl">
-                  No Conversations Yet
+                  尚無對話記錄
                 </h3>
                 <p className="data-font mb-6 text-slate-500 text-sm uppercase tracking-wider">
-                  Upload audio to begin analysis
+                  上傳錄音檔案開始分析
                 </p>
                 <Button
                   asChild
@@ -411,7 +412,7 @@ function ConversationsPage() {
                 >
                   <Link to="/conversations/new">
                     <Plus className="mr-2 h-4 w-4" />
-                    UPLOAD CONVERSATION
+                    上傳對話錄音
                   </Link>
                 </Button>
               </CardContent>
@@ -422,7 +423,7 @@ function ConversationsPage() {
           {!isLoading && totalCount > pageSize && (
             <div className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-950/50 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="data-font text-slate-400 text-sm uppercase tracking-wider">
-                Total: {totalCount} Records
+                共 {totalCount} 筆記錄
               </div>
               <div className="flex items-center gap-3">
                 <Button
@@ -433,7 +434,7 @@ function ConversationsPage() {
                   variant="outline"
                 >
                   <ChevronLeft className="mr-1 h-4 w-4" />
-                  PREV
+                  上一頁
                 </Button>
                 <div className="data-font flex h-9 items-center rounded border border-slate-700 bg-slate-900/50 px-4 text-sm text-white">
                   <span className="text-purple-400">{page + 1}</span>
@@ -447,7 +448,7 @@ function ConversationsPage() {
                   size="sm"
                   variant="outline"
                 >
-                  NEXT
+                  下一頁
                   <ChevronRight className="ml-1 h-4 w-4" />
                 </Button>
               </div>

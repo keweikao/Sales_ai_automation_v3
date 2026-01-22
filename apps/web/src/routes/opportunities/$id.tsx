@@ -1,6 +1,6 @@
 /**
  * Opportunity 詳情頁面
- * 顯示商機詳細資訊、對話記錄、MEDDIC 分析
+ * 顯示商機詳細資訊、對話記錄、PDCM+SPIN 分析
  * Precision Analytics Industrial Design
  */
 
@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 
 import { LeadStatusBadge } from "@/components/lead/lead-status-badge";
-import { MeddicScoreCard } from "@/components/meddic/meddic-score-card";
+import { PdcmScoreCard } from "@/components/meddic/pdcm-score-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -480,7 +480,7 @@ function OpportunityDetailPage() {
             color: rgb(148 163 184);
           }
 
-          .meddic-badge {
+          .pdcm-badge {
             padding: 0.375rem 0.75rem;
             border-radius: 0.375rem;
             font-family: 'JetBrains Mono', monospace;
@@ -490,11 +490,11 @@ function OpportunityDetailPage() {
             background: linear-gradient(135deg, rgb(16 185 129) 0%, rgb(5 150 105) 100%);
           }
 
-          .meddic-badge.score-medium {
+          .pdcm-badge.score-medium {
             background: linear-gradient(135deg, rgb(251 191 36) 0%, rgb(245 158 11) 100%);
           }
 
-          .meddic-badge.score-low {
+          .pdcm-badge.score-low {
             background: linear-gradient(135deg, rgb(239 68 68) 0%, rgb(220 38 38) 100%);
           }
 
@@ -795,7 +795,7 @@ function OpportunityDetailPage() {
                         {conv.latestAnalysis && (
                           <div>
                             <span
-                              className={`meddic-badge ${
+                              className={`pdcm-badge ${
                                 conv.latestAnalysis.overallScore
                                   ? conv.latestAnalysis.overallScore >= 70
                                     ? ""
@@ -805,7 +805,7 @@ function OpportunityDetailPage() {
                                   : "score-low"
                               }`}
                             >
-                              MEDDIC {conv.latestAnalysis.overallScore ?? "-"}
+                              PDCM {conv.latestAnalysis.overallScore ?? "-"}
                             </span>
                           </div>
                         )}
@@ -821,10 +821,10 @@ function OpportunityDetailPage() {
 
           {/* Sidebar */}
           <div className="sidebar-column">
-            {/* MEDDIC Score */}
+            {/* PDCM Score */}
             {opportunity.meddicScore ? (
               <div className="detail-card" style={{ animationDelay: "0.25s" }}>
-                <MeddicScoreCard
+                <PdcmScoreCard
                   dimensions={opportunity.meddicScore.dimensions}
                   overallScore={opportunity.meddicScore.overall}
                 />
@@ -832,10 +832,10 @@ function OpportunityDetailPage() {
             ) : (
               <div className="detail-card" style={{ animationDelay: "0.25s" }}>
                 <div className="card-header">
-                  <h2 className="card-title">MEDDIC 評分</h2>
+                  <h2 className="card-title">PDCM 評分</h2>
                 </div>
                 <div className="card-content">
-                  <div className="empty-state">尚無 MEDDIC 分析</div>
+                  <div className="empty-state">尚無 PDCM 分析</div>
                 </div>
               </div>
             )}

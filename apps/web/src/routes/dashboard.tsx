@@ -164,7 +164,7 @@ function RouteComponent() {
                       </p>
                       {conv.meddicScore !== null && (
                         <p className="mt-1 text-sm">
-                          MEDDIC 分數: {conv.meddicScore}/100
+                          PDCM 分數: {conv.meddicScore}/100
                         </p>
                       )}
                     </div>

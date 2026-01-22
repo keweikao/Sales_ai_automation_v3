@@ -27,6 +27,24 @@ import type {
 } from "./types.js";
 
 // ============================================================
+// Agent Model Configuration
+// 核心分析 Agent 使用 Pro 模型，輔助 Agent 使用 Flash 模型
+// ============================================================
+
+export const AGENT_MODEL_CONFIG = {
+  context: { model: "gemini-2.5-flash", tier: "auxiliary" as const },
+  buyer: { model: "gemini-2.5-pro", tier: "core" as const },
+  quality_loop: { model: "gemini-2.5-pro", tier: "core" as const },
+  seller: { model: "gemini-2.5-pro", tier: "core" as const },
+  summary: { model: "gemini-2.5-flash", tier: "auxiliary" as const },
+  crm: { model: "gemini-2.5-flash", tier: "auxiliary" as const },
+  coach: { model: "gemini-2.5-pro", tier: "core" as const },
+} as const;
+
+export type AgentId = keyof typeof AGENT_MODEL_CONFIG;
+export type AgentTier = "core" | "auxiliary";
+
+// ============================================================
 // Utilities
 // ============================================================
 
@@ -62,7 +80,10 @@ export class ContextAgent implements BaseAgent {
 
     const prompt = `${GLOBAL_CONTEXT_FOR_PRODUCT_LINE(productLine)}\n\n${AGENT1_PROMPT()}\n\n## Meeting Transcript:\n${transcriptText}\n\n## Metadata:\n${JSON.stringify(state.metadata, null, 2)}`;
 
-    const response = await this.geminiClient.generateJSON<Agent1Output>(prompt);
+    const response = await this.geminiClient.generateJSON<Agent1Output>(
+      prompt,
+      { model: AGENT_MODEL_CONFIG.context.model }
+    );
 
     return {
       ...state,
@@ -88,7 +109,10 @@ export class BuyerAgent implements BaseAgent {
 
     const prompt = `${GLOBAL_CONTEXT_FOR_PRODUCT_LINE(productLine)}\n\n${AGENT2_PROMPT()}\n\n## Meeting Transcript:\n${transcriptText}`;
 
-    const response = await this.geminiClient.generateJSON<Agent2Output>(prompt);
+    const response = await this.geminiClient.generateJSON<Agent2Output>(
+      prompt,
+      { model: AGENT_MODEL_CONFIG.buyer.model }
+    );
 
     return {
       ...state,
@@ -122,7 +146,10 @@ export class QualityLoopAgent implements BaseAgent {
       `## Meeting Transcript:\n${transcriptText}\n\n` +
       "IMPORTANT: The previous analysis was incomplete. Please provide more specific evidence, identify pain points more clearly, and ensure all MEDDIC scores are justified.";
 
-    const response = await this.geminiClient.generateJSON<Agent2Output>(prompt);
+    const response = await this.geminiClient.generateJSON<Agent2Output>(
+      prompt,
+      { model: AGENT_MODEL_CONFIG.quality_loop.model }
+    );
 
     return {
       ...state,
@@ -152,7 +179,10 @@ export class SellerAgent implements BaseAgent {
       `## Buyer Analysis:\n${buyerInsights}\n\n` +
       `## Meeting Transcript:\n${transcriptText}`;
 
-    const response = await this.geminiClient.generateJSON<Agent3Output>(prompt);
+    const response = await this.geminiClient.generateJSON<Agent3Output>(
+      prompt,
+      { model: AGENT_MODEL_CONFIG.seller.model }
+    );
 
     return {
       ...state,
@@ -185,7 +215,10 @@ export class SummaryAgent implements BaseAgent {
       `## Seller Analysis:\n${sellerData}\n\n` +
       `## Meeting Transcript:\n${transcriptText}`;
 
-    const response = await this.geminiClient.generateJSON<Agent4Output>(prompt);
+    const response = await this.geminiClient.generateJSON<Agent4Output>(
+      prompt,
+      { model: AGENT_MODEL_CONFIG.summary.model }
+    );
 
     return {
       ...state,
@@ -216,7 +249,10 @@ export class CRMAgent implements BaseAgent {
       `## Buyer Analysis:\n${buyerData}\n\n` +
       `## Meeting Transcript:\n${transcriptText}`;
 
-    const response = await this.geminiClient.generateJSON<Agent5Output>(prompt);
+    const response = await this.geminiClient.generateJSON<Agent5Output>(
+      prompt,
+      { model: AGENT_MODEL_CONFIG.crm.model }
+    );
 
     return {
       ...state,
@@ -247,7 +283,10 @@ export class CoachAgent implements BaseAgent {
       `## Seller Analysis:\n${sellerData}\n\n` +
       `## Meeting Transcript:\n${transcriptText}`;
 
-    const response = await this.geminiClient.generateJSON<Agent6Output>(prompt);
+    const response = await this.geminiClient.generateJSON<Agent6Output>(
+      prompt,
+      { model: AGENT_MODEL_CONFIG.coach.model }
+    );
 
     return {
       ...state,

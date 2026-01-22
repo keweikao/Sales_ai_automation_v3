@@ -41,6 +41,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
+import { TermTooltip } from "@/components/ui/term-tooltip";
 import { cn } from "@/lib/utils";
 import { client } from "@/utils/orpc";
 
@@ -96,7 +97,7 @@ function StatCard({
   loading,
   change,
 }: {
-  title: string;
+  title: React.ReactNode;
   value: string | number;
   description?: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -133,7 +134,7 @@ function DimensionScoreBar({
   trend,
   gap,
 }: {
-  label: string;
+  label: React.ReactNode;
   score: number;
   trend: "up" | "down" | "stable";
   gap?: string;
@@ -205,13 +206,11 @@ function RepPerformanceReport() {
     );
   }
 
-  const dimensionLabels: Record<string, string> = {
-    metrics: "量化指標 (M)",
-    economicBuyer: "經濟決策者 (E)",
-    decisionCriteria: "決策標準 (D)",
-    decisionProcess: "決策流程 (D)",
-    identifyPain: "痛點識別 (I)",
-    champion: "內部支持者 (C)",
+  const dimensionLabels: Record<string, { label: string; termKey: string }> = {
+    pain: { label: "痛點 (P)", termKey: "pain" },
+    decision: { label: "決策 (D)", termKey: "decision" },
+    champion: { label: "支持度 (C)", termKey: "champion" },
+    metrics: { label: "量化 (M)", termKey: "metrics" },
   };
 
   return (
@@ -221,56 +220,71 @@ function RepPerformanceReport() {
         <StatCard
           description="所有商機"
           icon={Building2}
-          title="商機總數"
+          title={
+            <TermTooltip termKey="totalOpportunities">商機總數</TermTooltip>
+          }
           value={report.summary.totalOpportunities}
         />
         <StatCard
           description="所有對話"
           icon={MessageSquare}
-          title="對話數"
+          title={<TermTooltip termKey="totalConversations">對話數</TermTooltip>}
           value={report.summary.totalConversations}
         />
         <StatCard
           description="已完成分析"
           icon={BarChart3}
-          title="分析數"
+          title={<TermTooltip termKey="totalAnalyses">分析數</TermTooltip>}
           value={report.summary.totalAnalyses}
         />
         <StatCard
           change={report.summary.scoreChange}
-          description="MEDDIC 平均"
+          description="PDCM 平均"
           icon={TrendingUp}
-          title="平均分數"
+          title={<TermTooltip termKey="avgPdcmScore">平均分數</TermTooltip>}
           value={report.summary.averageScore}
         />
         <StatCard
           description="在團隊中的排名"
           icon={Trophy}
-          title="團隊百分位"
+          title={
+            <TermTooltip termKey="teamPerformance">團隊百分位</TermTooltip>
+          }
           value={`${report.teamComparison.overallPercentile}%`}
         />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* MEDDIC Dimensions */}
+        {/* PDCM Dimensions */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Target className="h-5 w-5" />
-              MEDDIC 六維度分析
+              <TermTooltip termKey="pdcmScore">PDCM 四維度分析</TermTooltip>
             </CardTitle>
             <CardDescription>各維度平均分數與趨勢</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {Object.entries(report.dimensionAnalysis).map(([key, dim]) => (
-              <DimensionScoreBar
-                gap={dim.gap}
-                key={key}
-                label={dimensionLabels[key] || key}
-                score={dim.score}
-                trend={dim.trend}
-              />
-            ))}
+            {Object.entries(report.dimensionAnalysis).map(([key, dim]) => {
+              const labelInfo = dimensionLabels[key];
+              return (
+                <DimensionScoreBar
+                  gap={dim.gap}
+                  key={key}
+                  label={
+                    labelInfo ? (
+                      <TermTooltip termKey={labelInfo.termKey}>
+                        {labelInfo.label}
+                      </TermTooltip>
+                    ) : (
+                      key
+                    )
+                  }
+                  score={dim.score}
+                  trend={dim.trend}
+                />
+              );
+            })}
           </CardContent>
         </Card>
 
@@ -281,7 +295,7 @@ function RepPerformanceReport() {
               <Medal className="h-5 w-5" />
               強項與弱項
             </CardTitle>
-            <CardDescription>基於 MEDDIC 分數自動識別</CardDescription>
+            <CardDescription>基於 PDCM 分數自動識別</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Strengths */}
@@ -521,7 +535,7 @@ function TeamPerformanceReport() {
         />
         <StatCard
           change={report.teamSummary.scoreChange}
-          description="團隊 MEDDIC 平均"
+          description="團隊 PDCM 平均"
           icon={TrendingUp}
           title="團隊平均分數"
           value={report.teamSummary.teamAverageScore}
@@ -542,7 +556,7 @@ function TeamPerformanceReport() {
               <Trophy className="h-5 w-5" />
               團隊成員排名
             </CardTitle>
-            <CardDescription>依 MEDDIC 平均分數排序</CardDescription>
+            <CardDescription>依 PDCM 平均分數排序</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -604,12 +618,10 @@ function TeamPerformanceReport() {
                 {Object.entries(report.teamDimensionAnalysis).map(
                   ([key, dim]) => {
                     const labels: Record<string, string> = {
-                      metrics: "量化指標",
-                      economicBuyer: "經濟決策者",
-                      decisionCriteria: "決策標準",
-                      decisionProcess: "決策流程",
-                      identifyPain: "痛點識別",
-                      champion: "內部支持者",
+                      pain: "痛點",
+                      decision: "決策",
+                      champion: "支持度",
+                      metrics: "量化",
                     };
                     return (
                       <div className="space-y-1" key={key}>

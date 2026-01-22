@@ -46,6 +46,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TermTooltip } from "@/components/ui/term-tooltip";
 import { cn } from "@/lib/utils";
 import { client } from "@/utils/orpc";
 
@@ -209,10 +210,12 @@ function OpportunitiesPage() {
               <TableHead>
                 <div className="flex items-center gap-2">
                   <TrendingUp className="h-4 w-4" />
-                  分數
+                  <TermTooltip termKey="opportunity">商機分數</TermTooltip>
                 </div>
               </TableHead>
-              <TableHead>MEDDIC</TableHead>
+              <TableHead>
+                <TermTooltip termKey="pdcmScore">PDCM</TermTooltip>
+              </TableHead>
               <TableHead>上次更新</TableHead>
               <TableHead className="w-[50px]" />
             </TableRow>
@@ -311,7 +314,7 @@ function OpportunitiesPage() {
                             getScoreBarColor(opportunity.meddicScore.overall)
                           )}
                         >
-                          M
+                          P
                         </span>
                         <span className="font-medium">
                           {opportunity.meddicScore.overall}

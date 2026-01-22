@@ -33,7 +33,7 @@ const statusColorMap: Record<string, string> = {
   failed: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
 };
 
-function getMeddicScoreColorClass(score: number): string {
+function getPdcmScoreColorClass(score: number): string {
   if (score >= 70) {
     return "text-green-600 dark:text-green-400";
   }
@@ -182,7 +182,7 @@ export function ConversationList({
                     <span
                       className={cn(
                         "font-medium text-sm",
-                        getMeddicScoreColorClass(
+                        getPdcmScoreColorClass(
                           conversation.meddicAnalysis.overallScore
                         )
                       )}
