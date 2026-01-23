@@ -14,6 +14,7 @@ import * as schema from "@Sales_ai_automation_v3/db/schema";
 import {
   conversations,
   meddicAnalyses,
+  opportunities,
 } from "@Sales_ai_automation_v3/db/schema";
 import {
   createGeminiClient,
@@ -358,6 +359,34 @@ export default {
         console.log("[Queue] ✓ MEDDIC analysis saved to meddicAnalyses table");
 
         // ========================================
+        // Step 5.1: 更新 opportunity 的分數欄位
+        // ========================================
+        console.log("[Queue] 💾 Updating opportunity scores...");
+        await db
+          .update(opportunities)
+          .set({
+            opportunityScore: analysisResult.overallScore,
+            meddicScore: {
+              overall: analysisResult.overallScore ?? 0,
+              dimensions: {
+                metrics: analysisResult.meddicScores?.metrics || 0,
+                economicBuyer: analysisResult.meddicScores?.economicBuyer || 0,
+                decisionCriteria:
+                  analysisResult.meddicScores?.decisionCriteria || 0,
+                decisionProcess:
+                  analysisResult.meddicScores?.decisionProcess || 0,
+                identifyPain: analysisResult.meddicScores?.identifyPain || 0,
+                champion: analysisResult.meddicScores?.champion || 0,
+              },
+            },
+            updatedAt: new Date(),
+          })
+          .where(eq(opportunities.id, opportunityId));
+        console.log(
+          `[Queue] ✓ Opportunity scores updated: ${analysisResult.overallScore}/100`
+        );
+
+        // ========================================
         // Step 6: 更新 conversation 狀態為 completed
         // ========================================
         console.log("[Queue] 💾 Updating conversation status to completed...");
@@ -548,65 +577,119 @@ export default {
             // ====================================
 
             // 1. PDCM 快速診斷 (從 Agent 2 提取)
-            const agent2Data = agentOutputs.agent2 as Record<string, unknown> | undefined;
-            const pdcmScores = agent2Data?.pdcm_scores as Record<string, unknown> | undefined;
+            const agent2Data = agentOutputs.agent2 as
+              | Record<string, unknown>
+              | undefined;
+            const pdcmScores = agent2Data?.pdcm_scores as
+              | Record<string, unknown>
+              | undefined;
 
-            const pdcmQuickDiagnosis = pdcmScores ? {
-              pain: Number((pdcmScores.pain as Record<string, unknown>)?.score ?? 0),
-              decision: Number((pdcmScores.decision as Record<string, unknown>)?.score ?? 0),
-              champion: Number((pdcmScores.champion as Record<string, unknown>)?.score ?? 0),
-              metrics: Number((pdcmScores.metrics as Record<string, unknown>)?.score ?? 0),
-              totalScore: Number(pdcmScores.total_score ?? 0),
-              dealProbability: (pdcmScores.deal_probability as "high" | "medium" | "low") ?? "low",
-            } : undefined;
+            const pdcmQuickDiagnosis = pdcmScores
+              ? {
+                  pain: Number(
+                    (pdcmScores.pain as Record<string, unknown>)?.score ?? 0
+                  ),
+                  decision: Number(
+                    (pdcmScores.decision as Record<string, unknown>)?.score ?? 0
+                  ),
+                  champion: Number(
+                    (pdcmScores.champion as Record<string, unknown>)?.score ?? 0
+                  ),
+                  metrics: Number(
+                    (pdcmScores.metrics as Record<string, unknown>)?.score ?? 0
+                  ),
+                  totalScore: Number(pdcmScores.total_score ?? 0),
+                  dealProbability:
+                    (pdcmScores.deal_probability as
+                      | "high"
+                      | "medium"
+                      | "low") ?? "low",
+                }
+              : undefined;
 
             // 2. 關鍵痛點 (從 Agent 2 提取，優先使用 key_pain_points)
-            const agent2PainPoints = (agent2Data?.pcm_state as Record<string, unknown>)?.pain as Record<string, unknown> | undefined;
+            const agent2PainPoints = (
+              agent2Data?.pcm_state as Record<string, unknown>
+            )?.pain as Record<string, unknown> | undefined;
             const keyPainPoints: string[] = [];
             if (agent2PainPoints?.primary_pain) {
               keyPainPoints.push(String(agent2PainPoints.primary_pain));
             }
             // 補充從 Agent 4 markdown 提取的痛點
-            keyPainPoints.push(...painPoints.filter(p => !keyPainPoints.includes(p)));
+            keyPainPoints.push(
+              ...painPoints.filter((p) => !keyPainPoints.includes(p))
+            );
 
             // 3. 建議策略與理由 (從 Agent 3 提取)
-            const agent3Data = agentOutputs.agent3 as Record<string, unknown> | undefined;
-            const recommendedStrategy = agent3Data?.recommended_strategy as "CloseNow" | "SmallStep" | "MaintainRelationship" | undefined;
-            const strategyReason = agent3Data?.strategy_reason as string | undefined;
+            const agent3Data = agentOutputs.agent3 as
+              | Record<string, unknown>
+              | undefined;
+            const recommendedStrategy = agent3Data?.recommended_strategy as
+              | "CloseNow"
+              | "SmallStep"
+              | "MaintainRelationship"
+              | undefined;
+            const strategyReason = agent3Data?.strategy_reason as
+              | string
+              | undefined;
 
             // 4. 下一步行動 (從 Agent 3 提取)
-            const agent3NextAction = agent3Data?.next_action as Record<string, unknown> | undefined;
-            const nextAction = agent3NextAction ? {
-              action: String(agent3NextAction.action ?? ""),
-              suggestedScript: String(agent3NextAction.suggested_script ?? ""),
-              deadline: String(agent3NextAction.deadline ?? "24小時內"),
-            } : undefined;
+            const agent3NextAction = agent3Data?.next_action as
+              | Record<string, unknown>
+              | undefined;
+            const nextAction = agent3NextAction
+              ? {
+                  action: String(agent3NextAction.action ?? ""),
+                  suggestedScript: String(
+                    agent3NextAction.suggested_script ?? ""
+                  ),
+                  deadline: String(agent3NextAction.deadline ?? "24小時內"),
+                }
+              : undefined;
 
             // 5. 戰術建議 (從 Agent 6 提取，只取第一個)
-            const agent6Data = agentOutputs.agent6 as Record<string, unknown> | undefined;
-            const tacticalSuggestions = agent6Data?.tactical_suggestions as Array<Record<string, unknown>> | undefined;
-            const topTacticalSuggestion = tacticalSuggestions?.[0] ? {
-              trigger: String(tacticalSuggestions[0].trigger ?? ""),
-              suggestion: String(tacticalSuggestions[0].suggestion ?? ""),
-              talkTrack: String(tacticalSuggestions[0].talk_track ?? ""),
-            } : undefined;
+            const agent6Data = agentOutputs.agent6 as
+              | Record<string, unknown>
+              | undefined;
+            const tacticalSuggestions = agent6Data?.tactical_suggestions as
+              | Array<Record<string, unknown>>
+              | undefined;
+            const topTacticalSuggestion = tacticalSuggestions?.[0]
+              ? {
+                  trigger: String(tacticalSuggestions[0].trigger ?? ""),
+                  suggestion: String(tacticalSuggestions[0].suggestion ?? ""),
+                  talkTrack: String(tacticalSuggestions[0].talk_track ?? ""),
+                }
+              : undefined;
 
             // 6. PDCM+SPIN 綜合警示 (從 Agent 6 提取)
-            const agent6Alerts = agent6Data?.pdcm_spin_alerts as Record<string, Record<string, unknown>> | undefined;
-            const pdcmSpinAlerts = agent6Alerts ? {
-              noMetrics: {
-                triggered: Boolean(agent6Alerts.no_metrics?.triggered ?? false),
-                message: String(agent6Alerts.no_metrics?.message ?? ""),
-              },
-              shallowDiscovery: {
-                triggered: Boolean(agent6Alerts.shallow_discovery?.triggered ?? false),
-                message: String(agent6Alerts.shallow_discovery?.message ?? ""),
-              },
-              noUrgency: {
-                triggered: Boolean(agent6Alerts.no_urgency?.triggered ?? false),
-                message: String(agent6Alerts.no_urgency?.message ?? ""),
-              },
-            } : undefined;
+            const agent6Alerts = agent6Data?.pdcm_spin_alerts as
+              | Record<string, Record<string, unknown>>
+              | undefined;
+            const pdcmSpinAlerts = agent6Alerts
+              ? {
+                  noMetrics: {
+                    triggered: Boolean(
+                      agent6Alerts.no_metrics?.triggered ?? false
+                    ),
+                    message: String(agent6Alerts.no_metrics?.message ?? ""),
+                  },
+                  shallowDiscovery: {
+                    triggered: Boolean(
+                      agent6Alerts.shallow_discovery?.triggered ?? false
+                    ),
+                    message: String(
+                      agent6Alerts.shallow_discovery?.message ?? ""
+                    ),
+                  },
+                  noUrgency: {
+                    triggered: Boolean(
+                      agent6Alerts.no_urgency?.triggered ?? false
+                    ),
+                    message: String(agent6Alerts.no_urgency?.message ?? ""),
+                  },
+                }
+              : undefined;
 
             await slackService.notifyProcessingCompleted({
               userId: slackUser.id,
@@ -639,7 +722,8 @@ export default {
 
                 // ========= 新增：簡要版報告欄位 =========
                 pdcmQuickDiagnosis,
-                keyPainPoints: keyPainPoints.length > 0 ? keyPainPoints : undefined,
+                keyPainPoints:
+                  keyPainPoints.length > 0 ? keyPainPoints : undefined,
                 recommendedStrategy,
                 strategyReason,
                 nextAction,
