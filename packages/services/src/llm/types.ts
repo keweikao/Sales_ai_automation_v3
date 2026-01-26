@@ -63,28 +63,93 @@ export interface Agent1Output {
 }
 
 /**
- * Agent 2: Buyer Agent
- * Customer insight analysis - why not closed, switching concerns, customer type
+ * Agent 2: Buyer Agent (PDCM Framework)
+ * Customer insight analysis using SMB-optimized MEDDIC (PDCM)
+ * Updated to match prompts.generated.ts output format
  */
 export interface Agent2Output {
-  not_closed_reason:
-    | "價格太高"
-    | "需老闆決定"
-    | "功能不符"
-    | "轉換顧慮"
-    | "習慣現狀";
-  not_closed_detail: string;
-  switch_concerns: {
-    detected: boolean;
-    worry_about: "菜單設定" | "員工訓練" | "資料遷移" | "無";
-    complexity: "複雜" | "一般" | "簡單";
+  // PDCM Scores - 核心分析結果
+  pdcm_scores: {
+    pain: {
+      score: number;
+      level: "P1_Critical" | "P2_High" | "P3_Medium" | "P4_Low";
+      main_pain: string;
+      urgency: "立即" | "近期" | "未來";
+      quantified_loss?: string;
+      evidence: string[];
+    };
+    decision: {
+      score: number;
+      contact_role: "老闆" | "店長" | "員工";
+      has_authority: boolean;
+      budget_awareness: "有概念" | "不清楚" | "不提";
+      timeline: "急著要" | "近期" | "未定";
+      risk: "低" | "中" | "高";
+    };
+    champion: {
+      score: number;
+      attitude: "主動積極" | "中立觀望" | "冷淡推託";
+      customer_type: "衝動型" | "精算型" | "保守觀望型";
+      primary_criteria: "價格" | "功能" | "易用性" | "服務";
+      switch_concerns?: string;
+      evidence: string[];
+    };
+    metrics: {
+      score: number;
+      level: "M1_Complete" | "M2_Partial" | "M3_Weak" | "M4_Missing";
+      quantified_items?: Array<{
+        category: "時間成本" | "人力成本" | "營收損失" | "機會成本";
+        description: string;
+        monthly_value: number;
+        calculation?: string;
+        customer_confirmed?: boolean;
+      }>;
+      total_monthly_impact: number;
+      annual_impact: number;
+      roi_message?: string;
+    };
+    total_score: number;
+    deal_probability: "高" | "中" | "低";
   };
-  customer_type: {
-    type: "衝動型" | "精算型" | "保守觀望型";
-    evidence: string[];
+
+  // PCM State - 簡化狀態摘要
+  pcm_state: {
+    pain: {
+      primary_pain: string;
+      pain_level: "P1" | "P2" | "P3" | "P4";
+      customer_quote?: string;
+    };
+    champion: {
+      identified: boolean;
+      name?: string;
+      attitude: "積極" | "中立" | "消極";
+    };
+    metrics: {
+      quantified: boolean;
+      total_monthly_impact: number;
+      annual_impact: number;
+    };
   };
+
+  // 未成交原因分析
+  not_closed_reason: {
+    type:
+      | "痛點不痛"
+      | "決策者不在"
+      | "價格疑慮"
+      | "轉換顧慮"
+      | "比價中"
+      | "Metrics缺失"
+      | "其他";
+    detail: string;
+    breakthrough_suggestion: string;
+  };
+
+  // 錯過的機會
   missed_opportunities: string[];
-  current_system: "無" | "其他品牌" | "iCHEF舊用戶";
+
+  // 現有系統
+  current_system: "無" | "其他品牌" | "舊用戶";
 }
 
 /**
@@ -128,6 +193,17 @@ export interface Agent4Output {
   action_items: {
     ichef: string[];
     customer: string[];
+  };
+  /** 給客戶的下一步行動 CTA（客戶視角） */
+  customer_cta?: {
+    /** 行動描述，例如「預約免費試用」 */
+    action: string;
+    /** 上下文，引用客戶對話中提到的內容 */
+    context: string;
+    /** 按鈕文字，例如「預約試用」 */
+    button_text: string;
+    /** 急迫程度 */
+    urgency: "high" | "medium" | "low";
   };
 }
 

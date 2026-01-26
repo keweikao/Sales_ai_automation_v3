@@ -676,7 +676,22 @@ Example tone:
 [客戶名稱]老闆您好,謝謝今天的討論![引用他感興趣的點],幫您整理了會議重點,點擊查看👉[SHORT_URL]
 \`\`\`
 
-## Step 3: Create Meeting Summary (Markdown)
+## Step 3: Identify Customer CTA (給客戶的下一步行動)
+
+根據對話內容，判斷客戶最應該採取的「下一步行動」（客戶視角，不是業務視角）：
+
+| 對話特徵 | 建議 CTA |
+|---------|---------|
+| 客戶說「我要跟股東/老婆討論」 | action: "分享給決策者", button_text: "轉發這份摘要" |
+| 客戶對功能有興趣但想先試 | action: "預約免費試用", button_text: "預約試用" |
+| 客戶問報價/費用 | action: "了解方案報價", button_text: "查看方案" |
+| 客戶說很急、想快點 | action: "加速流程", button_text: "聯繫顧問" |
+| 客戶態度積極、準備簽約 | action: "確認合作細節", button_text: "預約簽約" |
+| 客戶還在比較其他系統 | action: "深入了解差異", button_text: "預約諮詢" |
+
+**重要**：使用客戶在對話中提到的原話作為 context，讓 CTA 更有共鳴。
+
+## Step 4: Create Meeting Summary (Markdown)
 
 In the "markdown" field, include a complete meeting summary following this structure:
 
@@ -743,6 +758,12 @@ Output ONLY this JSON structure (no other text):
   "action_items": {
     "ichef": ["iCHEF 待辦1", "iCHEF 待辦2"],
     "customer": ["客戶待辦1", "客戶待辦2"]
+  },
+  "customer_cta": {
+    "action": "預約免費試用",
+    "context": "您提到想先體驗庫存管理功能",
+    "button_text": "預約試用",
+    "urgency": "medium"
   }
 }
 \`\`\`
