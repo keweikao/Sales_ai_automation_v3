@@ -1,163 +1,89 @@
-# Ultracite Code Standards
-所有回覆都已請台灣用繁體中文回覆
+# Sales AI Automation V3 - Project Guidelines
 
-This project uses **Ultracite**, a zero-config preset that enforces strict code quality standards through automated formatting and linting.
+所有回覆都請用繁體中文回覆
 
 ## Quick Reference
 
 - **Format code**: `bun x ultracite fix`
 - **Check for issues**: `bun x ultracite check`
-- **Diagnose setup**: `bun x ultracite doctor`
-
-Biome (the underlying engine) provides robust linting and formatting. Most issues are automatically fixable.
-
----
-
-## Core Principles
-
-Write code that is **accessible, performant, type-safe, and maintainable**. Focus on clarity and explicit intent over brevity.
-
-### Type Safety & Explicitness
-
-- Use explicit types for function parameters and return values when they enhance clarity
-- Prefer `unknown` over `any` when the type is genuinely unknown
-- Use const assertions (`as const`) for immutable values and literal types
-- Leverage TypeScript's type narrowing instead of type assertions
-- Use meaningful variable names instead of magic numbers - extract constants with descriptive names
-
-### Modern JavaScript/TypeScript
-
-- Use arrow functions for callbacks and short functions
-- Prefer `for...of` loops over `.forEach()` and indexed `for` loops
-- Use optional chaining (`?.`) and nullish coalescing (`??`) for safer property access
-- Prefer template literals over string concatenation
-- Use destructuring for object and array assignments
-- Use `const` by default, `let` only when reassignment is needed, never `var`
-
-### Async & Promises
-
-- Always `await` promises in async functions - don't forget to use the return value
-- Use `async/await` syntax instead of promise chains for better readability
-- Handle errors appropriately in async code with try-catch blocks
-- Don't use async functions as Promise executors
-
-### React & JSX
-
-- Use function components over class components
-- Call hooks at the top level only, never conditionally
-- Specify all dependencies in hook dependency arrays correctly
-- Use the `key` prop for elements in iterables (prefer unique IDs over array indices)
-- Nest children between opening and closing tags instead of passing as props
-- Don't define components inside other components
-- Use semantic HTML and ARIA attributes for accessibility:
-  - Provide meaningful alt text for images
-  - Use proper heading hierarchy
-  - Add labels for form inputs
-  - Include keyboard event handlers alongside mouse events
-  - Use semantic elements (`<button>`, `<nav>`, etc.) instead of divs with roles
-
-### Error Handling & Debugging
-
-- Remove `console.log`, `debugger`, and `alert` statements from production code
-- Throw `Error` objects with descriptive messages, not strings or other values
-- Use `try-catch` blocks meaningfully - don't catch errors just to rethrow them
-- Prefer early returns over nested conditionals for error cases
-
-### Code Organization
-
-- Keep functions focused and under reasonable cognitive complexity limits
-- Extract complex conditions into well-named boolean variables
-- Use early returns to reduce nesting
-- Prefer simple conditionals over nested ternary operators
-- Group related code together and separate concerns
-
-### Security
-
-- Add `rel="noopener"` when using `target="_blank"` on links
-- Avoid `dangerouslySetInnerHTML` unless absolutely necessary
-- Don't use `eval()` or assign directly to `document.cookie`
-- Validate and sanitize user input
-
-### Performance
-
-- Avoid spread syntax in accumulators within loops
-- Use top-level regex literals instead of creating them in loops
-- Prefer specific imports over namespace imports
-- Avoid barrel files (index files that re-export everything)
-- Use proper image components (e.g., Next.js `<Image>`) over `<img>` tags
-
-### Framework-Specific Guidance
-
-**Next.js:**
-
-- Use Next.js `<Image>` component for images
-- Use `next/head` or App Router metadata API for head elements
-- Use Server Components for async data fetching instead of async Client Components
-
-**React 19+:**
-
-- Use ref as a prop instead of `React.forwardRef`
-
-**Solid/Svelte/Vue/Qwik:**
-
-- Use `class` and `for` attributes (not `className` or `htmlFor`)
 
 ---
 
 ## Documentation Management
 
-All project documentation files follow a consistent organization structure to maintain clarity and discoverability.
-
 ### File Organization Rules
 
 - **All `.md` files (except `CLAUDE.md`) must be placed in the `.doc/` directory**
-- **All files MUST start with date prefix in `YYYYMMDD_` format** (using file modification date)
-- Files should be renamed to be self-explanatory based on their content
-- Use descriptive names in Traditional Chinese for better readability
-- Avoid generic names like "TROUBLESHOOTING" - use specific names like "Slack_Bot問題排查手冊"
+- **All files MUST start with date prefix in `YYYYMMDD_` format**
+- Use descriptive names in Traditional Chinese
 
-### Naming Examples
-
-**Good:**
-- `.doc/20260115_Queue_Worker_Bug修復與Shared整合報告.md` (bug fix report)
-- `.doc/20260115_Queue架構部署指南.md` (deployment guide)
-- `.doc/20260113_Slack_Bot問題排查手冊.md` (troubleshooting reference)
-- `.doc/20260115_Agent_A_基礎設施與核心服務實作計畫.md` (development plan)
-
-**Bad:**
-- `BUG_FIX.md` (not in .doc, no date, generic name)
-- `Queue架構部署指南.md` (missing date prefix)
-- `20260115_DEPLOYMENT.md` (English only, not descriptive enough)
-- `docs.md` (unclear purpose)
-
-### When Creating New Documentation
-
-1. Always create in `.doc/` directory
-2. **Always add YYYYMMDD_ date prefix at the beginning** (use current date or file modification date)
-3. Choose a descriptive name that explains the content
-4. Use Traditional Chinese for clarity
-5. Update this list if introducing new documentation categories
+**Good:** `.doc/20260115_Queue_Worker_Bug修復報告.md`
+**Bad:** `BUG_FIX.md` (not in .doc, no date)
 
 ---
 
-## Testing
+## Project Conventions
 
-- Write assertions inside `it()` or `test()` blocks
-- Avoid done callbacks in async tests - use async/await instead
-- Don't use `.only` or `.skip` in committed code
-- Keep test suites reasonably flat - avoid excessive `describe` nesting
+### ID 格式規範
 
-## When Biome Can't Help
-
-Biome's linter will catch most issues automatically. Focus your attention on:
-
-1. **Business logic correctness** - Biome can't validate your algorithms
-2. **Meaningful naming** - Use descriptive names for functions, variables, and types
-3. **Architecture decisions** - Component structure, data flow, and API design
-4. **Edge cases** - Handle boundary conditions and error states
-5. **User experience** - Accessibility, performance, and usability considerations
-6. **Documentation** - Add comments for complex logic, but prefer self-documenting code
+- **案件編號格式**：`YYYYMM-IC###`（如：`202601-IC046`）
+- **客戶編號格式**：`YYYYMM-######`（如：`201700-000001`）
 
 ---
 
-Most formatting and common issues are automatically fixed by Biome. Run `bun x ultracite fix` before committing to ensure compliance.
+## Guardrails
+
+- **永遠不要** 在有未提交變更時部署到 production
+- 部署前務必執行測試，並先部署到 staging 環境
+
+---
+
+## Deployment Checklist
+
+### Web 前端部署 (apps/web)
+
+**⚠️ 重要：確保 `.env.production` 存在且正確！**
+
+```bash
+# apps/web/.env.production 必須包含：
+VITE_SERVER_URL=https://sales-ai-server.salesaiautomationv3.workers.dev
+```
+
+如果缺少此檔案，build 時會使用 `.env` 的 `localhost:3000`，導致 production 前端連接到錯誤的後端。
+
+**部署命令：**
+```bash
+cd apps/web
+bun run build
+bunx wrangler pages deploy dist --project-name=sales-ai-web --branch=main
+```
+
+### Server 部署 (apps/server)
+
+```bash
+cd apps/server
+bunx wrangler deploy
+```
+
+### Slack Bot 部署 (apps/slack-bot)
+
+```bash
+cd apps/slack-bot
+bunx wrangler deploy
+```
+
+### Queue Worker 部署 (apps/queue-worker)
+
+```bash
+cd apps/queue-worker
+bunx wrangler deploy
+```
+
+---
+
+## Business Logic Principles
+
+### 業務教練輸出原則
+
+- **行動優先**：不要給報告，給具體行動
+- **具體話術**：不要說「建議跟進」，給出「打電話說：王老闆，昨天...」

@@ -271,7 +271,8 @@ export class MeddicOrchestrator {
 
   /**
    * V3 Quality Check Logic
-   * Checks if buyer analysis meets minimum quality standards (updated for new Agent2Output)
+   * Checks if buyer analysis meets minimum quality standards
+   * Updated for PDCM-based Agent2Output format
    */
   private isQualityPassed(
     buyerData: import("./types.js").Agent2Output | undefined
@@ -280,12 +281,17 @@ export class MeddicOrchestrator {
       return false;
     }
 
-    // 新邏輯: 檢查是否有明確的未成交原因和客戶類型
+    // PDCM 品質檢查：
+    // 1. 必須有 PDCM 分數
+    // 2. 必須有未成交原因分析
+    // 3. Champion 分析必須完整
     return (
-      buyerData.not_closed_reason !== undefined &&
-      buyerData.not_closed_detail.trim().length > 10 && // 至少有詳細說明
-      buyerData.customer_type.type !== undefined &&
-      buyerData.customer_type.evidence.length > 0
+      buyerData.pdcm_scores !== undefined &&
+      buyerData.pdcm_scores.total_score !== undefined &&
+      buyerData.not_closed_reason?.type !== undefined &&
+      (buyerData.not_closed_reason?.detail?.trim().length ?? 0) > 10 &&
+      buyerData.pdcm_scores.champion?.customer_type !== undefined &&
+      (buyerData.pdcm_scores.champion?.evidence?.length ?? 0) > 0
     );
   }
 
@@ -311,7 +317,7 @@ export class MeddicOrchestrator {
   }
 
   /**
-   * Build final analysis result (V3 - updated for new Agent outputs)
+   * Build final analysis result (V3 - updated for PDCM-based Agent2Output)
    */
   private buildResult(state: AnalysisState): AnalysisResult {
     if (
@@ -325,24 +331,27 @@ export class MeddicOrchestrator {
       throw new Error("Incomplete analysis state. All agents must complete.");
     }
 
-    // 從新的 Agent2Output 推導 MEDDIC 等價資訊
+    // 從 PDCM 分數計算 overall score
     const overallScore = this.calculateOverallScoreFromBuyerData(
       state.buyerData
     );
     const qualificationStatus = this.deriveQualificationStatus(state.buyerData);
 
-    // 計算各維度分數
+    // 從 PDCM scores 映射到 MEDDIC 分數
+    const pdcm = state.buyerData.pdcm_scores;
+    const painEvidence = pdcm?.pain?.evidence ?? [];
+    const championEvidence = pdcm?.champion?.evidence ?? [];
+
     const meddicScores = {
-      metrics: 0, // 新 Agent2Output 不包含,設為 0
-      economicBuyer:
-        state.contextData?.decision_maker === "老闆本人" ? 100 : 50,
-      decisionCriteria: 0,
-      decisionProcess: 0,
-      identifyPain: state.buyerData.not_closed_detail.length > 0 ? 80 : 20,
-      champion: 0,
+      metrics: pdcm?.metrics?.score ?? 0,
+      economicBuyer: pdcm?.decision?.has_authority ? 80 : 40,
+      decisionCriteria: pdcm?.champion?.score ?? 0,
+      decisionProcess: pdcm?.decision?.score ?? 0,
+      identifyPain: pdcm?.pain?.score ?? 0,
+      champion: pdcm?.champion?.score ?? 0,
     };
 
-    // 將 meddicScores 轉換為 dimensions 物件格式 (用於 Slack 通知顯示)
+    // 將 PDCM scores 轉換為 dimensions 物件格式 (用於 Slack 通知顯示)
     const dimensionsObject: Record<
       string,
       {
@@ -356,62 +365,88 @@ export class MeddicOrchestrator {
       metrics: {
         name: "Metrics (業務指標)",
         score: meddicScores.metrics,
-        evidence: [],
-        gaps: ["尚未充分討論量化指標"],
-        recommendations: ["下次會議深入了解客戶的業務數據需求"],
+        evidence:
+          pdcm?.metrics?.level === "M1_Complete" ||
+          pdcm?.metrics?.level === "M2_Partial"
+            ? [`ROI: ${pdcm?.metrics?.roi_message ?? "已量化"}`]
+            : [],
+        gaps:
+          pdcm?.metrics?.level === "M3_Weak" ||
+          pdcm?.metrics?.level === "M4_Missing"
+            ? ["⚠️ Metrics 不足：只聊功能沒聊錢"]
+            : [],
+        recommendations:
+          pdcm?.metrics?.score < 50
+            ? ["下次會議深入討論量化效益，計算 ROI"]
+            : [],
       },
       economicBuyer: {
         name: "Economic Buyer (經濟決策者)",
         score: meddicScores.economicBuyer,
-        evidence:
-          state.contextData?.decision_maker === "老闆本人"
-            ? ["決策者在場參與會議"]
-            : [],
-        gaps:
-          state.contextData?.decision_maker !== "老闆本人"
-            ? ["決策者未在場"]
-            : [],
-        recommendations:
-          state.contextData?.decision_maker !== "老闆本人"
-            ? ["安排與老闆的正式會議"]
-            : [],
+        evidence: pdcm?.decision?.has_authority
+          ? [`${pdcm?.decision?.contact_role}有決策權`]
+          : [],
+        gaps: pdcm?.decision?.has_authority ? [] : ["決策者未在場"],
+        recommendations: pdcm?.decision?.has_authority
+          ? []
+          : ["安排與老闆的正式會議"],
       },
       decisionCriteria: {
         name: "Decision Criteria (決策標準)",
         score: meddicScores.decisionCriteria,
-        evidence: [],
-        gaps: ["尚未明確了解決策標準"],
-        recommendations: ["釐清客戶選擇 POS 系統的關鍵條件"],
+        evidence: pdcm?.champion?.primary_criteria
+          ? [`主要考量: ${pdcm.champion.primary_criteria}`]
+          : [],
+        gaps: pdcm?.champion?.primary_criteria ? [] : ["尚未明確了解決策標準"],
+        recommendations: pdcm?.champion?.primary_criteria
+          ? []
+          : ["釐清客戶選擇 POS 系統的關鍵條件"],
       },
       decisionProcess: {
         name: "Decision Process (決策流程)",
         score: meddicScores.decisionProcess,
-        evidence: [],
-        gaps: ["尚未明確決策流程"],
-        recommendations: ["了解客戶的決策時間表和審批流程"],
+        evidence: pdcm?.decision?.timeline
+          ? [`時程: ${pdcm.decision.timeline}`]
+          : [],
+        gaps: pdcm?.decision?.timeline === "未定" ? ["尚未明確決策時程"] : [],
+        recommendations:
+          pdcm?.decision?.timeline === "未定"
+            ? ["了解客戶的決策時間表和審批流程"]
+            : [],
       },
       identifyPain: {
         name: "Identify Pain (痛點識別)",
         score: meddicScores.identifyPain,
         evidence:
-          state.buyerData.not_closed_detail.length > 0
-            ? [`客戶痛點: ${state.buyerData.not_closed_detail}`]
-            : [],
+          painEvidence.length > 0
+            ? painEvidence
+            : pdcm?.pain?.main_pain
+              ? [`主要痛點: ${pdcm.pain.main_pain}`]
+              : [],
         gaps:
-          state.buyerData.not_closed_detail.length === 0
-            ? ["尚未充分識別客戶痛點"]
+          pdcm?.pain?.level === "P4_Low"
+            ? ["痛點不夠痛，需要挖掘深層需求"]
             : [],
         recommendations:
-          state.buyerData.not_closed_detail.length === 0
-            ? ["深入挖掘客戶的核心業務挑戰"]
-            : [],
+          pdcm?.pain?.score < 50 ? ["深入挖掘客戶的核心業務挑戰"] : [],
       },
       champion: {
         name: "Champion (內部推手)",
         score: meddicScores.champion,
-        evidence: [],
-        gaps: ["尚未識別內部推手"],
-        recommendations: ["尋找組織內支持此專案的關鍵人物"],
+        evidence:
+          championEvidence.length > 0
+            ? championEvidence
+            : pdcm?.champion?.attitude === "主動積極"
+              ? ["客戶態度積極"]
+              : [],
+        gaps:
+          pdcm?.champion?.attitude === "冷淡推託"
+            ? ["客戶態度消極，需要建立信任"]
+            : [],
+        recommendations:
+          pdcm?.champion?.attitude !== "主動積極"
+            ? ["尋找組織內支持此專案的關鍵人物"]
+            : [],
       },
     };
 
@@ -475,55 +510,81 @@ export class MeddicOrchestrator {
   }
 
   /**
-   * 輔助方法: 從新的 buyerData 計算 overall score
+   * 輔助方法: 從 PDCM buyerData 計算 overall score
+   * 使用 PDCM 權重: Pain (35%), Decision (25%), Champion (25%), Metrics (15%)
    */
   private calculateOverallScoreFromBuyerData(
     buyerData: import("./types.js").Agent2Output
   ): number {
-    let score = 50; // 基準分數
-
-    // 根據未成交原因調整
-    switch (buyerData.not_closed_reason) {
-      case "價格太高":
-        score -= 20;
-        break;
-      case "需老闆決定":
-        score -= 10;
-        break;
-      case "功能不符":
-        score -= 30;
-        break;
-      case "習慣現狀":
-        score -= 15;
-        break;
+    // 優先使用 PDCM 計算的 total_score
+    if (buyerData.pdcm_scores?.total_score !== undefined) {
+      return Math.max(0, Math.min(100, buyerData.pdcm_scores.total_score));
     }
 
-    // 根據客戶類型調整
-    switch (buyerData.customer_type.type) {
-      case "衝動型":
-        score += 20;
-        break;
-      case "精算型":
-        score += 0;
-        break;
-      case "保守觀望型":
-        score -= 20;
-        break;
+    // 後備: 手動計算 PDCM 加權分數
+    const pdcm = buyerData.pdcm_scores;
+    if (!pdcm) {
+      return 50; // 預設分數
     }
 
-    // 根據轉換顧慮調整
-    if (buyerData.switch_concerns.detected) {
-      switch (buyerData.switch_concerns.complexity) {
-        case "複雜":
+    // PDCM 權重: Pain (35%), Decision (25%), Champion (25%), Metrics (15%)
+    const painScore = pdcm.pain?.score ?? 0;
+    const decisionScore = pdcm.decision?.score ?? 0;
+    const championScore = pdcm.champion?.score ?? 0;
+    const metricsScore = pdcm.metrics?.score ?? 0;
+
+    let score =
+      painScore * 0.35 +
+      decisionScore * 0.25 +
+      championScore * 0.25 +
+      metricsScore * 0.15;
+
+    // 根據未成交原因調整 (防禦性檢查：確保 not_closed_reason 存在且有 type)
+    const notClosedReason = buyerData.not_closed_reason;
+    if (
+      notClosedReason &&
+      typeof notClosedReason === "object" &&
+      "type" in notClosedReason
+    ) {
+      const reasonType = notClosedReason.type;
+      switch (reasonType) {
+        case "價格疑慮":
+          score -= 10;
+          break;
+        case "決策者不在":
           score -= 15;
           break;
-        case "一般":
-          score -= 5;
+        case "痛點不痛":
+          score -= 20;
+          break;
+        case "轉換顧慮":
+          score -= 10;
+          break;
+        case "Metrics缺失":
+          score -= 15;
           break;
       }
     }
 
-    return Math.max(0, Math.min(100, score)); // 限制在 0-100
+    // 根據客戶類型調整
+    const customerType = pdcm.champion?.customer_type;
+    switch (customerType) {
+      case "衝動型":
+        score += 10;
+        break;
+      case "保守觀望型":
+        score -= 15;
+        break;
+    }
+
+    // 根據成交機率調整
+    if (pdcm.deal_probability === "高") {
+      score += 10;
+    } else if (pdcm.deal_probability === "低") {
+      score -= 10;
+    }
+
+    return Math.max(0, Math.min(100, Math.round(score)));
   }
 
   /**
@@ -565,7 +626,7 @@ export class MeddicOrchestrator {
   }
 
   /**
-   * Extract risks from various agent outputs (V3 - updated for new Agent outputs)
+   * Extract risks from various agent outputs (V3 - updated for PDCM-based Agent2Output)
    */
   private extractRisksV3(state: AnalysisState) {
     const risks: Array<{
@@ -574,31 +635,48 @@ export class MeddicOrchestrator {
       mitigation?: string;
     }> = [];
 
-    // 從新的 buyerData 提取風險
+    // 從 PDCM buyerData 提取風險
     if (state.buyerData) {
+      const pdcm = state.buyerData.pdcm_scores;
+      const reasonType = state.buyerData.not_closed_reason?.type;
+
       // 未成交原因風險
-      if (state.buyerData.not_closed_reason === "功能不符") {
+      if (reasonType === "痛點不痛") {
         risks.push({
-          risk: "產品功能不符合客戶需求",
+          risk: "客戶痛點不夠痛，需求不迫切",
           severity: "High",
-          mitigation: "釐清具體功能需求,評估是否可透過客製化或未來開發滿足",
+          mitigation:
+            state.buyerData.not_closed_reason?.breakthrough_suggestion ??
+            "深入挖掘業務痛點，量化損失金額",
+        });
+      } else if (reasonType === "價格疑慮") {
+        risks.push({
+          risk: "客戶對價格有疑慮",
+          severity: "Medium",
+          mitigation:
+            state.buyerData.not_closed_reason?.breakthrough_suggestion ??
+            "強調 ROI 和投資回報",
+        });
+      } else if (reasonType === "Metrics缺失") {
+        risks.push({
+          risk: "⚠️ Metrics 不足：只聊功能沒聊錢",
+          severity: "High",
+          mitigation: "下次會議必須量化客戶的損失和我們能帶來的效益",
         });
       }
 
-      // 轉換顧慮風險
-      if (state.buyerData.switch_concerns.detected) {
+      // 轉換顧慮風險 (從 champion.switch_concerns)
+      const switchConcerns = pdcm?.champion?.switch_concerns;
+      if (switchConcerns && switchConcerns.length > 0) {
         risks.push({
-          risk: `客戶對轉換有顧慮: ${state.buyerData.switch_concerns.worry_about}`,
-          severity:
-            state.buyerData.switch_concerns.complexity === "複雜"
-              ? "High"
-              : "Medium",
+          risk: `客戶對轉換有顧慮: ${switchConcerns}`,
+          severity: "Medium",
           mitigation: "提供詳細的轉換計劃和支援服務,降低轉換成本",
         });
       }
 
       // 客戶類型風險
-      if (state.buyerData.customer_type.type === "保守觀望型") {
+      if (pdcm?.champion?.customer_type === "保守觀望型") {
         risks.push({
           risk: "客戶屬於保守觀望型,決策週期可能較長",
           severity: "Medium",
@@ -606,10 +684,19 @@ export class MeddicOrchestrator {
         });
       }
 
-      // 錯失機會風險
-      if (state.buyerData.missed_opportunities.length > 0) {
+      // 決策風險
+      if (pdcm?.decision?.risk === "高") {
         risks.push({
-          risk: `業務錯失關鍵機會: ${state.buyerData.missed_opportunities.join(", ")}`,
+          risk: "決策風險高：可能有預算或審批障礙",
+          severity: "High",
+          mitigation: "確認預算範圍和審批流程",
+        });
+      }
+
+      // 錯失機會風險
+      if ((state.buyerData.missed_opportunities?.length ?? 0) > 0) {
+        risks.push({
+          risk: `業務錯失關鍵機會: ${state.buyerData.missed_opportunities?.join(", ") ?? ""}`,
           severity: "Medium",
           mitigation: "後續跟進時補救這些機會點",
         });

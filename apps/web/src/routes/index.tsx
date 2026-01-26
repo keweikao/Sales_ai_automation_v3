@@ -4,7 +4,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import {
   Activity,
   ArrowRight,
@@ -26,10 +26,19 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TermTooltip } from "@/components/ui/term-tooltip";
+import { authClient } from "@/lib/auth-client";
 import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/")({
   component: DashboardPage,
+  beforeLoad: async () => {
+    const session = await authClient.getSession();
+    if (!session.data) {
+      throw redirect({
+        to: "/login",
+      });
+    }
+  },
 });
 
 function StatCard({
@@ -329,7 +338,9 @@ function DashboardPage() {
                   </h1>
                   <p className="data-font text-slate-400 text-sm uppercase tracking-wider">
                     銷售智慧 •{" "}
-                    <TermTooltip termKey="PDCM+SPIN">PDCM+SPIN 框架</TermTooltip>
+                    <TermTooltip termKey="PDCM+SPIN">
+                      PDCM+SPIN 框架
+                    </TermTooltip>
                   </p>
                 </div>
               </div>
