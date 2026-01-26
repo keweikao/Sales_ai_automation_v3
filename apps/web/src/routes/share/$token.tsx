@@ -11,10 +11,11 @@ import {
   User,
   XCircle,
 } from "lucide-react";
-import { PdcmScoreCard } from "@/components/meddic/pdcm-score-card";
-import { SpinProgressCard } from "@/components/meddic/spin-progress-card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getConsultantDisplayName, getConsultantInfo } from "@/lib/consultant-names";
+import {
+  getConsultantDisplayName,
+  getConsultantInfo,
+} from "@/lib/consultant-names";
 import { parseSummaryMarkdown } from "@/lib/summary-parser";
 import { client } from "@/utils/orpc";
 
@@ -87,6 +88,20 @@ function PublicSharePage() {
     conversation.slackUser?.slackUserId,
     conversation.slackUser?.slackUsername
   );
+
+  // 取得客戶 CTA（從 Agent4 輸出）
+  const customerCta = (
+    conversation.analysis?.agentOutputs?.agent4 as
+      | {
+          customer_cta?: {
+            action: string;
+            context: string;
+            button_text: string;
+            urgency: "high" | "medium" | "low";
+          };
+        }
+      | undefined
+  )?.customer_cta;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-red-50">
@@ -188,32 +203,11 @@ function PublicSharePage() {
           <h1 className="mb-3 font-bold font-serif text-3xl text-gray-900 sm:text-4xl">
             {conversation.companyName}
           </h1>
-          <p className="font-serif text-gray-500 text-lg">會議記錄</p>
+          <p className="font-serif text-gray-500 text-lg">專屬建議書</p>
           {formattedDate && (
             <div className="mt-3 flex items-center justify-center gap-2 text-gray-400 text-sm">
               <Calendar className="h-4 w-4" />
               <span>{formattedDate}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Customer Info Badge */}
-        <div className="mb-8 flex animate-fade-in-up flex-wrap justify-center gap-3 delay-200">
-          <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-white px-4 py-2 shadow-sm">
-            <div className="h-2 w-2 animate-pulse rounded-full bg-orange-400" />
-            <span className="font-medium text-gray-700 text-sm">案件編號</span>
-            <span className="font-mono font-semibold text-orange-600 text-sm">
-              {conversation.caseNumber}
-            </span>
-          </div>
-          {conversation.opportunity?.customerNumber && (
-            <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 shadow-sm">
-              <span className="font-medium text-gray-700 text-sm">
-                客戶編號
-              </span>
-              <span className="font-mono font-semibold text-gray-600 text-sm">
-                {conversation.opportunity.customerNumber}
-              </span>
             </div>
           )}
         </div>
@@ -243,67 +237,6 @@ function PublicSharePage() {
             </div>
           </div>
         </div>
-
-        {/* PDCM SPIN Analysis Section */}
-        {conversation.analysis?.agentOutputs && (
-          <div className="mb-8 grid animate-fade-in-up gap-6 delay-400 md:grid-cols-2">
-            {/* PDCM Score Card */}
-            <PdcmScoreCard
-              className="border-gray-200 bg-white shadow-lg"
-              pdcmScores={
-                (conversation.analysis.agentOutputs.agent2?.pdcm_scores as
-                  | {
-                      pain: {
-                        score: number;
-                        level?: string;
-                        urgency?: string;
-                        evidence?: string[];
-                      };
-                      decision: {
-                        score: number;
-                        level?: string;
-                        evidence?: string[];
-                      };
-                      champion: {
-                        score: number;
-                        level?: string;
-                        evidence?: string[];
-                      };
-                      metrics: {
-                        score: number;
-                        level?: string;
-                        evidence?: string[];
-                      };
-                      total_score?: number;
-                    }
-                  | undefined) ?? null
-              }
-            />
-
-            {/* SPIN Progress Card */}
-            <SpinProgressCard
-              className="border-gray-200 bg-white shadow-lg"
-              spinAnalysis={
-                (conversation.analysis.agentOutputs.agent3?.spin_analysis as
-                  | {
-                      situation: { score: number; achieved: boolean };
-                      problem: { score: number; achieved: boolean };
-                      implication: {
-                        score: number;
-                        achieved: boolean;
-                        gap?: string;
-                      };
-                      need_payoff: { score: number; achieved: boolean };
-                      overall_spin_score?: number;
-                      spin_completion_rate?: number;
-                      key_gap?: string;
-                      improvement_suggestion?: string;
-                    }
-                  | undefined) ?? null
-              }
-            />
-          </div>
-        )}
 
         {/* Summary Sections */}
         {parsedSummary ? (
@@ -435,10 +368,34 @@ function PublicSharePage() {
           )
         )}
 
+        {/* CTA Section */}
+        {customerCta && (
+          <div className="mt-8 animate-fade-in-up delay-600">
+            <div className="rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-6 text-center shadow-lg">
+              {customerCta.context && (
+                <p className="mb-3 text-gray-600 text-sm">
+                  {customerCta.context}
+                </p>
+              )}
+              <a
+                className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-orange-500 to-red-500 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-orange-600 hover:to-red-600 hover:shadow-xl"
+                href={`tel:${consultantInfo?.phone?.replace(/-/g, "") || ""}`}
+              >
+                <Phone className="h-5 w-5" />
+                {customerCta.button_text || "聯繫顧問"}
+              </a>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
-        <div className="mt-12 space-y-2 text-center text-gray-400 text-sm">
-          <p className="font-medium">由 iCHEF Sales AI 系統自動生成</p>
-          <p>如有任何疑問，歡迎隨時聯繫您的專屬顧問</p>
+        <div className="mt-12 space-y-3 text-center">
+          <p className="font-medium text-gray-600">
+            感謝您撥冗與我們交流，期待與您合作
+          </p>
+          <p className="text-gray-400 text-sm">
+            如有任何疑問，歡迎隨時聯繫您的專屬顧問
+          </p>
           <div className="mx-auto mt-4 h-px w-32 bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
         </div>
       </div>
