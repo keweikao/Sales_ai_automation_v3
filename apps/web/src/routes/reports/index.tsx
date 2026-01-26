@@ -6,7 +6,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -22,6 +21,7 @@ import {
   UserCircle,
   Users,
 } from "lucide-react";
+import { useState } from "react";
 import {
   Line,
   LineChart,
@@ -239,10 +239,10 @@ function RepPerformanceReport() {
       {/* 用戶選擇器（僅經理/admin 可見） */}
       {canSelectUser && (
         <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">查看報告：</span>
+          <span className="text-muted-foreground text-sm">查看報告：</span>
           <Select
-            value={selectedUserId || ""}
             onValueChange={(v) => setSelectedUserId(v || undefined)}
+            value={selectedUserId || ""}
           >
             <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="自己" />
