@@ -4,7 +4,7 @@
  */
 
 import { db } from "@Sales_ai_automation_v3/db";
-import { opportunities } from "@Sales_ai_automation_v3/db/schema";
+import { opportunities, userProfiles } from "@Sales_ai_automation_v3/db/schema";
 import { randomUUID } from "node:crypto";
 import { ORPCError } from "@orpc/server";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
@@ -295,11 +295,33 @@ export const listOpportunities = protectedProcedure
       throw new ORPCError("UNAUTHORIZED");
     }
 
-    // Service account can query all opportunities, regular users only their own
+    // Check user role and permissions
+    const userProfile = await db.query.userProfiles.findFirst({
+      where: eq(userProfiles.userId, userId),
+    });
+    const isAdmin =
+      userProfile?.role === "admin" && userProfile?.department === "all";
+    const isManager = userProfile?.role === "manager";
+    const managerProductLine = userProfile?.department; // ichef, beauty, or null
+
+    // Determine access level:
+    // - Service account or admin: see all opportunities
+    // - Manager: see opportunities for their product line only
+    // - Sales rep: see only their own opportunities
     const isServiceAccount = context.isServiceAccount === true;
-    const conditions = isServiceAccount
-      ? []
-      : [eq(opportunities.userId, userId)];
+    const canViewAll = isServiceAccount || isAdmin;
+
+    const conditions: ReturnType<typeof eq>[] = [];
+
+    if (!canViewAll) {
+      if (isManager && managerProductLine) {
+        // Manager can only see their product line
+        conditions.push(eq(opportunities.productLine, managerProductLine));
+      } else {
+        // Regular user can only see their own opportunities
+        conditions.push(eq(opportunities.userId, userId));
+      }
+    }
 
     if (status) {
       conditions.push(eq(opportunities.status, status));

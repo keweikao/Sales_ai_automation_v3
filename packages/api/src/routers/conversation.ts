@@ -12,6 +12,8 @@ import {
   conversations,
   meddicAnalyses,
   opportunities,
+  user,
+  userProfiles,
   // smsLogs, // TODO: 等 sms_logs 表建立後再啟用
 } from "@Sales_ai_automation_v3/db/schema";
 import {
@@ -36,6 +38,74 @@ function getServices() {
     services = createAllServices();
   }
   return services;
+}
+
+// ============================================================
+// Helper: Resolve Slack User ID to System User ID
+// ============================================================
+
+/**
+ * Slack User ID 到 Email 的靜態映射表
+ * 用於在 user_profiles.slack_user_id 尚未設置時，透過 email 查找用戶
+ */
+const SLACK_ID_TO_EMAIL: Record<string, string> = {
+  U0BU3PESX: "stephen.kao@ichef.com.tw",
+  UCPDC51A4: "solo.chung@ichef.com.tw",
+  UEVG3HUF4: "kevin.chen@ichef.com.tw",
+  U07K188QJFQ: "belle.chen@ichef.com.tw",
+  U8TC4Q7HB: "eileen.lee@ichef.com.tw",
+  U06U7HUEZFT: "ariel.liu@ichef.com.tw",
+  U028Q69EKF1: "kim.liang@ichef.com.tw",
+  U01FS5DQT0T: "bonnie.liu@ichef.com.tw",
+  U015SA8USQ1: "anna.yang@ichef.com.tw",
+  U0MATRQ2U: "eddie.chan@ichef.com.tw",
+  U041VGKJGA1: "joy.wu@ichef.com.tw",
+  US97EGHJ5: "mai.chang@ichef.com.tw",
+};
+
+/**
+ * 根據 Slack User ID 查找對應的系統 User ID
+ *
+ * 查詢優先順序：
+ * 1. 先從 user_profiles.slack_user_id 查詢（已設置映射）
+ * 2. 若找不到，從靜態映射表取得 email，再從 user 表查詢
+ *
+ * @param slackUserId - Slack User ID (e.g., "U0BU3PESX")
+ * @returns 系統 User ID 或 null（如果找不到映射）
+ */
+async function resolveSlackUserToSystemUser(
+  slackUserId: string
+): Promise<string | null> {
+  // 方法 1: 從 user_profiles.slack_user_id 查詢
+  const profile = await db.query.userProfiles.findFirst({
+    where: eq(userProfiles.slackUserId, slackUserId),
+    columns: { userId: true },
+  });
+
+  if (profile?.userId) {
+    return profile.userId;
+  }
+
+  // 方法 2: 從靜態映射表取得 email，再從 user 表查詢
+  const email = SLACK_ID_TO_EMAIL[slackUserId];
+  if (email) {
+    const foundUser = await db.query.user.findFirst({
+      where: eq(user.email, email),
+      columns: { id: true },
+    });
+
+    if (foundUser?.id) {
+      // 自動更新 user_profiles 的 slack_user_id（如果存在 profile）
+      await db
+        .update(userProfiles)
+        .set({ slackUserId, updatedAt: new Date() })
+        .where(eq(userProfiles.userId, foundUser.id));
+
+      return foundUser.id;
+    }
+  }
+
+  return null;
 }
 
 // ============================================================
@@ -223,6 +293,38 @@ export const uploadConversation = protectedProcedure
         `[${requestId}] ✓ Opportunity verified: ${opportunity.companyName}`
       );
 
+      // Step 1.5: 嘗試將 Slack User ID 解析為系統 User ID
+      let resolvedCreatedBy = userId; // 預設使用 session 中的 userId (service account)
+
+      if (slackUser?.id) {
+        console.log(
+          `[${requestId}] 🔍 Resolving Slack user: ${slackUser.id} (${slackUser.username})`
+        );
+        const mappedUserId = await resolveSlackUserToSystemUser(slackUser.id);
+
+        if (mappedUserId) {
+          resolvedCreatedBy = mappedUserId;
+          console.log(
+            `[${requestId}] ✓ Slack user mapped to system user: ${mappedUserId}`
+          );
+
+          // 如果商機是 service-account 建立的，也更新商機的 userId
+          if (isSlackGenerated && opportunity.userId !== mappedUserId) {
+            console.log(
+              `[${requestId}] 📝 Updating opportunity owner from "${opportunity.userId}" to "${mappedUserId}"`
+            );
+            await db
+              .update(opportunities)
+              .set({ userId: mappedUserId, updatedAt: new Date() })
+              .where(eq(opportunities.id, opportunityId));
+          }
+        } else {
+          console.log(
+            `[${requestId}] ⚠️ No mapping found for Slack user: ${slackUser.id}, using service account`
+          );
+        }
+      }
+
       // 初始化環境變數 (從 Hono context.env 取得,不是 process.env)
       const honoEnv = context.honoContext?.env || {};
       const envRecord = honoEnv as Record<string, unknown>;
@@ -403,7 +505,7 @@ export const uploadConversation = protectedProcedure
             conversationDate: metadata?.conversationDate
               ? new Date(metadata.conversationDate)
               : new Date(),
-            createdBy: userId,
+            createdBy: resolvedCreatedBy, // 使用解析後的用戶 ID
             // Slack 業務資訊
             slackUserId: slackUser?.id,
             slackUsername: slackUser?.username,

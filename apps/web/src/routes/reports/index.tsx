@@ -50,6 +50,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs } from "@/components/ui/tabs";
 import { TermTooltip } from "@/components/ui/term-tooltip";
+import { getDisplayNameByEmail } from "@/lib/consultant-names";
 import { cn } from "@/lib/utils";
 import { client } from "@/utils/orpc";
 
@@ -250,7 +251,7 @@ function RepPerformanceReport() {
               <SelectItem value="">自己</SelectItem>
               {viewableUsers.map((u) => (
                 <SelectItem key={u.id} value={u.id}>
-                  {u.name || u.email}
+                  {getDisplayNameByEmail(u.email, u.name)}
                 </SelectItem>
               ))}
             </SelectContent>

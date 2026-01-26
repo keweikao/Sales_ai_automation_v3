@@ -119,3 +119,38 @@ export function hasConsultantMapping(
   if (!slackUserId) return false;
   return slackUserId in consultantInfoMap;
 }
+
+/**
+ * Email -> 顧問名稱映射表（從上方 consultantInfoMap 建立）
+ */
+const emailToNameMap: Record<string, string> = Object.values(
+  consultantInfoMap
+).reduce(
+  (acc, info) => {
+    acc[info.email.toLowerCase()] = info.name;
+    return acc;
+  },
+  {} as Record<string, string>
+);
+
+/**
+ * 根據 email 取得顧問的中文顯示名稱
+ * @param email 用戶 email
+ * @param fallbackName 備用名稱（如果沒有映射）
+ * @returns 中文名稱
+ */
+export function getDisplayNameByEmail(
+  email: string | null | undefined,
+  fallbackName?: string | null
+): string {
+  if (email) {
+    const name = emailToNameMap[email.toLowerCase()];
+    if (name) return name;
+  }
+
+  // 使用備用名稱或從 email 提取
+  if (fallbackName) return fallbackName;
+  if (email) return email.split("@")[0];
+
+  return "未知用戶";
+}
