@@ -13,10 +13,15 @@ import { neon } from "@neondatabase/serverless";
 import { WebClient } from "@slack/web-api";
 import "dotenv/config";
 
-// 載入 apps/server/.env 的 DATABASE_URL
-const DATABASE_URL =
-  process.env.DATABASE_URL ||
-  "postgresql://neondb_owner:npg_ZkASu5qnc9vB@ep-sparkling-band-a130c5ks-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require";
+// 從環境變數載入 DATABASE_URL
+const DATABASE_URL = process.env.DATABASE_URL;
+
+if (!DATABASE_URL) {
+  console.error("❌ ERROR: DATABASE_URL is not set");
+  console.error("");
+  console.error("請設定 DATABASE_URL 環境變數，或在 apps/server/.env 中配置");
+  process.exit(1);
+}
 
 const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
 const TARGET_CHANNEL = "C0A7C2HUXRR";
