@@ -1063,9 +1063,10 @@ function ConversationDetailPage() {
                                             達成率
                                           </p>
                                           <p className="font-bold text-2xl text-cyan-400">
-                                            {
-                                              spinAnalysis.spin_completion_rate as number
-                                            }
+                                            {Math.round(
+                                              (spinAnalysis.spin_completion_rate as number) *
+                                                100
+                                            )}
                                             %
                                           </p>
                                         </div>

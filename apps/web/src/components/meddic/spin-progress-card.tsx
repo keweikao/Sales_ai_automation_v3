@@ -123,7 +123,8 @@ export function SpinProgressCard({
     { key: "needPayoff", data: spinAnalysis.need_payoff },
   ];
 
-  const completionRate = spinAnalysis.spin_completion_rate ?? 0;
+  // spin_completion_rate 從後端返回的是 0-1 的小數，需要轉換為百分比
+  const completionRate = (spinAnalysis.spin_completion_rate ?? 0) * 100;
   const overallScore = spinAnalysis.overall_spin_score ?? 0;
 
   // Find the key gap stage
