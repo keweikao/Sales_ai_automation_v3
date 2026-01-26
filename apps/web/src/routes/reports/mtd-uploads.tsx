@@ -83,7 +83,9 @@ function getStatusInfo(status: string) {
 }
 
 function formatDate(dateStr: string): string {
-  if (!dateStr) return "-";
+  if (!dateStr) {
+    return "-";
+  }
   const date = new Date(dateStr);
   return date.toLocaleDateString("zh-TW", {
     month: "2-digit",

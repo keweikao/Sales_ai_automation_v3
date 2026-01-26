@@ -355,9 +355,15 @@ export function buildProcessingCompletedBlocks(
  * 生成分數進度條視覺化
  */
 function getScoreBar(score: number): string {
-  if (score >= 80) return "🟢";
-  if (score >= 60) return "🟡";
-  if (score >= 40) return "🟠";
+  if (score >= 80) {
+    return "🟢";
+  }
+  if (score >= 60) {
+    return "🟡";
+  }
+  if (score >= 40) {
+    return "🟠";
+  }
   return "🔴";
 }
 

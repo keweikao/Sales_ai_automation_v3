@@ -390,28 +390,26 @@ export const listTodos = protectedProcedure
       }
 
       conditions.push(eq(salesTodos.userId, targetUserId));
-    } else {
+    } else if (!isAdmin) {
       // 沒有指定用戶時的預設行為
-      if (!isAdmin) {
-        if (isManager && userProfile?.department) {
-          // Manager 看同 department 的所有用戶
-          const departmentUsers = await db
-            .select({ userId: userProfiles.userId })
-            .from(userProfiles)
-            .where(eq(userProfiles.department, userProfile.department));
+      if (isManager && userProfile?.department) {
+        // Manager 看同 department 的所有用戶
+        const departmentUsers = await db
+          .select({ userId: userProfiles.userId })
+          .from(userProfiles)
+          .where(eq(userProfiles.department, userProfile.department));
 
-          const userIds = departmentUsers.map((u) => u.userId);
-          if (userIds.length > 0) {
-            conditions.push(
-              or(...userIds.map((id) => eq(salesTodos.userId, id)))!
-            );
-          } else {
-            conditions.push(eq(salesTodos.userId, userId));
-          }
+        const userIds = departmentUsers.map((u) => u.userId);
+        if (userIds.length > 0) {
+          conditions.push(
+            or(...userIds.map((id) => eq(salesTodos.userId, id)))!
+          );
         } else {
-          // 一般業務只能看自己的
           conditions.push(eq(salesTodos.userId, userId));
         }
+      } else {
+        // 一般業務只能看自己的
+        conditions.push(eq(salesTodos.userId, userId));
       }
     }
 
