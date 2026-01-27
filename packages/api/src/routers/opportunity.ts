@@ -4,7 +4,14 @@
  */
 
 import { db } from "@Sales_ai_automation_v3/db";
-import { opportunities, userProfiles } from "@Sales_ai_automation_v3/db/schema";
+import {
+  conversations,
+  meddicAnalyses,
+  opportunities,
+  salesTodos,
+  todoLogs,
+  userProfiles,
+} from "@Sales_ai_automation_v3/db/schema";
 import { randomUUID } from "node:crypto";
 import { ORPCError } from "@orpc/server";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
@@ -355,29 +362,100 @@ export const listOpportunities = protectedProcedure
       .limit(limit)
       .offset(offset);
 
+    // 獲取每個 opportunity 的最新案件編號和 SPIN 分數
+    const opportunitiesWithExtras = await Promise.all(
+      results.map(async (opportunity) => {
+        // 獲取最新的 conversation
+        const latestConversation = await db.query.conversations.findFirst({
+          where: eq(conversations.opportunityId, opportunity.id),
+          orderBy: (conversations, { desc }) => [desc(conversations.createdAt)],
+          columns: { caseNumber: true, id: true },
+        });
+
+        // 獲取最新的 MEDDIC 分析（含 SPIN 分數）
+        let spinScore: number | null = null;
+        if (latestConversation?.id) {
+          const latestAnalysis = await db.query.meddicAnalyses.findFirst({
+            where: eq(meddicAnalyses.conversationId, latestConversation.id),
+            orderBy: (meddicAnalyses, { desc }) => [
+              desc(meddicAnalyses.createdAt),
+            ],
+            columns: { agentOutputs: true },
+          });
+
+          // 提取 SPIN 完成率 (agent3.spin_analysis.spin_completion_rate)
+          if (latestAnalysis?.agentOutputs) {
+            const agent3 = (
+              latestAnalysis.agentOutputs as Record<string, unknown>
+            )?.agent3 as Record<string, unknown> | undefined;
+            const spinAnalysis = agent3?.spin_analysis as
+              | Record<string, unknown>
+              | undefined;
+            const completionRate = spinAnalysis?.spin_completion_rate;
+            if (typeof completionRate === "number") {
+              spinScore = Math.round(completionRate * 100);
+            }
+          }
+        }
+
+        return {
+          id: opportunity.id,
+          customerNumber: opportunity.customerNumber,
+          companyName: opportunity.companyName,
+          contactName: opportunity.contactName,
+          contactEmail: opportunity.contactEmail,
+          contactPhone: opportunity.contactPhone,
+          source: opportunity.source,
+          status: opportunity.status,
+          industry: opportunity.industry,
+          companySize: opportunity.companySize,
+          notes: opportunity.notes,
+          opportunityScore: opportunity.opportunityScore,
+          meddicScore: opportunity.meddicScore,
+          createdAt: opportunity.createdAt,
+          updatedAt: opportunity.updatedAt,
+          // 新增欄位
+          latestCaseNumber: latestConversation?.caseNumber || null,
+          spinScore,
+        };
+      })
+    );
+
     return {
-      opportunities: results.map((opportunity) => ({
-        id: opportunity.id,
-        customerNumber: opportunity.customerNumber,
-        companyName: opportunity.companyName,
-        contactName: opportunity.contactName,
-        contactEmail: opportunity.contactEmail,
-        contactPhone: opportunity.contactPhone,
-        source: opportunity.source,
-        status: opportunity.status,
-        industry: opportunity.industry,
-        companySize: opportunity.companySize,
-        notes: opportunity.notes,
-        opportunityScore: opportunity.opportunityScore,
-        meddicScore: opportunity.meddicScore,
-        createdAt: opportunity.createdAt,
-        updatedAt: opportunity.updatedAt,
-      })),
+      opportunities: opportunitiesWithExtras,
       total: results.length,
       limit,
       offset,
     };
   });
+
+// ============================================================
+// 權限控制 - 三級權限：管理者、主管、一般業務
+// ============================================================
+
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
+  .split(",")
+  .map((e) => e.trim())
+  .filter(Boolean);
+const MANAGER_EMAILS = (process.env.MANAGER_EMAILS || "")
+  .split(",")
+  .map((e) => e.trim())
+  .filter(Boolean);
+
+function getUserRole(
+  userEmail: string | null | undefined
+): "admin" | "manager" | "sales" {
+  if (!userEmail) {
+    return "sales";
+  }
+  if (ADMIN_EMAILS.includes(userEmail)) {
+    return "admin";
+  }
+  if (MANAGER_EMAILS.includes(userEmail)) {
+    return "manager";
+  }
+  return "sales";
+}
 
 // ============================================================
 // Get Opportunity Details
@@ -393,11 +471,9 @@ export const getOpportunity = protectedProcedure
       throw new ORPCError("UNAUTHORIZED");
     }
 
+    // 先查詢 opportunity（不限制 userId）
     const opportunity = await db.query.opportunities.findFirst({
-      where: and(
-        eq(opportunities.id, opportunityId),
-        eq(opportunities.userId, userId)
-      ),
+      where: eq(opportunities.id, opportunityId),
       with: {
         conversations: {
           orderBy: (conversations, { desc }) => [
@@ -419,6 +495,30 @@ export const getOpportunity = protectedProcedure
     if (!opportunity) {
       throw new ORPCError("NOT_FOUND");
     }
+
+    // 檢查權限：所有者、管理員/主管、或 Slack 建立的商機
+    const userEmail = context.session?.user.email;
+    const userRole = getUserRole(userEmail);
+    const isOwner = opportunity.userId === userId;
+    const isSlackGenerated =
+      !opportunity.userId || opportunity.userId === "service-account";
+    const hasAdminAccess = userRole === "admin" || userRole === "manager";
+
+    if (!(isOwner || isSlackGenerated || hasAdminAccess)) {
+      throw new ORPCError("FORBIDDEN");
+    }
+
+    // Fetch related salesTodos
+    const todos = await db.query.salesTodos.findMany({
+      where: eq(salesTodos.opportunityId, opportunityId),
+      orderBy: [desc(salesTodos.createdAt)],
+    });
+
+    // Fetch related todoLogs
+    const logs = await db.query.todoLogs.findMany({
+      where: eq(todoLogs.opportunityId, opportunityId),
+      orderBy: [desc(todoLogs.createdAt)],
+    });
 
     return {
       id: opportunity.id,
@@ -448,6 +548,33 @@ export const getOpportunity = protectedProcedure
         conversationDate: conv.conversationDate,
         createdAt: conv.createdAt,
         latestAnalysis: conv.meddicAnalyses[0] || null,
+      })),
+      // 新增 Sales Pipeline 資料
+      salesTodos: todos.map((todo) => ({
+        id: todo.id,
+        title: todo.title,
+        description: todo.description,
+        dueDate: todo.dueDate,
+        originalDueDate: todo.originalDueDate,
+        status: todo.status,
+        source: todo.source,
+        postponeHistory: todo.postponeHistory,
+        completionRecord: todo.completionRecord,
+        wonRecord: todo.wonRecord,
+        lostRecord: todo.lostRecord,
+        nextTodoId: todo.nextTodoId,
+        prevTodoId: todo.prevTodoId,
+        createdAt: todo.createdAt,
+        updatedAt: todo.updatedAt,
+      })),
+      todoLogs: logs.map((log) => ({
+        id: log.id,
+        todoId: log.todoId,
+        action: log.action,
+        actionVia: log.actionVia,
+        changes: log.changes,
+        note: log.note,
+        createdAt: log.createdAt,
       })),
     };
   });

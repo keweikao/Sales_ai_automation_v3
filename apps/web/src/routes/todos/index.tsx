@@ -1,6 +1,6 @@
 /**
- * 個人待辦頁面
- * 顯示個人待辦事項，支援日曆選擇日期、完成、改期操作
+ * 個人待辦頁面 - Sales Pipeline
+ * 顯示個人待辦事項，支援日曆選擇日期、完成、改期、成交、拒絕操作
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -22,7 +22,6 @@ import {
 import { zhTW } from "date-fns/locale";
 import {
   AlertCircle,
-  Ban,
   Calendar,
   Check,
   CheckCircle,
@@ -32,7 +31,8 @@ import {
   ListTodo,
   Plus,
   RefreshCw,
-  X,
+  Trophy,
+  UserX,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -86,7 +86,7 @@ interface Todo {
   description: string | null;
   dueDate: string;
   originalDueDate: string;
-  status: "pending" | "completed" | "postponed" | "cancelled";
+  status: "pending" | "completed" | "won" | "lost";
   source: string;
   postponeHistory: Array<{
     fromDate: string;
@@ -99,7 +99,21 @@ interface Todo {
     completedVia: string;
     completedAt: string;
   } | null;
-  cancellationReason: string | null;
+  wonRecord: {
+    amount?: number;
+    note?: string;
+    wonAt: string;
+    wonVia: string;
+  } | null;
+  lostRecord: {
+    reason: string;
+    competitor?: string;
+    note?: string;
+    lostAt: string;
+    lostVia: string;
+  } | null;
+  nextTodoId: string | null;
+  prevTodoId: string | null;
   createdAt: string;
   updatedAt: string;
   opportunity: {
@@ -113,6 +127,8 @@ interface Todo {
     caseNumber: string | null;
   } | null;
 }
+
+type StatusFilter = "all" | "pending" | "completed" | "won" | "lost";
 
 // ============================================================
 // Calendar Component
@@ -211,40 +227,71 @@ function MiniCalendar({
 }
 
 // ============================================================
-// Complete Dialog Component
+// Complete and Next Dialog Component
 // ============================================================
 
-interface CompleteDialogProps {
+interface CompleteAndNextDialogProps {
   todo: Todo | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onComplete: (todoId: string, result: string) => void;
+  onComplete: (
+    todoId: string,
+    data: {
+      result: string;
+      nextTodo: {
+        title: string;
+        description?: string;
+        dueDate: string;
+      };
+    }
+  ) => void;
   isLoading: boolean;
 }
 
-function CompleteDialog({
+function CompleteAndNextDialog({
   todo,
   open,
   onOpenChange,
   onComplete,
   isLoading,
-}: CompleteDialogProps) {
+}: CompleteAndNextDialogProps) {
   const [result, setResult] = useState("");
+  const [nextTitle, setNextTitle] = useState("");
+  const [nextDays, setNextDays] = useState("3");
+  const [nextDescription, setNextDescription] = useState("");
 
   const handleComplete = () => {
-    if (!(todo && result.trim())) {
+    if (!(todo && result.trim() && nextTitle.trim())) {
       return;
     }
-    onComplete(todo.id, result.trim());
+
+    const nextDueDate = new Date();
+    nextDueDate.setDate(nextDueDate.getDate() + Number.parseInt(nextDays, 10));
+
+    onComplete(todo.id, {
+      result: result.trim(),
+      nextTodo: {
+        title: nextTitle.trim(),
+        description: nextDescription.trim() || undefined,
+        dueDate: nextDueDate.toISOString(),
+      },
+    });
     setResult("");
+    setNextTitle("");
+    setNextDays("3");
+    setNextDescription("");
   };
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent>
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>完成待辦</DialogTitle>
-          <DialogDescription>{todo?.title}</DialogDescription>
+          <DialogTitle>完成待辦並建立下一步</DialogTitle>
+          <DialogDescription>
+            {todo?.opportunity &&
+              `[${todo.opportunity.customerNumber} ${todo.opportunity.companyName}] `}
+            {todo?.title}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
@@ -257,13 +304,54 @@ function CompleteDialog({
               value={result}
             />
           </div>
+          <div className="border-t pt-4">
+            <p className="mb-3 font-medium text-sm">下一個待辦</p>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="nextTitle">標題</Label>
+                <Input
+                  id="nextTitle"
+                  onChange={(e) => setNextTitle(e.target.value)}
+                  placeholder="下一個待辦標題..."
+                  value={nextTitle}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="nextDays">幾天後執行</Label>
+                <Select onValueChange={setNextDays} value={nextDays}>
+                  <SelectTrigger id="nextDays">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 天後</SelectItem>
+                    <SelectItem value="2">2 天後</SelectItem>
+                    <SelectItem value="3">3 天後</SelectItem>
+                    <SelectItem value="5">5 天後</SelectItem>
+                    <SelectItem value="7">7 天後（一週）</SelectItem>
+                    <SelectItem value="14">14 天後（兩週）</SelectItem>
+                    <SelectItem value="30">30 天後（一個月）</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="nextDescription">描述（選填）</Label>
+                <Textarea
+                  id="nextDescription"
+                  onChange={(e) => setNextDescription(e.target.value)}
+                  placeholder="待辦描述..."
+                  rows={2}
+                  value={nextDescription}
+                />
+              </div>
+            </div>
+          </div>
         </div>
         <DialogFooter>
           <DialogClose asChild>
             <Button variant="outline">取消</Button>
           </DialogClose>
           <Button
-            disabled={!result.trim() || isLoading}
+            disabled={!(result.trim() && nextTitle.trim()) || isLoading}
             onClick={handleComplete}
           >
             {isLoading ? "處理中..." : "確認完成"}
@@ -313,7 +401,11 @@ function PostponeDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>改期待辦</DialogTitle>
-          <DialogDescription>{todo?.title}</DialogDescription>
+          <DialogDescription>
+            {todo?.opportunity &&
+              `[${todo.opportunity.customerNumber} ${todo.opportunity.companyName}] `}
+            {todo?.title}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
@@ -351,63 +443,196 @@ function PostponeDialog({
 }
 
 // ============================================================
-// Cancel Dialog Component
+// Win Dialog Component
 // ============================================================
 
-interface CancelDialogProps {
+interface WinDialogProps {
   todo: Todo | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCancel: (todoId: string, reason: string) => void;
+  onWin: (
+    todoId: string,
+    data: { expectedPaymentDate?: string; amount?: number; note?: string }
+  ) => void;
   isLoading: boolean;
 }
 
-function CancelDialog({
+function WinDialog({
   todo,
   open,
   onOpenChange,
-  onCancel,
+  onWin,
   isLoading,
-}: CancelDialogProps) {
-  const [reason, setReason] = useState("");
+}: WinDialogProps) {
+  const [paymentDate, setPaymentDate] = useState("");
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
 
-  const handleCancel = () => {
-    if (!(todo && reason.trim())) {
+  const handleWin = () => {
+    if (!todo) {
       return;
     }
-    onCancel(todo.id, reason.trim());
-    setReason("");
+    onWin(todo.id, {
+      expectedPaymentDate: paymentDate || undefined,
+      amount: amount ? Number.parseInt(amount, 10) : undefined,
+      note: note.trim() || undefined,
+    });
+    setPaymentDate("");
+    setAmount("");
+    setNote("");
   };
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>確定要取消此待辦？</DialogTitle>
-          <DialogDescription>{todo?.title}</DialogDescription>
+          <DialogTitle>恭喜成交</DialogTitle>
+          <DialogDescription>
+            {todo?.opportunity &&
+              `[${todo.opportunity.customerNumber} ${todo.opportunity.companyName}] `}
+            {todo?.title}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="cancelReason">取消原因</Label>
+            <Label htmlFor="paymentDate">預計付款日期（選填）</Label>
+            <Input
+              id="paymentDate"
+              onChange={(e) => setPaymentDate(e.target.value)}
+              type="date"
+              value={paymentDate}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="amount">成交金額（選填）</Label>
+            <Input
+              id="amount"
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="例如：50000"
+              type="number"
+              value={amount}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="winNote">備註（選填）</Label>
             <Textarea
-              id="cancelReason"
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="請說明取消原因..."
-              rows={3}
-              value={reason}
+              id="winNote"
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="成交備註..."
+              rows={2}
+              value={note}
             />
           </div>
         </div>
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline">返回</Button>
+            <Button variant="outline">取消</Button>
+          </DialogClose>
+          <Button
+            className="bg-yellow-500 hover:bg-yellow-600"
+            disabled={isLoading}
+            onClick={handleWin}
+          >
+            {isLoading ? "處理中..." : "確認成交"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ============================================================
+// Lose Dialog Component
+// ============================================================
+
+interface LoseDialogProps {
+  todo: Todo | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onLose: (
+    todoId: string,
+    data: { reason: string; competitor?: string; note?: string }
+  ) => void;
+  isLoading: boolean;
+}
+
+function LoseDialog({
+  todo,
+  open,
+  onOpenChange,
+  onLose,
+  isLoading,
+}: LoseDialogProps) {
+  const [reason, setReason] = useState("");
+  const [competitor, setCompetitor] = useState("");
+  const [note, setNote] = useState("");
+
+  const handleLose = () => {
+    if (!(todo && reason.trim())) {
+      return;
+    }
+    onLose(todo.id, {
+      reason: reason.trim(),
+      competitor: competitor.trim() || undefined,
+      note: note.trim() || undefined,
+    });
+    setReason("");
+    setCompetitor("");
+    setNote("");
+  };
+
+  return (
+    <Dialog onOpenChange={onOpenChange} open={open}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>記錄拒絕</DialogTitle>
+          <DialogDescription>
+            {todo?.opportunity &&
+              `[${todo.opportunity.customerNumber} ${todo.opportunity.companyName}] `}
+            {todo?.title}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="loseReason">拒絕原因</Label>
+            <Textarea
+              id="loseReason"
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="例如：預算不足、選擇競品、暫無需求..."
+              rows={3}
+              value={reason}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="competitor">競品（選填）</Label>
+            <Input
+              id="competitor"
+              onChange={(e) => setCompetitor(e.target.value)}
+              placeholder="若客戶選擇競品，請填寫"
+              value={competitor}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="loseNote">備註（選填）</Label>
+            <Textarea
+              id="loseNote"
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="其他備註..."
+              rows={2}
+              value={note}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">取消</Button>
           </DialogClose>
           <Button
             disabled={!reason.trim() || isLoading}
-            onClick={handleCancel}
-            variant="destructive"
+            onClick={handleLose}
+            variant="secondary"
           >
-            {isLoading ? "處理中..." : "確認取消"}
+            {isLoading ? "處理中..." : "確認記錄"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -502,13 +727,13 @@ function CreateDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="createOpportunity">關聯商機（選填）</Label>
+            <Label htmlFor="createOpportunity">關聯機會（選填）</Label>
             <Select onValueChange={setOpportunityId} value={opportunityId}>
               <SelectTrigger id="createOpportunity">
-                <SelectValue placeholder="選擇商機" />
+                <SelectValue placeholder="選擇機會" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">不關聯商機</SelectItem>
+                <SelectItem value="">不關聯機會</SelectItem>
                 {opportunities.map((opp) => (
                   <SelectItem key={opp.id} value={opp.id}>
                     {opp.companyName}
@@ -542,61 +767,114 @@ interface TodoItemProps {
   todo: Todo;
   onComplete: (todo: Todo) => void;
   onPostpone: (todo: Todo) => void;
-  onCancel: (todo: Todo) => void;
+  onWin: (todo: Todo) => void;
+  onLose: (todo: Todo) => void;
 }
 
-function TodoItem({ todo, onComplete, onPostpone, onCancel }: TodoItemProps) {
-  const isOverdue =
+function TodoItem({
+  todo,
+  onComplete,
+  onPostpone,
+  onWin,
+  onLose,
+}: TodoItemProps) {
+  const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+  const dueDate = new Date(todo.dueDate);
+  const isOverdue = todo.status === "pending" && dueDate < todayStart;
+  const isTodayDue =
     todo.status === "pending" &&
-    new Date(todo.dueDate) < new Date(new Date().setHours(0, 0, 0, 0));
+    dueDate.toDateString() === todayStart.toDateString();
   const postponeCount = todo.postponeHistory?.length || 0;
   const isPending = todo.status === "pending";
   const isCompleted = todo.status === "completed";
-  const isCancelled = todo.status === "cancelled";
+  const isWon = todo.status === "won";
+  const isLost = todo.status === "lost";
+
+  // 狀態標籤顏色
+  const getStatusBadge = () => {
+    if (isOverdue) {
+      return (
+        <Badge className="shrink-0 bg-red-500">
+          <AlertCircle className="mr-1 h-3 w-3" />
+          逾期
+        </Badge>
+      );
+    }
+    if (isTodayDue) {
+      return (
+        <Badge className="shrink-0 bg-orange-500">
+          <Clock className="mr-1 h-3 w-3" />
+          今日
+        </Badge>
+      );
+    }
+    if (isPending) {
+      return (
+        <Badge className="shrink-0 bg-blue-500">
+          <Clock className="mr-1 h-3 w-3" />
+          待辦
+        </Badge>
+      );
+    }
+    if (isCompleted) {
+      return (
+        <Badge className="shrink-0 bg-green-500">
+          <CheckCircle className="mr-1 h-3 w-3" />
+          已完成
+        </Badge>
+      );
+    }
+    if (isWon) {
+      return (
+        <Badge className="shrink-0 bg-yellow-500">
+          <Trophy className="mr-1 h-3 w-3" />
+          已成交
+        </Badge>
+      );
+    }
+    if (isLost) {
+      return (
+        <Badge className="shrink-0 bg-gray-500">
+          <UserX className="mr-1 h-3 w-3" />
+          已拒絕
+        </Badge>
+      );
+    }
+    return null;
+  };
 
   return (
     <Card
       className={cn(
-        isOverdue && "border-destructive bg-destructive/5",
+        isOverdue &&
+          "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950",
+        isTodayDue &&
+          !isOverdue &&
+          "border-orange-300 bg-orange-50 dark:border-orange-800 dark:bg-orange-950",
         isCompleted &&
           "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950",
-        isCancelled &&
-          "border-gray-200 bg-gray-50 opacity-60 dark:border-gray-700 dark:bg-gray-900"
+        isWon &&
+          "border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950",
+        isLost &&
+          "border-gray-200 bg-gray-50 opacity-70 dark:border-gray-700 dark:bg-gray-900"
       )}
     >
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex items-center gap-2">
+              {getStatusBadge()}
               <h3
                 className={cn(
                   "truncate font-medium",
-                  isCancelled && "line-through"
+                  isLost && "text-gray-500"
                 )}
               >
                 {todo.title}
               </h3>
-              {isOverdue && (
-                <Badge className="shrink-0" variant="destructive">
-                  <AlertCircle className="mr-1 h-3 w-3" />
-                  逾期
-                </Badge>
-              )}
-              {isCompleted && (
-                <Badge className="shrink-0 bg-green-500">
-                  <CheckCircle className="mr-1 h-3 w-3" />
-                  已完成
-                </Badge>
-              )}
-              {isCancelled && (
-                <Badge className="shrink-0" variant="secondary">
-                  <Ban className="mr-1 h-3 w-3" />
-                  已取消
-                </Badge>
-              )}
             </div>
 
-            {/* 關聯資訊 */}
+            {/* 關聯資訊 - 客戶編號和公司名稱 */}
             <div className="text-muted-foreground text-sm">
               {todo.opportunity && (
                 <Link
@@ -605,7 +883,8 @@ function TodoItem({ todo, onComplete, onPostpone, onCancel }: TodoItemProps) {
                   params={{ id: todo.opportunity.id }}
                   to="/opportunities/$id"
                 >
-                  {todo.opportunity.companyName}
+                  [{todo.opportunity.customerNumber}{" "}
+                  {todo.opportunity.companyName}]
                 </Link>
               )}
               {todo.conversation?.caseNumber && (
@@ -625,14 +904,42 @@ function TodoItem({ todo, onComplete, onPostpone, onCancel }: TodoItemProps) {
               <div className="mt-2 rounded bg-green-100 p-2 text-green-800 text-sm dark:bg-green-900 dark:text-green-200">
                 <strong>結果：</strong>
                 {todo.completionRecord.result}
+                {todo.nextTodoId && (
+                  <span className="ml-2 text-green-600 dark:text-green-400">
+                    已建立下一個待辦
+                  </span>
+                )}
               </div>
             )}
 
-            {/* 取消原因 */}
-            {isCancelled && todo.cancellationReason && (
+            {/* 成交記錄 */}
+            {isWon && todo.wonRecord && (
+              <div className="mt-2 rounded bg-yellow-100 p-2 text-sm text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                <strong>成交</strong>
+                {todo.wonRecord.amount && (
+                  <span className="ml-2">
+                    金額：${todo.wonRecord.amount.toLocaleString()}
+                  </span>
+                )}
+                {todo.wonRecord.note && (
+                  <span className="ml-2">| {todo.wonRecord.note}</span>
+                )}
+              </div>
+            )}
+
+            {/* 拒絕記錄 */}
+            {isLost && todo.lostRecord && (
               <div className="mt-2 rounded bg-gray-100 p-2 text-gray-600 text-sm dark:bg-gray-800 dark:text-gray-400">
-                <strong>取消原因：</strong>
-                {todo.cancellationReason}
+                <strong>拒絕原因：</strong>
+                {todo.lostRecord.reason}
+                {todo.lostRecord.competitor && (
+                  <span className="ml-2">
+                    | 競品：{todo.lostRecord.competitor}
+                  </span>
+                )}
+                {todo.lostRecord.note && (
+                  <span className="ml-2">| {todo.lostRecord.note}</span>
+                )}
               </div>
             )}
 
@@ -647,7 +954,7 @@ function TodoItem({ todo, onComplete, onPostpone, onCancel }: TodoItemProps) {
 
           {/* 操作按鈕 - 僅待辦中狀態顯示 */}
           {isPending && (
-            <div className="flex shrink-0 gap-2">
+            <div className="flex shrink-0 flex-wrap gap-2">
               <Button
                 onClick={() => onComplete(todo)}
                 size="sm"
@@ -664,9 +971,21 @@ function TodoItem({ todo, onComplete, onPostpone, onCancel }: TodoItemProps) {
                 <Clock className="mr-1 h-4 w-4" />
                 改期
               </Button>
-              <Button onClick={() => onCancel(todo)} size="sm" variant="ghost">
-                <X className="mr-1 h-4 w-4" />
-                取消
+              <Button
+                className="bg-yellow-500 hover:bg-yellow-600"
+                onClick={() => onWin(todo)}
+                size="sm"
+              >
+                <Trophy className="mr-1 h-4 w-4" />
+                成交
+              </Button>
+              <Button
+                onClick={() => onLose(todo)}
+                size="sm"
+                variant="secondary"
+              >
+                <UserX className="mr-1 h-4 w-4" />
+                拒絕
               </Button>
             </div>
           )}
@@ -680,21 +999,20 @@ function TodoItem({ todo, onComplete, onPostpone, onCancel }: TodoItemProps) {
 // Main Page Component
 // ============================================================
 
-type StatusFilter = "all" | "pending" | "completed" | "cancelled";
-
 function TodosPage() {
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
   const [postponeDialogOpen, setPostponeDialogOpen] = useState(false);
-  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [winDialogOpen, setWinDialogOpen] = useState(false);
+  const [loseDialogOpen, setLoseDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null);
 
-  // 新增：狀態篩選
+  // 狀態篩選
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
-  // 新增：日期範圍選擇
+  // 日期範圍選擇
   const today = format(new Date(), "yyyy-MM-dd");
   const [dateRange, setDateRange] = useState({
     from: today,
@@ -719,9 +1037,9 @@ function TodosPage() {
 
   const setThisMonth = () => {
     const now = new Date();
-    const monthStart = startOfMonth(now);
+    const monthStartDate = startOfMonth(now);
     setDateRange({
-      from: format(monthStart, "yyyy-MM-dd"),
+      from: format(monthStartDate, "yyyy-MM-dd"),
       to: format(now, "yyyy-MM-dd"),
     });
   };
@@ -790,7 +1108,7 @@ function TodosPage() {
       { dateFrom: dateRange.from, dateTo: dateRange.to },
     ],
     queryFn: async () => {
-      const [pending, completed, cancelled] = await Promise.all([
+      const [pending, completed, won, lost] = await Promise.all([
         client.salesTodo.list({
           status: "pending",
           dateFrom: dateRange.from,
@@ -806,7 +1124,14 @@ function TodosPage() {
           offset: 0,
         }),
         client.salesTodo.list({
-          status: "cancelled",
+          status: "won",
+          dateFrom: dateRange.from,
+          dateTo: `${dateRange.to}T23:59:59`,
+          limit: 1,
+          offset: 0,
+        }),
+        client.salesTodo.list({
+          status: "lost",
           dateFrom: dateRange.from,
           dateTo: `${dateRange.to}T23:59:59`,
           limit: 1,
@@ -816,8 +1141,9 @@ function TodosPage() {
       return {
         pending: pending.total,
         completed: completed.total,
-        cancelled: cancelled.total,
-        all: pending.total + completed.total + cancelled.total,
+        won: won.total,
+        lost: lost.total,
+        all: pending.total + completed.total + won.total + lost.total,
       };
     },
   });
@@ -837,23 +1163,30 @@ function TodosPage() {
     },
   });
 
-  // 完成待辦 mutation
+  // 完成待辦 mutation（支援 nextTodo）
   const completeMutation = useMutation({
     mutationFn: async ({
       todoId,
       result,
+      nextTodo,
     }: {
       todoId: string;
       result: string;
+      nextTodo: {
+        title: string;
+        description?: string;
+        dueDate: string;
+      };
     }) => {
       return await client.salesTodo.complete({
         todoId,
         result,
         completedVia: "web",
+        nextTodo,
       });
     },
     onSuccess: () => {
-      toast.success("待辦已完成");
+      toast.success("待辦已完成，已建立下一個待辦");
       setCompleteDialogOpen(false);
       setSelectedTodo(null);
       queryClient.invalidateQueries({ queryKey: ["salesTodo"] });
@@ -878,6 +1211,7 @@ function TodosPage() {
         todoId,
         newDate,
         reason,
+        postponedVia: "web",
       });
     },
     onSuccess: () => {
@@ -891,28 +1225,59 @@ function TodosPage() {
     },
   });
 
-  // 取消待辦 mutation
-  const cancelMutation = useMutation({
+  // 成交 mutation
+  const winMutation = useMutation({
     mutationFn: async ({
       todoId,
-      reason,
+      data,
     }: {
       todoId: string;
-      reason: string;
+      data: { expectedPaymentDate?: string; amount?: number; note?: string };
     }) => {
-      return await client.salesTodo.cancel({
+      return await client.salesTodo.win({
         todoId,
-        reason,
+        expectedPaymentDate: data.expectedPaymentDate,
+        amount: data.amount,
+        note: data.note,
+        wonVia: "web",
       });
     },
     onSuccess: () => {
-      toast.success("待辦已取消");
-      setCancelDialogOpen(false);
+      toast.success("已標記為成交");
+      setWinDialogOpen(false);
       setSelectedTodo(null);
       queryClient.invalidateQueries({ queryKey: ["salesTodo"] });
     },
     onError: () => {
-      toast.error("取消待辦失敗");
+      toast.error("操作失敗");
+    },
+  });
+
+  // 拒絕 mutation
+  const loseMutation = useMutation({
+    mutationFn: async ({
+      todoId,
+      data,
+    }: {
+      todoId: string;
+      data: { reason: string; competitor?: string; note?: string };
+    }) => {
+      return await client.salesTodo.lose({
+        todoId,
+        reason: data.reason,
+        competitor: data.competitor,
+        note: data.note,
+        lostVia: "web",
+      });
+    },
+    onSuccess: () => {
+      toast.success("已標記為拒絕");
+      setLoseDialogOpen(false);
+      setSelectedTodo(null);
+      queryClient.invalidateQueries({ queryKey: ["salesTodo"] });
+    },
+    onError: () => {
+      toast.error("操作失敗");
     },
   });
 
@@ -942,7 +1307,7 @@ function TodosPage() {
     },
   });
 
-  // 取得商機列表（用於建立待辦的下拉選單）
+  // 取得機會列表（用於建立待辦的下拉選單）
   const opportunitiesQuery = useQuery({
     queryKey: ["opportunity", "list"],
     queryFn: async () => {
@@ -964,21 +1329,50 @@ function TodosPage() {
     setPostponeDialogOpen(true);
   };
 
-  const handleOpenCancel = (todo: Todo) => {
+  const handleOpenWin = (todo: Todo) => {
     setSelectedTodo(todo);
-    setCancelDialogOpen(true);
+    setWinDialogOpen(true);
   };
 
-  const handleComplete = (todoId: string, result: string) => {
-    completeMutation.mutate({ todoId, result });
+  const handleOpenLose = (todo: Todo) => {
+    setSelectedTodo(todo);
+    setLoseDialogOpen(true);
+  };
+
+  const handleComplete = (
+    todoId: string,
+    data: {
+      result: string;
+      nextTodo: {
+        title: string;
+        description?: string;
+        dueDate: string;
+      };
+    }
+  ) => {
+    completeMutation.mutate({
+      todoId,
+      result: data.result,
+      nextTodo: data.nextTodo,
+    });
   };
 
   const handlePostpone = (todoId: string, newDate: string, reason?: string) => {
     postponeMutation.mutate({ todoId, newDate, reason });
   };
 
-  const handleCancel = (todoId: string, reason: string) => {
-    cancelMutation.mutate({ todoId, reason });
+  const handleWin = (
+    todoId: string,
+    data: { expectedPaymentDate?: string; amount?: number; note?: string }
+  ) => {
+    winMutation.mutate({ todoId, data });
+  };
+
+  const handleLose = (
+    todoId: string,
+    data: { reason: string; competitor?: string; note?: string }
+  ) => {
+    loseMutation.mutate({ todoId, data });
   };
 
   const handleCreate = (data: {
@@ -1001,8 +1395,8 @@ function TodosPage() {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-bold text-3xl tracking-tight">待辦事項</h1>
-          <p className="text-muted-foreground">管理您的日常工作待辦</p>
+          <h1 className="font-bold text-3xl tracking-tight">Sales Pipeline</h1>
+          <p className="text-muted-foreground">管理您的銷售待辦事項</p>
         </div>
         <Button onClick={() => setCreateDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
@@ -1013,7 +1407,7 @@ function TodosPage() {
       {/* 篩選區域 */}
       <div className="flex flex-wrap items-center gap-4">
         {/* 狀態篩選 */}
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
           <Button
             onClick={() => setStatusFilter("all")}
             size="sm"
@@ -1039,12 +1433,20 @@ function TodosPage() {
             已完成 {counts?.completed !== undefined && `(${counts.completed})`}
           </Button>
           <Button
-            onClick={() => setStatusFilter("cancelled")}
+            onClick={() => setStatusFilter("won")}
             size="sm"
-            variant={statusFilter === "cancelled" ? "default" : "outline"}
+            variant={statusFilter === "won" ? "default" : "outline"}
           >
-            <Ban className="mr-1 h-4 w-4" />
-            已取消 {counts?.cancelled !== undefined && `(${counts.cancelled})`}
+            <Trophy className="mr-1 h-4 w-4" />
+            已成交 {counts?.won !== undefined && `(${counts.won})`}
+          </Button>
+          <Button
+            onClick={() => setStatusFilter("lost")}
+            size="sm"
+            variant={statusFilter === "lost" ? "default" : "outline"}
+          >
+            <UserX className="mr-1 h-4 w-4" />
+            已拒絕 {counts?.lost !== undefined && `(${counts.lost})`}
           </Button>
         </div>
 
@@ -1155,9 +1557,10 @@ function TodosPage() {
               {filteredTodos.map((todo) => (
                 <TodoItem
                   key={todo.id}
-                  onCancel={handleOpenCancel}
                   onComplete={handleOpenComplete}
+                  onLose={handleOpenLose}
                   onPostpone={handleOpenPostpone}
+                  onWin={handleOpenWin}
                   todo={todo as Todo}
                 />
               ))}
@@ -1174,7 +1577,7 @@ function TodosPage() {
       </div>
 
       {/* Dialogs */}
-      <CompleteDialog
+      <CompleteAndNextDialog
         isLoading={completeMutation.isPending}
         onComplete={handleComplete}
         onOpenChange={setCompleteDialogOpen}
@@ -1188,11 +1591,18 @@ function TodosPage() {
         open={postponeDialogOpen}
         todo={selectedTodo}
       />
-      <CancelDialog
-        isLoading={cancelMutation.isPending}
-        onCancel={handleCancel}
-        onOpenChange={setCancelDialogOpen}
-        open={cancelDialogOpen}
+      <WinDialog
+        isLoading={winMutation.isPending}
+        onOpenChange={setWinDialogOpen}
+        onWin={handleWin}
+        open={winDialogOpen}
+        todo={selectedTodo}
+      />
+      <LoseDialog
+        isLoading={loseMutation.isPending}
+        onLose={handleLose}
+        onOpenChange={setLoseDialogOpen}
+        open={loseDialogOpen}
         todo={selectedTodo}
       />
       <CreateDialog

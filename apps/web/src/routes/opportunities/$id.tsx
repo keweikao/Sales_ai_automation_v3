@@ -1,6 +1,6 @@
 /**
  * Opportunity 詳情頁面
- * 顯示商機詳細資訊、對話記錄、PDCM+SPIN 分析
+ * 顯示機會詳細資訊、對話記錄、PDCM+SPIN 分析
  * Precision Analytics Industrial Design
  */
 
@@ -10,12 +10,17 @@ import {
   ArrowLeft,
   Building2,
   Calendar,
+  CalendarClock,
+  Check,
   Edit,
+  FileText,
+  HandMetal,
   Mail,
   MessageSquare,
   Phone,
   Plus,
   TrendingUp,
+  Trophy,
   User,
 } from "lucide-react";
 
@@ -76,6 +81,203 @@ function formatDuration(seconds: number | null): string {
   return `${minutes}:${secs.toString().padStart(2, "0")}`;
 }
 
+// Timeline event types
+type TimelineEventType =
+  | "todo_created"
+  | "todo_completed"
+  | "todo_postponed"
+  | "todo_won"
+  | "todo_lost"
+  | "conversation_uploaded"
+  | "conversation_analyzed"
+  | "opportunity_created"
+  | "opportunity_updated";
+
+interface TimelineEvent {
+  id: string;
+  type: TimelineEventType;
+  title: string;
+  description?: string;
+  timestamp: Date;
+  actionVia?: string;
+  metadata?: Record<string, unknown>;
+}
+
+function buildTimeline(opportunity: {
+  createdAt: Date;
+  updatedAt: Date;
+  conversations?: Array<{
+    id: string;
+    title: string | null;
+    type: string;
+    status: string;
+    conversationDate: Date | null;
+    createdAt: Date;
+    latestAnalysis?: { createdAt: Date } | null;
+  }>;
+  salesTodos?: Array<{
+    id: string;
+    title: string;
+    status: string;
+    createdAt: Date;
+    completionRecord?: { completedAt: string; result: string } | null;
+    wonRecord?: { wonAt: string; note?: string } | null;
+    lostRecord?: { lostAt: string; reason: string } | null;
+  }>;
+  todoLogs?: Array<{
+    id: string;
+    todoId: string;
+    action: string;
+    actionVia: string;
+    changes: Record<string, unknown>;
+    note?: string | null;
+    createdAt: Date;
+  }>;
+}): TimelineEvent[] {
+  const events: TimelineEvent[] = [];
+
+  // Add opportunity creation event
+  events.push({
+    id: "opp-created",
+    type: "opportunity_created",
+    title: "商機建立",
+    timestamp: new Date(opportunity.createdAt),
+  });
+
+  // Add conversation events
+  for (const conv of opportunity.conversations ?? []) {
+    events.push({
+      id: `conv-${conv.id}`,
+      type: "conversation_uploaded",
+      title: conv.title || "對話記錄",
+      description: `類型: ${conv.type}`,
+      timestamp: new Date(conv.conversationDate ?? conv.createdAt),
+    });
+
+    if (conv.latestAnalysis && conv.status === "completed") {
+      events.push({
+        id: `analysis-${conv.id}`,
+        type: "conversation_analyzed",
+        title: "分析完成",
+        description: conv.title || "對話記錄",
+        timestamp: new Date(conv.latestAnalysis.createdAt),
+      });
+    }
+  }
+
+  // Add todo log events (more detailed than just status changes)
+  for (const log of opportunity.todoLogs ?? []) {
+    const todo = opportunity.salesTodos?.find((t) => t.id === log.todoId);
+    const todoTitle = todo?.title || "待辦事項";
+
+    switch (log.action) {
+      case "create":
+        events.push({
+          id: `log-${log.id}`,
+          type: "todo_created",
+          title: `建立待辦: ${todoTitle}`,
+          timestamp: new Date(log.createdAt),
+          actionVia: log.actionVia,
+        });
+        break;
+      case "complete":
+        events.push({
+          id: `log-${log.id}`,
+          type: "todo_completed",
+          title: `完成待辦: ${todoTitle}`,
+          description: log.note || undefined,
+          timestamp: new Date(log.createdAt),
+          actionVia: log.actionVia,
+        });
+        break;
+      case "postpone":
+        events.push({
+          id: `log-${log.id}`,
+          type: "todo_postponed",
+          title: `改期待辦: ${todoTitle}`,
+          description: log.note || undefined,
+          timestamp: new Date(log.createdAt),
+          actionVia: log.actionVia,
+          metadata: log.changes,
+        });
+        break;
+      case "won":
+        events.push({
+          id: `log-${log.id}`,
+          type: "todo_won",
+          title: `成交: ${todoTitle}`,
+          description: log.note || undefined,
+          timestamp: new Date(log.createdAt),
+          actionVia: log.actionVia,
+        });
+        break;
+      case "lost":
+        events.push({
+          id: `log-${log.id}`,
+          type: "todo_lost",
+          title: `拒絕: ${todoTitle}`,
+          description: log.note || undefined,
+          timestamp: new Date(log.createdAt),
+          actionVia: log.actionVia,
+        });
+        break;
+    }
+  }
+
+  // Sort by timestamp descending (most recent first)
+  events.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+  return events;
+}
+
+function getTimelineEventIcon(type: TimelineEventType) {
+  switch (type) {
+    case "todo_created":
+      return <FileText style={{ width: "1rem", height: "1rem" }} />;
+    case "todo_completed":
+      return <Check style={{ width: "1rem", height: "1rem" }} />;
+    case "todo_postponed":
+      return <CalendarClock style={{ width: "1rem", height: "1rem" }} />;
+    case "todo_won":
+      return <Trophy style={{ width: "1rem", height: "1rem" }} />;
+    case "todo_lost":
+      return <HandMetal style={{ width: "1rem", height: "1rem" }} />;
+    case "conversation_uploaded":
+      return <MessageSquare style={{ width: "1rem", height: "1rem" }} />;
+    case "conversation_analyzed":
+      return <TrendingUp style={{ width: "1rem", height: "1rem" }} />;
+    case "opportunity_created":
+    case "opportunity_updated":
+      return <Calendar style={{ width: "1rem", height: "1rem" }} />;
+    default:
+      return <Calendar style={{ width: "1rem", height: "1rem" }} />;
+  }
+}
+
+function getTimelineEventColor(type: TimelineEventType): string {
+  switch (type) {
+    case "todo_created":
+      return "rgb(99 94 246)"; // purple
+    case "todo_completed":
+      return "rgb(16 185 129)"; // green
+    case "todo_postponed":
+      return "rgb(251 191 36)"; // yellow
+    case "todo_won":
+      return "rgb(234 179 8)"; // gold
+    case "todo_lost":
+      return "rgb(107 114 128)"; // gray
+    case "conversation_uploaded":
+      return "rgb(59 130 246)"; // blue
+    case "conversation_analyzed":
+      return "rgb(139 92 246)"; // violet
+    case "opportunity_created":
+    case "opportunity_updated":
+      return "rgb(148 163 184)"; // slate
+    default:
+      return "rgb(148 163 184)";
+  }
+}
+
 function OpportunityDetailPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
@@ -117,9 +319,9 @@ function OpportunityDetailPage() {
       <main className="container mx-auto p-6">
         <Card>
           <CardContent className="py-10 text-center">
-            <p className="text-muted-foreground">找不到此商機</p>
+            <p className="text-muted-foreground">找不到此機會</p>
             <Button asChild className="mt-4" variant="outline">
-              <Link to="/opportunities">返回商機列表</Link>
+              <Link to="/opportunities">返回機會列表</Link>
             </Button>
           </CardContent>
         </Card>
@@ -843,7 +1045,128 @@ function OpportunityDetailPage() {
             {/* Timeline */}
             <div className="detail-card" style={{ animationDelay: "0.3s" }}>
               <div className="card-header">
-                <h2 className="card-title">時間軸</h2>
+                <h2 className="card-title">客戶歷程</h2>
+                <p className="card-description">Sales Pipeline 時間軸</p>
+              </div>
+              <div className="card-content">
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.75rem",
+                    maxHeight: "500px",
+                    overflowY: "auto",
+                  }}
+                >
+                  {(() => {
+                    const timelineEvents = buildTimeline(
+                      opportunity as Parameters<typeof buildTimeline>[0]
+                    );
+                    if (timelineEvents.length === 0) {
+                      return <div className="empty-state">尚無歷程記錄</div>;
+                    }
+                    return timelineEvents.map((event) => (
+                      <div
+                        className="timeline-item"
+                        key={event.id}
+                        style={{
+                          borderLeft: `3px solid ${getTimelineEventColor(event.type)}`,
+                          paddingLeft: "1rem",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.5rem",
+                            color: getTimelineEventColor(event.type),
+                          }}
+                        >
+                          {getTimelineEventIcon(event.type)}
+                          <span
+                            style={{
+                              fontFamily: "'JetBrains Mono', monospace",
+                              fontSize: "0.75rem",
+                              fontWeight: 600,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.05em",
+                            }}
+                          >
+                            {event.type === "todo_created" && "建立待辦"}
+                            {event.type === "todo_completed" && "完成待辦"}
+                            {event.type === "todo_postponed" && "改期"}
+                            {event.type === "todo_won" && "成交"}
+                            {event.type === "todo_lost" && "拒絕"}
+                            {event.type === "conversation_uploaded" && "對話"}
+                            {event.type === "conversation_analyzed" && "分析"}
+                            {event.type === "opportunity_created" && "建立"}
+                            {event.type === "opportunity_updated" && "更新"}
+                          </span>
+                          {event.actionVia && (
+                            <span
+                              style={{
+                                fontFamily: "'JetBrains Mono', monospace",
+                                fontSize: "0.625rem",
+                                padding: "0.125rem 0.375rem",
+                                borderRadius: "0.25rem",
+                                background: "rgb(30 41 59)",
+                                color: "rgb(148 163 184)",
+                              }}
+                            >
+                              via {event.actionVia}
+                            </span>
+                          )}
+                        </div>
+                        <p
+                          style={{
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontSize: "0.875rem",
+                            fontWeight: 500,
+                            color: "rgb(226 232 240)",
+                            marginTop: "0.25rem",
+                          }}
+                        >
+                          {event.title}
+                        </p>
+                        {event.description && (
+                          <p
+                            style={{
+                              fontFamily: "'JetBrains Mono', monospace",
+                              fontSize: "0.75rem",
+                              color: "rgb(148 163 184)",
+                              marginTop: "0.125rem",
+                            }}
+                          >
+                            {event.description}
+                          </p>
+                        )}
+                        <p
+                          style={{
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontSize: "0.6875rem",
+                            color: "rgb(100 116 139)",
+                            marginTop: "0.25rem",
+                          }}
+                        >
+                          {new Date(event.timestamp).toLocaleString("zh-TW", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Info */}
+            <div className="detail-card" style={{ animationDelay: "0.35s" }}>
+              <div className="card-header">
+                <h2 className="card-title">基本時間</h2>
               </div>
               <div className="card-content">
                 <div

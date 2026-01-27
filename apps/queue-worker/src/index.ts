@@ -252,7 +252,7 @@ export default {
         // ========================================
         // Step 1.5: 檢查檔案大小，必要時壓縮 (備援機制)
         // ========================================
-        const GROQ_SIZE_LIMIT_MB = 25;
+        const GROQ_SIZE_LIMIT_MB = 20; // 降低閾值，提前觸發壓縮以確保成功
         const fileSizeMB = audioBuffer.length / 1024 / 1024;
 
         // 判斷是否使用 S3 輸出模式
@@ -275,7 +275,7 @@ export default {
             const compressor = createLambdaCompressor(
               env.LAMBDA_COMPRESSOR_URL,
               {
-                timeout: 180_000, // 3 分鐘超時 (Lambda 需要下載和壓縮大檔案)
+                timeout: 360_000, // 6 分鐘超時 (Lambda 需要下載、壓縮、上傳大檔案)
               }
             );
 
@@ -1544,7 +1544,7 @@ function buildDailyReminderBlocks(
         },
       });
 
-      // Actions block（三個獨立按鈕）
+      // Actions block（四個獨立按鈕）
       blocks.push({
         type: "actions",
         elements: [
@@ -1552,7 +1552,13 @@ function buildDailyReminderBlocks(
             type: "button",
             text: { type: "plain_text", text: "✅ 完成", emoji: true },
             action_id: "complete_todo",
-            value: JSON.stringify({ todoId: todo.id, todoTitle: todo.title }),
+            value: JSON.stringify({
+              todoId: todo.id,
+              todoTitle: todo.title,
+              opportunityId: todo.opportunityId,
+              customerNumber: todo.customerNumber,
+              companyName: todo.companyName,
+            }),
           },
           {
             type: "button",
@@ -1562,9 +1568,28 @@ function buildDailyReminderBlocks(
           },
           {
             type: "button",
-            text: { type: "plain_text", text: "❌ 取消", emoji: true },
-            action_id: "cancel_todo",
-            value: JSON.stringify({ todoId: todo.id, todoTitle: todo.title }),
+            text: { type: "plain_text", text: "🎉 成交", emoji: true },
+            action_id: "win_todo",
+            style: "primary",
+            value: JSON.stringify({
+              todoId: todo.id,
+              todoTitle: todo.title,
+              opportunityId: todo.opportunityId,
+              customerNumber: todo.customerNumber,
+              companyName: todo.companyName,
+            }),
+          },
+          {
+            type: "button",
+            text: { type: "plain_text", text: "👋 拒絕", emoji: true },
+            action_id: "lose_todo",
+            value: JSON.stringify({
+              todoId: todo.id,
+              todoTitle: todo.title,
+              opportunityId: todo.opportunityId,
+              customerNumber: todo.customerNumber,
+              companyName: todo.companyName,
+            }),
           },
         ],
       });
@@ -1616,7 +1641,7 @@ function buildDailyReminderBlocks(
         },
       });
 
-      // Actions block（三個獨立按鈕）
+      // Actions block（四個獨立按鈕）
       blocks.push({
         type: "actions",
         elements: [
@@ -1624,7 +1649,13 @@ function buildDailyReminderBlocks(
             type: "button",
             text: { type: "plain_text", text: "✅ 完成", emoji: true },
             action_id: "complete_todo",
-            value: JSON.stringify({ todoId: todo.id, todoTitle: todo.title }),
+            value: JSON.stringify({
+              todoId: todo.id,
+              todoTitle: todo.title,
+              opportunityId: todo.opportunityId,
+              customerNumber: todo.customerNumber,
+              companyName: todo.companyName,
+            }),
           },
           {
             type: "button",
@@ -1634,9 +1665,28 @@ function buildDailyReminderBlocks(
           },
           {
             type: "button",
-            text: { type: "plain_text", text: "❌ 取消", emoji: true },
-            action_id: "cancel_todo",
-            value: JSON.stringify({ todoId: todo.id, todoTitle: todo.title }),
+            text: { type: "plain_text", text: "🎉 成交", emoji: true },
+            action_id: "win_todo",
+            style: "primary",
+            value: JSON.stringify({
+              todoId: todo.id,
+              todoTitle: todo.title,
+              opportunityId: todo.opportunityId,
+              customerNumber: todo.customerNumber,
+              companyName: todo.companyName,
+            }),
+          },
+          {
+            type: "button",
+            text: { type: "plain_text", text: "👋 拒絕", emoji: true },
+            action_id: "lose_todo",
+            value: JSON.stringify({
+              todoId: todo.id,
+              todoTitle: todo.title,
+              opportunityId: todo.opportunityId,
+              customerNumber: todo.customerNumber,
+              companyName: todo.companyName,
+            }),
           },
         ],
       });

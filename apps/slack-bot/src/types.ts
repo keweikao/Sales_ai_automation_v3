@@ -350,6 +350,7 @@ export interface PendingAudioFile {
   channelId: string;
   userId: string; // Slack User ID
   userName?: string; // Slack Username
+  userEmail?: string; // Slack User Email（用於對應系統用戶）
   threadTs?: string;
   downloadUrl: string;
 }
