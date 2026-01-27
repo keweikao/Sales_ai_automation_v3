@@ -80,7 +80,7 @@ function NewConversationPage() {
         throw new Error("請選擇音檔");
       }
       if (!formData.opportunityId) {
-        throw new Error("請選擇商機");
+        throw new Error("請選擇機會");
       }
 
       // Convert file to base64
@@ -158,7 +158,7 @@ function NewConversationPage() {
       return;
     }
     if (!formData.opportunityId) {
-      toast.error("請選擇商機");
+      toast.error("請選擇機會");
       return;
     }
     uploadMutation.mutate();
@@ -255,7 +255,7 @@ function NewConversationPage() {
             {/* Opportunity Selection */}
             <div className="space-y-2">
               <Label>
-                關聯商機 <span className="text-red-500">*</span>
+                關聯機會 <span className="text-red-500">*</span>
               </Label>
               <Select
                 onValueChange={(value) =>
@@ -264,7 +264,7 @@ function NewConversationPage() {
                 value={formData.opportunityId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="選擇商機..." />
+                  <SelectValue placeholder="選擇機會..." />
                 </SelectTrigger>
                 <SelectContent>
                   {opportunitiesQuery.data?.opportunities.map((opp) => (

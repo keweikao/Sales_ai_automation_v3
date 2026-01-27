@@ -6,16 +6,70 @@
 import { db } from "@Sales_ai_automation_v3/db";
 import {
   type CompletionRecord,
+  type LostRecord,
   type PostponeRecord,
   salesTodos,
+  todoLogs,
   userProfiles,
+  type WonRecord,
 } from "@Sales_ai_automation_v3/db/schema";
 import { randomUUID } from "node:crypto";
 import { ORPCError } from "@orpc/server";
-import { and, between, desc, eq, gte, lte, or } from "drizzle-orm";
+import { and, between, count, desc, eq, gte, lte, or } from "drizzle-orm";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
+
+// ============================================================
+// Timezone Utilities (UTC+8)
+// ============================================================
+
+const UTC_PLUS_8_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+function nowInTaipei(): Date {
+  const now = new Date();
+  return new Date(now.getTime() + UTC_PLUS_8_OFFSET_MS);
+}
+
+function getTodayStartInTaipei(): Date {
+  const taipeiNow = nowInTaipei();
+  const year = taipeiNow.getUTCFullYear();
+  const month = String(taipeiNow.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(taipeiNow.getUTCDate()).padStart(2, "0");
+  const todayStr = `${year}-${month}-${day}`;
+  return getDateStartInTaipei(todayStr);
+}
+
+function getTodayEndInTaipei(): Date {
+  const taipeiNow = nowInTaipei();
+  const year = taipeiNow.getUTCFullYear();
+  const month = String(taipeiNow.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(taipeiNow.getUTCDate()).padStart(2, "0");
+  const todayStr = `${year}-${month}-${day}`;
+  return getDateEndInTaipei(todayStr);
+}
+
+function getDateStartInTaipei(dateStr: string): Date {
+  // 支援 ISO 字串或 yyyy-MM-dd 格式，只取前 10 字符
+  const dateOnly = dateStr.slice(0, 10);
+  const parts = dateOnly.split("-").map(Number);
+  const year = parts[0] ?? 0;
+  const month = parts[1] ?? 1;
+  const day = parts[2] ?? 1;
+  const date = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  return new Date(date.getTime() - UTC_PLUS_8_OFFSET_MS);
+}
+
+function getDateEndInTaipei(dateStr: string): Date {
+  // 支援 ISO 字串或 yyyy-MM-dd 格式，只取前 10 字符
+  const dateOnly = dateStr.slice(0, 10);
+  const parts = dateOnly.split("-").map(Number);
+  const year = parts[0] ?? 0;
+  const month = parts[1] ?? 1;
+  const day = parts[2] ?? 1;
+  const date = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+  return new Date(date.getTime() - UTC_PLUS_8_OFFSET_MS);
+}
 
 // ============================================================
 // Schemas
@@ -34,12 +88,34 @@ const completeTodoSchema = z.object({
   todoId: z.string(),
   result: z.string().min(1),
   completedVia: z.enum(["slack", "web"]),
+  nextTodo: z.object({
+    title: z.string(),
+    description: z.string().optional(),
+    dueDate: z.string(),
+  }),
+});
+
+const winTodoSchema = z.object({
+  todoId: z.string(),
+  expectedPaymentDate: z.string().optional(),
+  amount: z.number().optional(),
+  note: z.string().optional(),
+  wonVia: z.enum(["slack", "web"]),
+});
+
+const loseTodoSchema = z.object({
+  todoId: z.string(),
+  reason: z.string().min(1),
+  competitor: z.string().optional(),
+  note: z.string().optional(),
+  lostVia: z.enum(["slack", "web"]),
 });
 
 const postponeTodoSchema = z.object({
   todoId: z.string(),
   newDate: z.string(), // ISO string
   reason: z.string().optional(),
+  postponedVia: z.enum(["slack", "web"]),
 });
 
 const cancelTodoSchema = z.object({
@@ -48,7 +124,9 @@ const cancelTodoSchema = z.object({
 });
 
 const listTodosSchema = z.object({
-  status: z.enum(["pending", "completed", "postponed", "cancelled"]).optional(),
+  status: z
+    .enum(["pending", "completed", "postponed", "cancelled", "won", "lost"])
+    .optional(),
   dateFrom: z.string().optional(), // ISO string
   dateTo: z.string().optional(), // ISO string
   userId: z.string().optional(),
@@ -116,6 +194,31 @@ async function checkTodoAccess(
 }
 
 // ============================================================
+// Helper: Create Todo Log
+// ============================================================
+
+async function createTodoLog(data: {
+  todoId: string;
+  opportunityId?: string | null;
+  userId: string;
+  action: "create" | "complete" | "postpone" | "won" | "lost";
+  actionVia: "slack" | "web";
+  changes: Record<string, unknown>;
+  note?: string;
+}) {
+  await db.insert(todoLogs).values({
+    id: randomUUID(),
+    todoId: data.todoId,
+    opportunityId: data.opportunityId,
+    userId: data.userId,
+    action: data.action,
+    actionVia: data.actionVia,
+    changes: data.changes,
+    note: data.note,
+  });
+}
+
+// ============================================================
 // Create Todo
 // ============================================================
 
@@ -177,7 +280,7 @@ export const completeTodo = protectedProcedure
       throw new ORPCError("UNAUTHORIZED");
     }
 
-    const { todoId, result, completedVia } = input;
+    const { todoId, result, completedVia, nextTodo } = input;
     const { todo, canAccess } = await checkTodoAccess(todoId, userId);
 
     if (!canAccess) {
@@ -196,11 +299,40 @@ export const completeTodo = protectedProcedure
       completedAt: new Date().toISOString(),
     };
 
+    // 1. 建立下一個 Todo
+    const nextTodoId = randomUUID();
+    const nextDueDate = new Date(nextTodo.dueDate);
+
+    const nextTodoResult = await db
+      .insert(salesTodos)
+      .values({
+        id: nextTodoId,
+        userId: todo.userId,
+        opportunityId: todo.opportunityId,
+        conversationId: todo.conversationId,
+        title: nextTodo.title,
+        description: nextTodo.description,
+        dueDate: nextDueDate,
+        originalDueDate: nextDueDate,
+        source: completedVia,
+        status: "pending",
+        postponeHistory: [],
+        prevTodoId: todoId,
+      })
+      .returning();
+
+    const createdNextTodo = nextTodoResult[0];
+    if (!createdNextTodo) {
+      throw new ORPCError("INTERNAL_SERVER_ERROR");
+    }
+
+    // 2. 更新當前 Todo 狀態為 completed，並設定 nextTodoId
     const updateResult = await db
       .update(salesTodos)
       .set({
         status: "completed",
         completionRecord,
+        nextTodoId,
         updatedAt: new Date(),
       })
       .where(eq(salesTodos.id, todoId))
@@ -211,12 +343,52 @@ export const completeTodo = protectedProcedure
       throw new ORPCError("INTERNAL_SERVER_ERROR");
     }
 
+    // 3. 寫入兩筆 todo_logs
+    // 3a. Complete log
+    await createTodoLog({
+      todoId,
+      opportunityId: todo.opportunityId,
+      userId,
+      action: "complete",
+      actionVia: completedVia,
+      changes: {
+        before: { status: todo.status },
+        after: { status: "completed", nextTodoId },
+        completionRecord,
+      },
+      note: result,
+    });
+
+    // 3b. Created log for next todo
+    await createTodoLog({
+      todoId: nextTodoId,
+      opportunityId: todo.opportunityId,
+      userId,
+      action: "create",
+      actionVia: completedVia,
+      changes: {
+        title: nextTodo.title,
+        description: nextTodo.description,
+        dueDate: nextTodo.dueDate,
+        prevTodoId: todoId,
+      },
+    });
+
     return {
       success: true,
       todo: {
         id: updatedTodo.id,
         status: updatedTodo.status,
         completionRecord: updatedTodo.completionRecord,
+        nextTodoId: updatedTodo.nextTodoId,
+      },
+      nextTodo: {
+        id: createdNextTodo.id,
+        title: createdNextTodo.title,
+        description: createdNextTodo.description,
+        dueDate: createdNextTodo.dueDate,
+        status: createdNextTodo.status,
+        prevTodoId: createdNextTodo.prevTodoId,
       },
     };
   });
@@ -234,7 +406,7 @@ export const postponeTodo = protectedProcedure
       throw new ORPCError("UNAUTHORIZED");
     }
 
-    const { todoId, newDate, reason } = input;
+    const { todoId, newDate, reason, postponedVia } = input;
     const { todo, canAccess } = await checkTodoAccess(todoId, userId);
 
     if (!canAccess) {
@@ -271,6 +443,21 @@ export const postponeTodo = protectedProcedure
     if (!updatedTodo) {
       throw new ORPCError("INTERNAL_SERVER_ERROR");
     }
+
+    // 寫入 todo_logs
+    await createTodoLog({
+      todoId,
+      opportunityId: todo.opportunityId,
+      userId,
+      action: "postpone",
+      actionVia: postponedVia,
+      changes: {
+        before: { dueDate: todo.dueDate.toISOString() },
+        after: { dueDate: newDate },
+        postponeRecord,
+      },
+      note: reason,
+    });
 
     return {
       success: true,
@@ -330,6 +517,154 @@ export const cancelTodo = protectedProcedure
         id: updatedTodo.id,
         status: updatedTodo.status,
         cancellationReason: updatedTodo.cancellationReason,
+      },
+    };
+  });
+
+// ============================================================
+// Win Todo
+// ============================================================
+
+export const winTodo = protectedProcedure
+  .input(winTodoSchema)
+  .handler(async ({ input, context }) => {
+    const userId = context.session?.user.id;
+
+    if (!userId) {
+      throw new ORPCError("UNAUTHORIZED");
+    }
+
+    const { todoId, expectedPaymentDate, amount, note, wonVia } = input;
+    const { todo, canAccess } = await checkTodoAccess(todoId, userId);
+
+    if (!canAccess) {
+      throw new ORPCError("FORBIDDEN");
+    }
+
+    if (todo.status !== "pending") {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "只能將狀態為 pending 的待辦標記為成交",
+      });
+    }
+
+    const wonRecord: WonRecord = {
+      amount,
+      note,
+      wonAt: new Date().toISOString(),
+      wonVia,
+    };
+
+    const updateResult = await db
+      .update(salesTodos)
+      .set({
+        status: "won",
+        wonRecord,
+        updatedAt: new Date(),
+      })
+      .where(eq(salesTodos.id, todoId))
+      .returning();
+
+    const updatedTodo = updateResult[0];
+    if (!updatedTodo) {
+      throw new ORPCError("INTERNAL_SERVER_ERROR");
+    }
+
+    // 寫入 todo_logs
+    await createTodoLog({
+      todoId,
+      opportunityId: todo.opportunityId,
+      userId,
+      action: "won",
+      actionVia: wonVia,
+      changes: {
+        before: { status: todo.status },
+        after: { status: "won" },
+        wonRecord,
+        expectedPaymentDate,
+      },
+      note,
+    });
+
+    return {
+      success: true,
+      todo: {
+        id: updatedTodo.id,
+        status: updatedTodo.status,
+        wonRecord: updatedTodo.wonRecord,
+      },
+    };
+  });
+
+// ============================================================
+// Lose Todo
+// ============================================================
+
+export const loseTodo = protectedProcedure
+  .input(loseTodoSchema)
+  .handler(async ({ input, context }) => {
+    const userId = context.session?.user.id;
+
+    if (!userId) {
+      throw new ORPCError("UNAUTHORIZED");
+    }
+
+    const { todoId, reason, competitor, note, lostVia } = input;
+    const { todo, canAccess } = await checkTodoAccess(todoId, userId);
+
+    if (!canAccess) {
+      throw new ORPCError("FORBIDDEN");
+    }
+
+    if (todo.status !== "pending") {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "只能將狀態為 pending 的待辦標記為輸單",
+      });
+    }
+
+    const lostRecord: LostRecord = {
+      reason,
+      competitor,
+      note,
+      lostAt: new Date().toISOString(),
+      lostVia,
+    };
+
+    const updateResult = await db
+      .update(salesTodos)
+      .set({
+        status: "lost",
+        lostRecord,
+        updatedAt: new Date(),
+      })
+      .where(eq(salesTodos.id, todoId))
+      .returning();
+
+    const updatedTodo = updateResult[0];
+    if (!updatedTodo) {
+      throw new ORPCError("INTERNAL_SERVER_ERROR");
+    }
+
+    // 寫入 todo_logs
+    await createTodoLog({
+      todoId,
+      opportunityId: todo.opportunityId,
+      userId,
+      action: "lost",
+      actionVia: lostVia,
+      changes: {
+        before: { status: todo.status },
+        after: { status: "lost" },
+        lostRecord,
+      },
+      note,
+    });
+
+    return {
+      success: true,
+      todo: {
+        id: updatedTodo.id,
+        status: updatedTodo.status,
+        lostRecord: updatedTodo.lostRecord,
       },
     };
   });
@@ -418,37 +753,43 @@ export const listTodos = protectedProcedure
       conditions.push(eq(salesTodos.status, status));
     }
 
-    // 日期篩選
+    // 日期篩選（使用 UTC+8 時區）
     if (dateFrom) {
-      conditions.push(gte(salesTodos.dueDate, new Date(dateFrom)));
+      conditions.push(gte(salesTodos.dueDate, getDateStartInTaipei(dateFrom)));
     }
     if (dateTo) {
-      conditions.push(lte(salesTodos.dueDate, new Date(dateTo)));
+      conditions.push(lte(salesTodos.dueDate, getDateEndInTaipei(dateTo)));
     }
 
     // 查詢待辦
-    const todos = await db.query.salesTodos.findMany({
-      where: conditions.length > 0 ? and(...conditions) : undefined,
-      with: {
-        opportunity: {
-          columns: {
-            id: true,
-            companyName: true,
-            customerNumber: true,
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // 同時查詢資料和總數
+    const [todos, totalResult] = await Promise.all([
+      db.query.salesTodos.findMany({
+        where: whereClause,
+        with: {
+          opportunity: {
+            columns: {
+              id: true,
+              companyName: true,
+              customerNumber: true,
+            },
+          },
+          conversation: {
+            columns: {
+              id: true,
+              title: true,
+              caseNumber: true,
+            },
           },
         },
-        conversation: {
-          columns: {
-            id: true,
-            title: true,
-            caseNumber: true,
-          },
-        },
-      },
-      orderBy: [desc(salesTodos.dueDate)],
-      limit,
-      offset,
-    });
+        orderBy: [desc(salesTodos.dueDate)],
+        limit,
+        offset,
+      }),
+      db.select({ count: count() }).from(salesTodos).where(whereClause),
+    ]);
 
     return {
       todos: todos.map((todo) => ({
@@ -468,7 +809,7 @@ export const listTodos = protectedProcedure
         opportunity: todo.opportunity,
         conversation: todo.conversation,
       })),
-      total: todos.length,
+      total: totalResult[0]?.count ?? 0,
       limit,
       offset,
     };
@@ -515,13 +856,9 @@ export const getTodaysTodos = protectedProcedure
   .handler(async ({ input }) => {
     const { includeOverdue } = input;
 
-    // 取得今天的日期範圍 (Asia/Taipei timezone)
-    const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-
-    const todayEnd = new Date(now);
-    todayEnd.setHours(23, 59, 59, 999);
+    // 取得今天的日期範圍 (Asia/Taipei timezone, UTC+8)
+    const todayStart = getTodayStartInTaipei();
+    const todayEnd = getTodayEndInTaipei();
 
     // 建立查詢條件
     let dateCondition;
@@ -616,7 +953,9 @@ export const salesTodoRouter = {
   create: createTodo,
   complete: completeTodo,
   postpone: postponeTodo,
-  cancel: cancelTodo,
+  cancel: cancelTodo, // 保留向下相容
+  win: winTodo, // 新增
+  lose: loseTodo, // 新增
   list: listTodos,
   get: getTodo,
   getTodaysTodos,

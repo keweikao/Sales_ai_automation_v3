@@ -18,7 +18,9 @@ export type SalesTodoStatus =
   | "pending"
   | "completed"
   | "postponed"
-  | "cancelled";
+  | "cancelled"
+  | "won"
+  | "lost";
 
 /** 改期記錄 */
 export interface PostponeRecord {
@@ -33,6 +35,25 @@ export interface CompletionRecord {
   result: string;
   completedAt: string;
   completedVia: "slack" | "web";
+}
+
+/** 成交記錄 */
+export interface WonRecord {
+  amount?: number;
+  currency?: string;
+  product?: string;
+  note?: string;
+  wonAt: string;
+  wonVia: "slack" | "web";
+}
+
+/** 失敗記錄 */
+export interface LostRecord {
+  reason: string;
+  competitor?: string;
+  note?: string;
+  lostAt: string;
+  lostVia: "slack" | "web";
 }
 
 // ============================================================
@@ -72,6 +93,16 @@ export const salesTodos = pgTable("sales_todos", {
     .$type<PostponeRecord[]>()
     .default([]),
 
+  // 成交記錄 (jsonb): { amount, currency, product, note, wonAt, wonVia }
+  wonRecord: jsonb("won_record").$type<WonRecord>(),
+
+  // 失敗記錄 (jsonb): { reason, competitor, note, lostAt, lostVia }
+  lostRecord: jsonb("lost_record").$type<LostRecord>(),
+
+  // Todo Chain - 追蹤關聯的待辦事項
+  nextTodoId: text("next_todo_id"),
+  prevTodoId: text("prev_todo_id"),
+
   // 取消原因
   cancellationReason: text("cancellation_reason"),
 
@@ -104,6 +135,17 @@ export const salesTodosRelations = relations(salesTodos, ({ one }) => ({
   conversation: one(conversations, {
     fields: [salesTodos.conversationId],
     references: [conversations.id],
+  }),
+  // Todo Chain relations
+  nextTodo: one(salesTodos, {
+    fields: [salesTodos.nextTodoId],
+    references: [salesTodos.id],
+    relationName: "todoChainNext",
+  }),
+  prevTodo: one(salesTodos, {
+    fields: [salesTodos.prevTodoId],
+    references: [salesTodos.id],
+    relationName: "todoChainPrev",
   }),
 }));
 

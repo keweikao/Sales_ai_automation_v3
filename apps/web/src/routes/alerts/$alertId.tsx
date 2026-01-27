@@ -235,7 +235,7 @@ function AlertDetailPage() {
             }
             variant="link"
           >
-            查看商機詳情 →
+            查看機會詳情 →
           </Button>
           {alert.conversationId && (
             <>

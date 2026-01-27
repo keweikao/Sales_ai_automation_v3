@@ -161,11 +161,19 @@ export class SlackClient {
   }
 
   /**
-   * 取得使用者資訊
+   * 取得使用者資訊（包含 email）
+   * 需要 users:read.email scope 才能取得 email
    */
   async getUserInfo(userId: string): Promise<{
     ok: boolean;
-    user?: { id: string; name: string; real_name?: string };
+    user?: {
+      id: string;
+      name: string;
+      real_name?: string;
+      profile?: {
+        email?: string;
+      };
+    };
     error?: string;
   }> {
     const response = await fetch(

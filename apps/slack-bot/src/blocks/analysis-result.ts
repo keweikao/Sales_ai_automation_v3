@@ -33,11 +33,27 @@ export interface AnalysisResultData {
     owner?: string;
     deadline?: string;
   }>;
-}
 
-export interface ContactInfo {
-  phone?: string | null;
-  email?: string | null;
+  // Agent 6: 競品相關
+  competitorMentions?: Array<{
+    competitorName: string;
+    mentionCount: number;
+    customerAttitude: "positive" | "negative" | "neutral";
+    quotes: string[];
+  }>;
+  competitorThreatLevel?: "high" | "medium" | "low" | "none";
+  competitorHandlingEvaluation?: Array<{
+    competitorName: string;
+    customerQuote: string;
+    repResponse: string;
+    score: number;
+    evaluation: {
+      strengths: string[];
+      weaknesses: string[];
+    };
+    recommendedResponse: string;
+    improvementTips: string[];
+  }>;
 }
 
 /**
@@ -166,13 +182,12 @@ export function buildAnalysisResultBlocks(data: AnalysisResultData): object[] {
 }
 
 /**
- * 建構 Agent 4 Summary Block（含編輯/寄送按鈕）
+ * 建構 Agent 4 Summary Block（含編輯按鈕）
  */
 export function buildSummaryBlocks(
   conversationId: string,
   summary: string,
-  nextSteps: Array<{ action: string; owner?: string; deadline?: string }>,
-  contactInfo: ContactInfo
+  nextSteps: Array<{ action: string; owner?: string; deadline?: string }>
 ): object[] {
   const blocks: object[] = [
     {
@@ -219,90 +234,26 @@ export function buildSummaryBlocks(
 
   blocks.push({ type: "divider" });
 
-  // 客戶聯絡資訊
-  const contactFields: object[] = [];
-
-  if (contactInfo.phone) {
-    contactFields.push({
-      type: "mrkdwn",
-      text: `*📞 電話*\n${contactInfo.phone}`,
-    });
-  }
-
-  if (contactInfo.email) {
-    contactFields.push({
-      type: "mrkdwn",
-      text: `*📧 Email*\n${contactInfo.email}`,
-    });
-  }
-
-  if (contactFields.length > 0) {
-    blocks.push({
-      type: "section",
-      fields: contactFields,
-    });
-  } else {
-    blocks.push({
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: "_尚無客戶聯絡資訊_",
-      },
-    });
-  }
-
-  // 按鈕組：編輯摘要、寄簡訊、寄 Email
+  // 編輯按鈕
   const buttonValue = JSON.stringify({
     conversationId,
     summary,
-    contactPhone: contactInfo.phone ?? null,
-    contactEmail: contactInfo.email ?? null,
   });
-
-  const buttons: object[] = [
-    {
-      type: "button",
-      text: {
-        type: "plain_text",
-        text: "📝 編輯摘要",
-        emoji: true,
-      },
-      action_id: "edit_summary",
-      value: buttonValue,
-    },
-  ];
-
-  // 只在有電話時顯示寄簡訊按鈕
-  if (contactInfo.phone) {
-    buttons.push({
-      type: "button",
-      text: {
-        type: "plain_text",
-        text: "📱 寄簡訊",
-        emoji: true,
-      },
-      action_id: "send_sms",
-      value: buttonValue,
-    });
-  }
-
-  // 只在有 Email 時顯示寄 Email 按鈕
-  if (contactInfo.email) {
-    buttons.push({
-      type: "button",
-      text: {
-        type: "plain_text",
-        text: "📧 寄 Email",
-        emoji: true,
-      },
-      action_id: "send_email",
-      value: buttonValue,
-    });
-  }
 
   blocks.push({
     type: "actions",
-    elements: buttons,
+    elements: [
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "📝 編輯摘要",
+          emoji: true,
+        },
+        action_id: "edit_summary",
+        value: buttonValue,
+      },
+    ],
   });
 
   return blocks;
@@ -339,4 +290,189 @@ function getScoreBar(score: number): string {
   const filled = Math.round(score);
   const empty = 5 - filled;
   return "▓".repeat(filled) + "░".repeat(empty);
+}
+
+/**
+ * 建構競品提及與應對評估 Block
+ */
+export function buildCompetitorBlocks(data: AnalysisResultData): object[] {
+  const blocks: object[] = [];
+
+  // 如果沒有競品提及，返回空陣列
+  if (!data.competitorMentions || data.competitorMentions.length === 0) {
+    return blocks;
+  }
+
+  // 競品提及區塊
+  blocks.push({
+    type: "header",
+    text: {
+      type: "plain_text",
+      text: "🏷️ 競品提及",
+      emoji: true,
+    },
+  });
+
+  // 競品威脅程度
+  const threatEmoji = getThreatEmoji(data.competitorThreatLevel);
+  blocks.push({
+    type: "section",
+    text: {
+      type: "mrkdwn",
+      text: `*競品威脅程度*: ${threatEmoji} ${getThreatLabel(data.competitorThreatLevel)}`,
+    },
+  });
+
+  // 競品列表
+  for (const competitor of data.competitorMentions) {
+    const attitudeEmoji = getAttitudeEmoji(competitor.customerAttitude);
+    const quotesText =
+      competitor.quotes.length > 0
+        ? competitor.quotes
+            .slice(0, 2)
+            .map((q) => `「${q}」`)
+            .join(" ")
+        : "無具體引用";
+
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*${competitor.competitorName}* | 提及 ${competitor.mentionCount} 次 | ${attitudeEmoji} ${getAttitudeLabel(competitor.customerAttitude)}\n${quotesText}`,
+      },
+    });
+  }
+
+  blocks.push({ type: "divider" });
+
+  // 競品應對評估區塊
+  if (
+    data.competitorHandlingEvaluation &&
+    data.competitorHandlingEvaluation.length > 0
+  ) {
+    blocks.push({
+      type: "header",
+      text: {
+        type: "plain_text",
+        text: "🎯 競品應對評估",
+        emoji: true,
+      },
+    });
+
+    for (const evaluation of data.competitorHandlingEvaluation) {
+      const scoreStars = getScoreStars(evaluation.score);
+
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*${evaluation.competitorName}* | 回應評分: ${scoreStars} (${evaluation.score}/5)`,
+        },
+      });
+
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*客戶原話*:\n> ${evaluation.customerQuote}\n\n*業務回應*:\n> ${evaluation.repResponse}`,
+        },
+      });
+
+      // 評估結果
+      const strengthsText =
+        evaluation.evaluation.strengths.length > 0
+          ? evaluation.evaluation.strengths.map((s) => `✅ ${s}`).join("\n")
+          : "無";
+      const weaknessesText =
+        evaluation.evaluation.weaknesses.length > 0
+          ? evaluation.evaluation.weaknesses.map((w) => `⚠️ ${w}`).join("\n")
+          : "無";
+
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*評估*:\n${strengthsText}\n${weaknessesText}`,
+        },
+      });
+
+      // 建議回應
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*💡 建議回應*:\n> ${evaluation.recommendedResponse}`,
+        },
+      });
+
+      // 改進重點
+      if (evaluation.improvementTips.length > 0) {
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*改進重點*:\n${evaluation.improvementTips.map((t, i) => `${i + 1}. ${t}`).join("\n")}`,
+          },
+        });
+      }
+
+      blocks.push({ type: "divider" });
+    }
+  }
+
+  return blocks;
+}
+
+function getThreatEmoji(level?: string): string {
+  switch (level) {
+    case "high":
+      return "🔴";
+    case "medium":
+      return "🟡";
+    case "low":
+      return "🟢";
+    default:
+      return "⚪";
+  }
+}
+
+function getThreatLabel(level?: string): string {
+  switch (level) {
+    case "high":
+      return "高";
+    case "medium":
+      return "中";
+    case "low":
+      return "低";
+    default:
+      return "無";
+  }
+}
+
+function getAttitudeEmoji(attitude: string): string {
+  switch (attitude) {
+    case "positive":
+      return "👍";
+    case "negative":
+      return "👎";
+    default:
+      return "😐";
+  }
+}
+
+function getAttitudeLabel(attitude: string): string {
+  switch (attitude) {
+    case "positive":
+      return "正面";
+    case "negative":
+      return "負面";
+    default:
+      return "中立";
+  }
+}
+
+function getScoreStars(score: number): string {
+  const fullStars = Math.floor(score);
+  const emptyStars = 5 - fullStars;
+  return "⭐".repeat(fullStars) + "☆".repeat(emptyStars);
 }

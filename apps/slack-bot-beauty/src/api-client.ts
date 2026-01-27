@@ -105,6 +105,7 @@ export class ApiClient {
     companySize?: string;
     notes?: string;
     productLine?: "ichef" | "beauty";
+    slackUserEmail?: string; // 用於對應系統用戶
   }): Promise<OpportunityResponse> {
     return this.request<OpportunityResponse>("/rpc/opportunities/create", {
       body: JSON.stringify(data),

@@ -129,15 +129,19 @@ export async function handleFileSharedEvent(
     return;
   }
 
-  // 取得上傳者的使用者名稱
+  // 取得上傳者的使用者名稱和 email
   console.log(`[FileEvent] Fetching user info for: ${event.user ?? "unknown"}`);
   let userName = "";
+  let userEmail = "";
   if (event.user) {
     try {
       const userInfo = await slackClient.getUserInfo(event.user);
       if (userInfo.ok && userInfo.user) {
         userName = userInfo.user.name;
-        console.log(`[FileEvent] User name retrieved: ${userName}`);
+        userEmail = userInfo.user.profile?.email || "";
+        console.log(
+          `[FileEvent] User info retrieved: name=${userName}, email=${userEmail}`
+        );
       }
     } catch (err) {
       console.error("[FileEvent] Failed to get user info:", err);
@@ -151,6 +155,7 @@ export async function handleFileSharedEvent(
     channelId: event.channel,
     userId: event.user ?? "",
     userName,
+    userEmail,
     threadTs: event.event_ts ?? event.ts,
     downloadUrl,
   };
@@ -281,7 +286,9 @@ export async function processAudioWithMetadata(
       // 傳遞 Slack 檔案 URL 和 token 讓 Server 下載
       pendingFile.downloadUrl,
       env.SLACK_BOT_TOKEN,
-      productLine
+      productLine,
+      // 傳遞上傳者 email 以對應系統用戶
+      pendingFile.userEmail
     );
     console.log(
       `[SlackBot:${processingId}] ✓ processAudioFile completed in ${Date.now() - apiCallStartTime}ms`
@@ -323,7 +330,7 @@ export async function processAudioWithMetadata(
         }),
       });
 
-      // 訊息 2: Agent 4 Summary（含編輯/寄送按鈕）
+      // 訊息 2: Agent 4 Summary（含編輯按鈕）
       await slackClient.postMessage({
         channel: pendingFile.channelId,
         text: `會議摘要 - ${result.opportunityName}`,
@@ -331,11 +338,7 @@ export async function processAudioWithMetadata(
         blocks: buildSummaryBlocks(
           result.conversationId,
           result.analysisResult.executiveSummary,
-          result.analysisResult.nextSteps,
-          {
-            phone: result.contactPhone,
-            email: result.contactEmail,
-          }
+          result.analysisResult.nextSteps
         ),
       });
     } else {
@@ -425,7 +428,8 @@ async function processAudioFile(
   slackUser?: { id: string; username: string },
   slackFileUrl?: string,
   slackBotToken?: string,
-  productLine?: "ichef" | "beauty"
+  productLine?: "ichef" | "beauty",
+  slackUserEmail?: string
 ): Promise<ProcessingResult> {
   const fileProcessingId = `FILE-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   console.log(`[${fileProcessingId}] 🎵 processAudioFile started`);
@@ -482,10 +486,13 @@ async function processAudioFile(
         const createResult = await apiClient.createOpportunity({
           customerNumber: metadata.customerNumber,
           companyName: metadata.customerName,
-          contactPhone: metadata.contactPhone, // 新增客戶電話
+          contactName: metadata.contactName,
+          contactPhone: metadata.contactPhone,
+          contactEmail: metadata.contactEmail,
           source: "slack",
           notes: formatMetadataNotes(metadata),
           productLine, // 傳遞產品線
+          slackUserEmail, // 傳遞上傳者 email 以對應系統用戶
         });
         opportunity = createResult;
         console.log(

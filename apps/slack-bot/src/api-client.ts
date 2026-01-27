@@ -283,16 +283,22 @@ export class ApiClient {
     todoId: string;
     result: string;
     completedVia: "slack" | "web";
-  }): Promise<void> {
-    await this.request("/rpc/salesTodo/complete", {
+    nextTodo: {
+      title: string;
+      description?: string;
+      dueDate: string;
+    };
+  }): Promise<{ nextTodoId: string }> {
+    return this.request<{ nextTodoId: string }>("/rpc/salesTodo/complete", {
       body: JSON.stringify(data),
     });
   }
 
   async postponeTodo(data: {
     todoId: string;
-    newDate: string; // ISO string
+    newDate: string;
     reason?: string;
+    postponedVia: "slack" | "web";
   }): Promise<void> {
     await this.request("/rpc/salesTodo/postpone", {
       body: JSON.stringify(data),
@@ -301,6 +307,30 @@ export class ApiClient {
 
   async cancelTodo(data: { todoId: string; reason: string }): Promise<void> {
     await this.request("/rpc/salesTodo/cancel", {
+      body: JSON.stringify(data),
+    });
+  }
+
+  async winTodo(data: {
+    todoId: string;
+    expectedPaymentDate?: string;
+    amount?: number;
+    note?: string;
+    wonVia: "slack" | "web";
+  }): Promise<void> {
+    await this.request("/rpc/salesTodo/win", {
+      body: JSON.stringify(data),
+    });
+  }
+
+  async loseTodo(data: {
+    todoId: string;
+    reason: string;
+    competitor?: string;
+    note?: string;
+    lostVia: "slack" | "web";
+  }): Promise<void> {
+    await this.request("/rpc/salesTodo/lose", {
       body: JSON.stringify(data),
     });
   }

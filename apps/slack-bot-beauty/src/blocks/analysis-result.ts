@@ -35,11 +35,6 @@ export interface AnalysisResultData {
   }>;
 }
 
-export interface ContactInfo {
-  phone?: string | null;
-  email?: string | null;
-}
-
 /**
  * 建構 Agent 1-3 合併分析報告 Block
  */
@@ -166,13 +161,12 @@ export function buildAnalysisResultBlocks(data: AnalysisResultData): object[] {
 }
 
 /**
- * 建構 Agent 4 Summary Block（含編輯/寄送按鈕）
+ * 建構 Agent 4 Summary Block（含編輯按鈕）
  */
 export function buildSummaryBlocks(
   conversationId: string,
   summary: string,
-  nextSteps: Array<{ action: string; owner?: string; deadline?: string }>,
-  contactInfo: ContactInfo
+  nextSteps: Array<{ action: string; owner?: string; deadline?: string }>
 ): object[] {
   const blocks: object[] = [
     {
@@ -219,90 +213,26 @@ export function buildSummaryBlocks(
 
   blocks.push({ type: "divider" });
 
-  // 客戶聯絡資訊
-  const contactFields: object[] = [];
-
-  if (contactInfo.phone) {
-    contactFields.push({
-      type: "mrkdwn",
-      text: `*📞 電話*\n${contactInfo.phone}`,
-    });
-  }
-
-  if (contactInfo.email) {
-    contactFields.push({
-      type: "mrkdwn",
-      text: `*📧 Email*\n${contactInfo.email}`,
-    });
-  }
-
-  if (contactFields.length > 0) {
-    blocks.push({
-      type: "section",
-      fields: contactFields,
-    });
-  } else {
-    blocks.push({
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: "_尚無客戶聯絡資訊_",
-      },
-    });
-  }
-
-  // 按鈕組：編輯摘要、寄簡訊、寄 Email
+  // 編輯按鈕
   const buttonValue = JSON.stringify({
     conversationId,
     summary,
-    contactPhone: contactInfo.phone ?? null,
-    contactEmail: contactInfo.email ?? null,
   });
-
-  const buttons: object[] = [
-    {
-      type: "button",
-      text: {
-        type: "plain_text",
-        text: "📝 編輯摘要",
-        emoji: true,
-      },
-      action_id: "edit_summary",
-      value: buttonValue,
-    },
-  ];
-
-  // 只在有電話時顯示寄簡訊按鈕
-  if (contactInfo.phone) {
-    buttons.push({
-      type: "button",
-      text: {
-        type: "plain_text",
-        text: "📱 寄簡訊",
-        emoji: true,
-      },
-      action_id: "send_sms",
-      value: buttonValue,
-    });
-  }
-
-  // 只在有 Email 時顯示寄 Email 按鈕
-  if (contactInfo.email) {
-    buttons.push({
-      type: "button",
-      text: {
-        type: "plain_text",
-        text: "📧 寄 Email",
-        emoji: true,
-      },
-      action_id: "send_email",
-      value: buttonValue,
-    });
-  }
 
   blocks.push({
     type: "actions",
-    elements: buttons,
+    elements: [
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: "📝 編輯摘要",
+          emoji: true,
+        },
+        action_id: "edit_summary",
+        value: buttonValue,
+      },
+    ],
   });
 
   return blocks;

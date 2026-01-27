@@ -7,8 +7,6 @@
 export interface SummaryModalData {
   conversationId: string;
   currentSummary: string;
-  contactPhone?: string | null;
-  contactEmail?: string | null;
 }
 
 /**
@@ -16,30 +14,6 @@ export interface SummaryModalData {
  */
 export function buildEditSummaryModal(data: SummaryModalData): object {
   const blocks: object[] = [
-    // 客戶聯絡資訊（唯讀顯示）
-    {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: "*客戶聯絡資訊*",
-      },
-    },
-    {
-      type: "section",
-      fields: [
-        {
-          type: "mrkdwn",
-          text: `*📞 電話*\n${data.contactPhone ?? "_無_"}`,
-        },
-        {
-          type: "mrkdwn",
-          text: `*📧 Email*\n${data.contactEmail ?? "_無_"}`,
-        },
-      ],
-    },
-    {
-      type: "divider",
-    },
     // 摘要編輯區
     {
       type: "input",
@@ -60,7 +34,7 @@ export function buildEditSummaryModal(data: SummaryModalData): object {
       },
       hint: {
         type: "plain_text",
-        text: "編輯後的摘要將會儲存，也可用於發送簡訊或 Email 給客戶",
+        text: "編輯後的摘要將會儲存",
       },
     },
   ];
@@ -70,8 +44,6 @@ export function buildEditSummaryModal(data: SummaryModalData): object {
     callback_id: "edit_summary_modal",
     private_metadata: JSON.stringify({
       conversationId: data.conversationId,
-      contactPhone: data.contactPhone,
-      contactEmail: data.contactEmail,
     }),
     title: {
       type: "plain_text",

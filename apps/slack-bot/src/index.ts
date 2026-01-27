@@ -17,11 +17,18 @@ import {
   parseFollowUpFormValues,
 } from "./blocks/follow-up-modal";
 import {
+  buildCompleteAndNextModal,
+  buildLoseTodoModal,
+  buildWinTodoModal,
+  parseCompleteAndNextFormValues,
+  parseLoseTodoFormValues,
+  parseWinTodoFormValues,
+  type TodoActionModalData,
+} from "./blocks/todo-action-modals";
+import {
   buildCancelTodoModal,
-  buildCompleteTodoModal,
   buildPostponeTodoModal,
   parseCancelTodoFormValues,
-  parseCompleteTodoFormValues,
   parsePostponeTodoFormValues,
 } from "./blocks/todo-reminder";
 import { handleSlackCommand } from "./commands";
@@ -309,8 +316,6 @@ app.post("/slack/interactions", async (c) => {
                 const modal = buildEditSummaryModal({
                   conversationId: data.conversationId,
                   currentSummary: data.summary,
-                  contactPhone: data.contactPhone,
-                  contactEmail: data.contactEmail,
                 });
 
                 const result = await slackClient.openView(
@@ -409,49 +414,6 @@ app.post("/slack/interactions", async (c) => {
               break;
             }
 
-            case "send_sms": {
-              // 發送簡訊給客戶 (舊版,保留向後相容)
-              try {
-                const data = JSON.parse(value);
-                const notificationService = createNotificationService(env);
-
-                if (!data.contactPhone) {
-                  if (payload.response_url) {
-                    await fetch(payload.response_url, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        text: ":x: 無法發送簡訊：客戶電話資訊不存在",
-                        replace_original: false,
-                      }),
-                    });
-                  }
-                  break;
-                }
-
-                const result = await notificationService.sendSMS(
-                  data.contactPhone,
-                  data.summary
-                );
-
-                if (payload.response_url) {
-                  await fetch(payload.response_url, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      text: result.success
-                        ? `:white_check_mark: 簡訊已發送至 ${data.contactPhone}`
-                        : `:x: 簡訊發送失敗: ${result.error}`,
-                      replace_original: false,
-                    }),
-                  });
-                }
-              } catch (error) {
-                console.error("Error sending SMS:", error);
-              }
-              break;
-            }
-
             case "send_email": {
               // 發送 Email 給客戶
               try {
@@ -497,28 +459,91 @@ app.post("/slack/interactions", async (c) => {
             }
 
             case "complete_todo": {
-              // 開啟完成 Todo Modal
+              // 開啟完成並建立下一個 Modal
               try {
-                const data = JSON.parse(value);
-                const slackClient = new SlackClient(env.SLACK_BOT_TOKEN);
-                const modal = buildCompleteTodoModal(
-                  data.todoId,
-                  data.todoTitle
-                );
+                const valueData = JSON.parse(value);
+                const modalData: TodoActionModalData = {
+                  todoId: valueData.todoId,
+                  todoTitle: valueData.todoTitle,
+                  opportunityId: valueData.opportunityId,
+                  customerNumber: valueData.customerNumber,
+                  companyName: valueData.companyName,
+                };
 
+                const slackClient = new SlackClient(env.SLACK_BOT_TOKEN);
                 const result = await slackClient.openView(
                   payload.trigger_id,
-                  modal
+                  buildCompleteAndNextModal(modalData)
                 );
 
                 if (!result.ok) {
                   console.error(
-                    "Failed to open complete todo modal:",
+                    "Failed to open complete and next todo modal:",
                     result.error
                   );
                 }
               } catch (error) {
-                console.error("Error opening complete todo modal:", error);
+                console.error(
+                  "Error opening complete and next todo modal:",
+                  error
+                );
+              }
+              break;
+            }
+
+            case "win_todo": {
+              // 開啟成交 Modal
+              try {
+                const valueData = JSON.parse(value);
+                const modalData: TodoActionModalData = {
+                  todoId: valueData.todoId,
+                  todoTitle: valueData.todoTitle,
+                  opportunityId: valueData.opportunityId,
+                  customerNumber: valueData.customerNumber,
+                  companyName: valueData.companyName,
+                };
+
+                const slackClient = new SlackClient(env.SLACK_BOT_TOKEN);
+                const result = await slackClient.openView(
+                  payload.trigger_id,
+                  buildWinTodoModal(modalData)
+                );
+
+                if (!result.ok) {
+                  console.error("Failed to open win todo modal:", result.error);
+                }
+              } catch (error) {
+                console.error("Error opening win todo modal:", error);
+              }
+              break;
+            }
+
+            case "lose_todo": {
+              // 開啟拒絕 Modal
+              try {
+                const valueData = JSON.parse(value);
+                const modalData: TodoActionModalData = {
+                  todoId: valueData.todoId,
+                  todoTitle: valueData.todoTitle,
+                  opportunityId: valueData.opportunityId,
+                  customerNumber: valueData.customerNumber,
+                  companyName: valueData.companyName,
+                };
+
+                const slackClient = new SlackClient(env.SLACK_BOT_TOKEN);
+                const result = await slackClient.openView(
+                  payload.trigger_id,
+                  buildLoseTodoModal(modalData)
+                );
+
+                if (!result.ok) {
+                  console.error(
+                    "Failed to open lose todo modal:",
+                    result.error
+                  );
+                }
+              } catch (error) {
+                console.error("Error opening lose todo modal:", error);
               }
               break;
             }
@@ -609,16 +634,6 @@ app.post("/slack/interactions", async (c) => {
         }
         if (!metadata.customerName?.trim()) {
           errors.customer_name = "請輸入客戶名稱";
-        }
-        if (metadata.contactPhone?.trim()) {
-          // 驗證電話格式
-          const phoneDigits = metadata.contactPhone.replace(/\D/g, "");
-          if (!/^09\d{8}$/.test(phoneDigits)) {
-            errors.contact_phone =
-              "請輸入有效的台灣手機號碼（例如：0912-345-678）";
-          }
-        } else {
-          errors.contact_phone = "請輸入客戶電話";
         }
         if (!metadata.storeType) {
           errors.store_type = "請選擇店型";
@@ -773,61 +788,121 @@ app.post("/slack/interactions", async (c) => {
     }
 
     if (callbackId === "follow_up_form") {
-      // 處理 Follow-up 表單提交
+      // 處理 Follow-up 表單提交（支援建立 Follow-up 或 客戶已拒絕）
       try {
         const privateMetadata = payload.view?.private_metadata;
         const modalData = JSON.parse(privateMetadata);
         const values = payload.view?.state?.values;
 
         // 解析表單值
-        const { days, title, description } = parseFollowUpFormValues(values);
+        const { action, days, title, description, rejectReason, competitor } =
+          parseFollowUpFormValues(values);
 
-        // 驗證必填欄位
-        if (!title.trim()) {
-          return c.json({
-            response_action: "errors",
-            errors: {
-              title_block: "請輸入 Follow 事項",
-            },
-          });
-        }
-
-        console.log("[Follow-up] Creating follow-up todo:", {
+        console.log("[Follow-up] Form submitted:", {
+          action,
           days,
           title,
           description,
+          rejectReason,
+          competitor,
           modalData,
         });
 
-        // 非同步建立 Todo（透過 API）
-        c.executionCtx.waitUntil(
-          (async () => {
-            try {
-              // 計算到期日
-              const dueDate = new Date();
-              dueDate.setDate(dueDate.getDate() + days);
+        if (action === "follow_up") {
+          // 建立 Follow-up Todo 流程
+          // 驗證必填欄位
+          if (!title?.trim()) {
+            return c.json({
+              response_action: "errors",
+              errors: {
+                title_block: "選擇建立 Follow-up 時，請輸入 Follow 事項",
+              },
+            });
+          }
 
-              // 呼叫後端 API 建立 Todo
-              const apiClient = new ApiClient(env.API_BASE_URL, env.API_TOKEN);
-              const result = await apiClient.createTodo({
-                title,
-                description,
-                dueDate: dueDate.toISOString(),
-                opportunityId: modalData.opportunityId,
-                conversationId: modalData.conversationId,
-                source: "slack",
-              });
+          // 非同步建立 Todo（透過 API）
+          c.executionCtx.waitUntil(
+            (async () => {
+              try {
+                // 計算到期日
+                const dueDate = new Date();
+                dueDate.setDate(dueDate.getDate() + (days || 3));
 
-              console.log("[Follow-up] Created todo via API:", {
-                todoId: result.id,
-                title,
-                dueDate: dueDate.toISOString(),
-              });
-            } catch (error) {
-              console.error("[Follow-up] Failed to create todo:", error);
-            }
-          })()
-        );
+                // 呼叫後端 API 建立 Todo
+                const apiClient = new ApiClient(
+                  env.API_BASE_URL,
+                  env.API_TOKEN
+                );
+                const result = await apiClient.createTodo({
+                  title: title!,
+                  description,
+                  dueDate: dueDate.toISOString(),
+                  opportunityId: modalData.opportunityId,
+                  conversationId: modalData.conversationId,
+                  source: "slack",
+                });
+
+                console.log("[Follow-up] Created todo via API:", {
+                  todoId: result.id,
+                  title,
+                  dueDate: dueDate.toISOString(),
+                });
+              } catch (error) {
+                console.error("[Follow-up] Failed to create todo:", error);
+              }
+            })()
+          );
+        } else if (action === "reject") {
+          // 客戶已拒絕流程
+          // 驗證必填欄位
+          if (!rejectReason?.trim()) {
+            return c.json({
+              response_action: "errors",
+              errors: {
+                reject_reason_block: "選擇客戶已拒絕時，請輸入拒絕原因",
+              },
+            });
+          }
+
+          // 非同步建立一個 "lost" 狀態的 Todo 記錄
+          c.executionCtx.waitUntil(
+            (async () => {
+              try {
+                const apiClient = new ApiClient(
+                  env.API_BASE_URL,
+                  env.API_TOKEN
+                );
+
+                // 先建立一個 Todo（以便有 todoId 可以標記為 lost）
+                const dueDate = new Date();
+                const todoResult = await apiClient.createTodo({
+                  title: `客戶拒絕 - ${modalData.caseNumber}`,
+                  description: `拒絕原因: ${rejectReason}${competitor ? `\n競品: ${competitor}` : ""}`,
+                  dueDate: dueDate.toISOString(),
+                  opportunityId: modalData.opportunityId,
+                  conversationId: modalData.conversationId,
+                  source: "slack",
+                });
+
+                // 立即標記為 lost
+                await apiClient.loseTodo({
+                  todoId: todoResult.id,
+                  reason: rejectReason,
+                  competitor,
+                  lostVia: "slack",
+                });
+
+                console.log("[Follow-up] Customer rejected, marked as lost:", {
+                  todoId: todoResult.id,
+                  rejectReason,
+                  competitor,
+                });
+              } catch (error) {
+                console.error("[Follow-up] Failed to record rejection:", error);
+              }
+            })()
+          );
+        }
 
         // 關閉所有 Modal（包括原本的音檔上傳表單）
         return c.json({
@@ -838,42 +913,67 @@ app.post("/slack/interactions", async (c) => {
         return c.json({
           response_action: "errors",
           errors: {
-            title_block:
+            action_block:
               error instanceof Error ? error.message : "處理表單時發生錯誤",
           },
         });
       }
     }
 
-    if (callbackId === "complete_todo_form") {
-      // 處理完成 Todo 表單提交
+    if (callbackId === "complete_and_next_todo_form") {
+      // 處理完成並建立下一個 Todo 表單提交
       try {
         const privateMetadata = payload.view?.private_metadata;
-        const modalData = JSON.parse(privateMetadata);
+        const modalData = JSON.parse(privateMetadata) as TodoActionModalData;
         const values = payload.view?.state?.values;
 
-        const { completionNote } = parseCompleteTodoFormValues(values);
+        const { completionNote, nextTitle, nextDays, nextDescription } =
+          parseCompleteAndNextFormValues(values);
 
-        console.log("[Todo] Completing todo:", {
+        // 驗證
+        if (!completionNote.trim()) {
+          return c.json({
+            response_action: "errors",
+            errors: { completion_note_block: "請輸入完成備註" },
+          });
+        }
+        if (!nextTitle.trim()) {
+          return c.json({
+            response_action: "errors",
+            errors: { next_title_block: "請輸入下一個待辦事項" },
+          });
+        }
+
+        // 計算下一個待辦的到期日
+        const nextDueDate = new Date();
+        nextDueDate.setDate(nextDueDate.getDate() + nextDays);
+
+        console.log("[Todo] Completing todo and creating next:", {
           todoId: modalData.todoId,
-          todoTitle: modalData.todoTitle,
           completionNote,
+          nextTitle,
+          nextDays,
         });
 
-        // 非同步完成 Todo（透過 API）
+        // 非同步呼叫 API
         c.executionCtx.waitUntil(
           (async () => {
             try {
               const apiClient = new ApiClient(env.API_BASE_URL, env.API_TOKEN);
-              await apiClient.completeTodo({
+              const result = await apiClient.completeTodo({
                 todoId: modalData.todoId,
-                result: completionNote || "已完成",
+                result: completionNote,
                 completedVia: "slack",
+                nextTodo: {
+                  title: nextTitle,
+                  description: nextDescription,
+                  dueDate: nextDueDate.toISOString(),
+                },
               });
 
-              console.log("[Todo] Completed todo via API:", {
+              console.log("[Todo] Completed and created next:", {
                 todoId: modalData.todoId,
-                completionNote,
+                nextTodoId: result.nextTodoId,
               });
             } catch (error) {
               console.error("[Todo] Failed to complete todo:", error);
@@ -883,11 +983,116 @@ app.post("/slack/interactions", async (c) => {
 
         return c.json({});
       } catch (error) {
-        console.error("Error processing complete todo form:", error);
+        console.error("Error processing complete and next todo form:", error);
         return c.json({
           response_action: "errors",
           errors: {
             completion_note_block:
+              error instanceof Error ? error.message : "處理表單時發生錯誤",
+          },
+        });
+      }
+    }
+
+    if (callbackId === "win_todo_form") {
+      // 處理成交表單提交
+      try {
+        const privateMetadata = payload.view?.private_metadata;
+        const modalData = JSON.parse(privateMetadata) as TodoActionModalData;
+        const values = payload.view?.state?.values;
+
+        const { paymentDate, amount, note } = parseWinTodoFormValues(values);
+
+        console.log("[Todo] Marking todo as won:", {
+          todoId: modalData.todoId,
+          paymentDate,
+          amount,
+        });
+
+        c.executionCtx.waitUntil(
+          (async () => {
+            try {
+              const apiClient = new ApiClient(env.API_BASE_URL, env.API_TOKEN);
+              await apiClient.winTodo({
+                todoId: modalData.todoId,
+                expectedPaymentDate: paymentDate,
+                amount,
+                note,
+                wonVia: "slack",
+              });
+
+              console.log("[Todo] Marked as won:", {
+                todoId: modalData.todoId,
+              });
+            } catch (error) {
+              console.error("[Todo] Failed to mark as won:", error);
+            }
+          })()
+        );
+
+        return c.json({});
+      } catch (error) {
+        console.error("Error processing win todo form:", error);
+        return c.json({
+          response_action: "errors",
+          errors: {
+            payment_date_block:
+              error instanceof Error ? error.message : "處理表單時發生錯誤",
+          },
+        });
+      }
+    }
+
+    if (callbackId === "lose_todo_form") {
+      // 處理拒絕表單提交
+      try {
+        const privateMetadata = payload.view?.private_metadata;
+        const modalData = JSON.parse(privateMetadata) as TodoActionModalData;
+        const values = payload.view?.state?.values;
+
+        const { reason, competitor, note } = parseLoseTodoFormValues(values);
+
+        // 驗證
+        if (!reason.trim()) {
+          return c.json({
+            response_action: "errors",
+            errors: { reason_block: "請輸入拒絕原因" },
+          });
+        }
+
+        console.log("[Todo] Marking todo as lost:", {
+          todoId: modalData.todoId,
+          reason,
+        });
+
+        c.executionCtx.waitUntil(
+          (async () => {
+            try {
+              const apiClient = new ApiClient(env.API_BASE_URL, env.API_TOKEN);
+              await apiClient.loseTodo({
+                todoId: modalData.todoId,
+                reason,
+                competitor,
+                note,
+                lostVia: "slack",
+              });
+
+              console.log("[Todo] Marked as lost:", {
+                todoId: modalData.todoId,
+              });
+            } catch (error) {
+              console.error("[Todo] Failed to mark as lost:", error);
+            }
+          })()
+        );
+
+        return c.json({});
+      } catch (error) {
+        console.error("Error processing lose todo form:", error);
+        return c.json({
+          response_action: "errors",
+          errors: {
+            reason_block:
               error instanceof Error ? error.message : "處理表單時發生錯誤",
           },
         });
@@ -929,6 +1134,7 @@ app.post("/slack/interactions", async (c) => {
                 todoId: modalData.todoId,
                 newDate,
                 reason,
+                postponedVia: "slack",
               });
 
               console.log("[Todo] Postponed todo via API:", {
