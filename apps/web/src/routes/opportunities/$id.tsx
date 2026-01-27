@@ -1,34 +1,56 @@
 /**
  * Opportunity 詳情頁面
- * 顯示機會詳細資訊、對話記錄、PDCM+SPIN 分析
+ * 顯示機會詳細資訊、嵌入對話內容、PDCM+SPIN 分析
  * Precision Analytics Industrial Design
  */
 
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
+  AlertTriangle,
   ArrowLeft,
+  BarChart3,
   Building2,
   Calendar,
   CalendarClock,
   Check,
+  ChevronDown,
   Edit,
   FileText,
   HandMetal,
+  Lightbulb,
   Mail,
   MessageSquare,
   Phone,
   Plus,
+  Target,
   TrendingUp,
   Trophy,
   User,
 } from "lucide-react";
+import { useState } from "react";
 
 import { LeadStatusBadge } from "@/components/lead/lead-status-badge";
 import { PdcmScoreCard } from "@/components/meddic/pdcm-score-card";
+import {
+  PdcmSpinAlerts,
+  type PdcmSpinAlertsData,
+} from "@/components/meddic/pdcm-spin-alerts";
+import { SpinProgressCard } from "@/components/meddic/spin-progress-card";
+import {
+  type TacticalSuggestion,
+  TacticalSuggestions,
+} from "@/components/meddic/tactical-suggestions";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { client } from "@/utils/orpc";
 
 // Import Playfair Display and JetBrains Mono
@@ -56,16 +78,47 @@ function getConversationTypeLabel(type: string): string {
   return types[type] || type;
 }
 
-function getStatusColor(status: string): string {
-  const colors: Record<string, string> = {
-    completed: "bg-green-500",
-    analyzing: "bg-purple-500",
-    transcribing: "bg-yellow-500",
-    pending: "bg-gray-500",
-    failed: "bg-red-500",
-  };
-  return colors[status] || "bg-gray-500";
-}
+const statusConfig: Record<
+  string,
+  { label: string; color: string; bgColor: string; textColor: string }
+> = {
+  pending: {
+    label: "待處理",
+    color: "bg-slate-500",
+    bgColor: "bg-slate-500/10",
+    textColor: "text-slate-400",
+  },
+  transcribing: {
+    label: "轉錄中",
+    color: "bg-purple-500",
+    bgColor: "bg-purple-500/10",
+    textColor: "text-purple-400",
+  },
+  transcribed: {
+    label: "已轉錄",
+    color: "bg-amber-500",
+    bgColor: "bg-amber-500/10",
+    textColor: "text-amber-400",
+  },
+  analyzing: {
+    label: "分析中",
+    color: "bg-purple-500",
+    bgColor: "bg-purple-500/10",
+    textColor: "text-purple-400",
+  },
+  completed: {
+    label: "已完成",
+    color: "bg-emerald-500",
+    bgColor: "bg-emerald-500/10",
+    textColor: "text-emerald-400",
+  },
+  failed: {
+    label: "失敗",
+    color: "bg-red-500",
+    bgColor: "bg-red-500/10",
+    textColor: "text-red-400",
+  },
+};
 
 function formatDuration(seconds: number | null): string {
   if (!seconds) {
@@ -79,6 +132,12 @@ function formatDuration(seconds: number | null): string {
     return `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   }
   return `${minutes}:${secs.toString().padStart(2, "0")}`;
+}
+
+function formatTime(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
 // Timeline event types
@@ -165,7 +224,7 @@ function buildTimeline(opportunity: {
     }
   }
 
-  // Add todo log events (more detailed than just status changes)
+  // Add todo log events
   for (const log of opportunity.todoLogs ?? []) {
     const todo = opportunity.salesTodos?.find((t) => t.id === log.todoId);
     const todoTitle = todo?.title || "待辦事項";
@@ -281,6 +340,7 @@ function getTimelineEventColor(type: TimelineEventType): string {
 function OpportunityDetailPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
 
   const opportunityQuery = useQuery({
     queryKey: ["opportunities", "get", { opportunityId: id }],
@@ -292,6 +352,19 @@ function OpportunityDetailPage() {
 
   const opportunity = opportunityQuery.data;
   const isLoading = opportunityQuery.isLoading;
+
+  // 取得第一個對話的 ID（每個客戶只會有一個音檔/對話）
+  const firstConversationId = opportunity?.conversations?.[0]?.id;
+
+  // 獲取對話詳情（包含 agentOutputs）
+  const conversationQuery = useQuery({
+    queryKey: ["conversations", "detail", firstConversationId],
+    queryFn: () =>
+      client.conversations.get({ conversationId: firstConversationId! }),
+    enabled: !!firstConversationId,
+  });
+
+  const conversation = conversationQuery.data;
 
   if (isLoading) {
     return (
@@ -329,6 +402,10 @@ function OpportunityDetailPage() {
     );
   }
 
+  // 對話狀態資訊
+  const conversationStatus = conversation?.status || "pending";
+  const statusInfo = statusConfig[conversationStatus] || statusConfig.pending;
+
   return (
     <main className="opportunity-detail-container">
       <style>
@@ -356,11 +433,6 @@ function OpportunityDetailPage() {
             50% {
               box-shadow: 0 0 0 8px rgba(99, 94, 246, 0);
             }
-          }
-
-          @keyframes rotate {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
           }
 
           .opportunity-detail-container {
@@ -595,109 +667,12 @@ function OpportunityDetailPage() {
             color: rgb(226 232 240);
           }
 
-          .notes-section {
-            margin-top: 1.5rem;
-            padding-top: 1.5rem;
-            border-top: 1px solid rgb(51 65 85);
-          }
-
-          .conversation-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 1.25rem;
-            border-radius: 0.5rem;
-            background: rgb(2 6 23 / 0.5);
-            border: 1px solid rgb(30 41 59);
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          }
-
-          .conversation-item:hover {
-            background: rgb(30 41 59 / 0.5);
-            border-color: rgb(99 94 246);
-            transform: translateX(4px);
-            box-shadow: 0 0 20px rgba(99, 94, 246, 0.1);
-          }
-
-          .conversation-status-icon {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 2.5rem;
-            height: 2.5rem;
-            border-radius: 50%;
-            flex-shrink: 0;
-            position: relative;
-          }
-
-          .conversation-status-icon.status-completed {
-            background: linear-gradient(135deg, rgb(16 185 129) 0%, rgb(5 150 105) 100%);
-          }
-
-          .conversation-status-icon.status-analyzing {
-            background: linear-gradient(135deg, rgb(139 92 246) 0%, rgb(109 40 217) 100%);
-            animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-          }
-
-          .conversation-status-icon.status-transcribing {
-            background: linear-gradient(135deg, rgb(251 191 36) 0%, rgb(245 158 11) 100%);
-            animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-          }
-
-          .conversation-status-icon.status-pending {
-            background: linear-gradient(135deg, rgb(107 114 128) 0%, rgb(75 85 99) 100%);
-          }
-
-          .conversation-status-icon.status-failed {
-            background: linear-gradient(135deg, rgb(239 68 68) 0%, rgb(220 38 38) 100%);
-          }
-
-          .conversation-title {
+          .notes-display {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 1rem;
-            font-weight: 600;
-            color: rgb(226 232 240);
-            margin-bottom: 0.5rem;
-          }
-
-          .conversation-meta {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.8125rem;
-            color: rgb(148 163 184);
-          }
-
-          .conversation-badge {
-            padding: 0.25rem 0.625rem;
-            border-radius: 0.25rem;
-            background: rgb(30 41 59);
-            border: 1px solid rgb(51 65 85);
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.75rem;
-            font-weight: 500;
-            color: rgb(148 163 184);
-          }
-
-          .pdcm-badge {
-            padding: 0.375rem 0.75rem;
-            border-radius: 0.375rem;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.8125rem;
-            font-weight: 700;
-            color: white;
-            background: linear-gradient(135deg, rgb(16 185 129) 0%, rgb(5 150 105) 100%);
-          }
-
-          .pdcm-badge.score-medium {
-            background: linear-gradient(135deg, rgb(251 191 36) 0%, rgb(245 158 11) 100%);
-          }
-
-          .pdcm-badge.score-low {
-            background: linear-gradient(135deg, rgb(239 68 68) 0%, rgb(220 38 38) 100%);
+            font-size: 0.875rem;
+            color: rgb(203 213 225);
+            white-space: pre-wrap;
+            line-height: 1.6;
           }
 
           .timeline-item {
@@ -749,6 +724,162 @@ function OpportunityDetailPage() {
             color: rgb(148 163 184);
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.9375rem;
+          }
+
+          .status-badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            padding: 0.375rem 0.875rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+          }
+
+          .custom-tabs {
+            border-bottom: 1px solid rgb(30 41 59);
+          }
+
+          .custom-tab {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            font-size: 0.875rem;
+            letter-spacing: 0.025em;
+            text-transform: uppercase;
+            padding: 0.75rem 1.5rem;
+            color: rgb(148 163 184);
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+          }
+
+          .custom-tab:hover {
+            color: rgb(99 94 246);
+          }
+
+          .custom-tab[data-state="active"] {
+            color: rgb(99 94 246);
+            border-bottom-color: rgb(99 94 246);
+            background: linear-gradient(180deg, transparent 0%, rgb(6 182 212 / 0.05) 100%);
+          }
+
+          .transcript-segment {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgb(30 41 59);
+            background: rgb(15 23 42);
+            transition: all 0.3s;
+          }
+
+          .transcript-segment:hover {
+            border-color: rgb(6 182 212 / 0.3);
+            background: rgb(30 41 59);
+          }
+
+          .speaker-badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.25rem 0.625rem;
+            background: rgb(30 41 59);
+            border: 1px solid rgb(51 65 85);
+            color: rgb(148 163 184);
+          }
+
+          .timestamp {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: rgb(100 116 139);
+          }
+
+          .audio-player {
+            width: 100%;
+            border-radius: 0.5rem;
+            filter: saturate(0.8) hue-rotate(-10deg);
+          }
+
+          .collapsible-trigger {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s;
+          }
+
+          .collapsible-trigger:hover {
+            background: rgb(30 41 59 / 0.5);
+          }
+
+          .collapsible-trigger .chevron {
+            transition: transform 0.3s;
+          }
+
+          .collapsible-trigger[data-state="open"] .chevron {
+            transform: rotate(180deg);
+          }
+
+          .action-card {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgb(30 41 59);
+            background: linear-gradient(135deg, rgb(15 23 42) 0%, rgb(30 41 59) 100%);
+            transition: all 0.3s;
+          }
+
+          .action-card:hover {
+            border-color: rgb(59 130 246 / 0.4);
+            transform: translateX(4px);
+          }
+
+          .risk-card {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgb(127 29 29);
+            background: linear-gradient(135deg, rgb(127 29 29 / 0.1) 0%, rgb(127 29 29 / 0.05) 100%);
+            transition: all 0.3s;
+          }
+
+          .risk-card:hover {
+            border-color: rgb(239 68 68 / 0.5);
+          }
+
+          .finding-item {
+            padding-left: 1.5rem;
+            position: relative;
+            color: rgb(203 213 225);
+            line-height: 1.75;
+          }
+
+          .finding-item::before {
+            content: '▸';
+            position: absolute;
+            left: 0;
+            color: rgb(99 94 246);
+            font-weight: 700;
+          }
+
+          .priority-badge-high {
+            background: linear-gradient(135deg, rgb(239 68 68) 0%, rgb(220 38 38) 100%);
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 0.7rem;
+            padding: 0.25rem 0.625rem;
+          }
+
+          .priority-badge-medium {
+            background: linear-gradient(135deg, rgb(139 92 246) 0%, rgb(109 40 217) 100%);
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            font-size: 0.7rem;
+            padding: 0.25rem 0.625rem;
+          }
+
+          .priority-badge-low {
+            background: linear-gradient(135deg, rgb(100 116 139) 0%, rgb(71 85 105) 100%);
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            font-size: 0.7rem;
+            padding: 0.25rem 0.625rem;
           }
         `}
       </style>
@@ -818,234 +949,756 @@ function OpportunityDetailPage() {
         <div className="detail-grid">
           {/* Main Content */}
           <div className="main-column">
-            {/* Basic Info Card */}
+            {/* Basic Info Card - 公司名稱 + 結構化備註欄位 */}
             <div className="detail-card" style={{ animationDelay: "0.15s" }}>
               <div className="card-header">
                 <h2 className="card-title">基本資訊</h2>
               </div>
               <div className="card-content">
-                <div className="info-grid">
-                  <div className="info-item">
-                    <Building2
-                      className="info-icon"
-                      style={{ width: "1.25rem", height: "1.25rem" }}
-                    />
-                    <div>
-                      <p className="info-label">公司名稱</p>
-                      <p className="info-value">{opportunity.companyName}</p>
+                {(() => {
+                  // 解析備註內容為結構化資料
+                  const parseNotes = (notes: string | null | undefined) => {
+                    if (!notes) {
+                      return {};
+                    }
+                    const result: Record<string, string> = {};
+                    const lines = notes.split("\n");
+                    for (const line of lines) {
+                      const match = line.match(/^(.+?):\s*(.+)$/);
+                      if (match) {
+                        result[match[1].trim()] = match[2].trim();
+                      }
+                    }
+                    return result;
+                  };
+                  const parsedNotes = parseNotes(opportunity.notes);
+                  const hasStructuredNotes =
+                    Object.keys(parsedNotes).length > 0;
+
+                  return (
+                    <div className="info-grid">
+                      <div className="info-item">
+                        <Building2
+                          className="info-icon"
+                          style={{ width: "1.25rem", height: "1.25rem" }}
+                        />
+                        <div>
+                          <p className="info-label">公司名稱</p>
+                          <p className="info-value">
+                            {opportunity.companyName}
+                          </p>
+                        </div>
+                      </div>
+                      {opportunity.contactName && (
+                        <div className="info-item">
+                          <User
+                            className="info-icon"
+                            style={{ width: "1.25rem", height: "1.25rem" }}
+                          />
+                          <div>
+                            <p className="info-label">聯絡人</p>
+                            <p className="info-value">
+                              {opportunity.contactName}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {opportunity.contactPhone && (
+                        <div className="info-item">
+                          <Phone
+                            className="info-icon"
+                            style={{ width: "1.25rem", height: "1.25rem" }}
+                          />
+                          <div>
+                            <p className="info-label">聯絡電話</p>
+                            <p className="info-value">
+                              {opportunity.contactPhone}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {opportunity.contactEmail && (
+                        <div className="info-item">
+                          <Mail
+                            className="info-icon"
+                            style={{ width: "1.25rem", height: "1.25rem" }}
+                          />
+                          <div>
+                            <p className="info-label">聯絡信箱</p>
+                            <p className="info-value">
+                              {opportunity.contactEmail}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {hasStructuredNotes ? (
+                        <>
+                          {parsedNotes.店型 && (
+                            <div className="info-item">
+                              <Target
+                                className="info-icon"
+                                style={{ width: "1.25rem", height: "1.25rem" }}
+                              />
+                              <div>
+                                <p className="info-label">店型</p>
+                                <p className="info-value">{parsedNotes.店型}</p>
+                              </div>
+                            </div>
+                          )}
+                          {parsedNotes.營運型態 && (
+                            <div className="info-item">
+                              <BarChart3
+                                className="info-icon"
+                                style={{ width: "1.25rem", height: "1.25rem" }}
+                              />
+                              <div>
+                                <p className="info-label">營運型態</p>
+                                <p className="info-value">
+                                  {parsedNotes.營運型態}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          {parsedNotes["現有 POS"] && (
+                            <div className="info-item">
+                              <MessageSquare
+                                className="info-icon"
+                                style={{ width: "1.25rem", height: "1.25rem" }}
+                              />
+                              <div>
+                                <p className="info-label">現有 POS</p>
+                                <p className="info-value">
+                                  {parsedNotes["現有 POS"]}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          {parsedNotes.決策者在場 && (
+                            <div className="info-item">
+                              <User
+                                className="info-icon"
+                                style={{ width: "1.25rem", height: "1.25rem" }}
+                              />
+                              <div>
+                                <p className="info-label">決策者在場</p>
+                                <p className="info-value">
+                                  {parsedNotes.決策者在場}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          {parsedNotes.來源 && (
+                            <div className="info-item">
+                              <FileText
+                                className="info-icon"
+                                style={{ width: "1.25rem", height: "1.25rem" }}
+                              />
+                              <div>
+                                <p className="info-label">來源</p>
+                                <p className="info-value">{parsedNotes.來源}</p>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : opportunity.notes ? (
+                        <div
+                          className="info-item"
+                          style={{ gridColumn: "1 / -1" }}
+                        >
+                          <FileText
+                            className="info-icon"
+                            style={{ width: "1.25rem", height: "1.25rem" }}
+                          />
+                          <div>
+                            <p className="info-label">備註</p>
+                            <p className="info-value">{opportunity.notes}</p>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
-                  </div>
-                  <div className="info-item">
-                    <User
-                      className="info-icon"
-                      style={{ width: "1.25rem", height: "1.25rem" }}
-                    />
-                    <div>
-                      <p className="info-label">聯絡人</p>
-                      <p className="info-value">
-                        {opportunity.contactName || "-"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="info-item">
-                    <Mail
-                      className="info-icon"
-                      style={{ width: "1.25rem", height: "1.25rem" }}
-                    />
-                    <div>
-                      <p className="info-label">Email</p>
-                      <p className="info-value">
-                        {opportunity.contactEmail || "-"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="info-item">
-                    <Phone
-                      className="info-icon"
-                      style={{ width: "1.25rem", height: "1.25rem" }}
-                    />
-                    <div>
-                      <p className="info-label">電話</p>
-                      <p className="info-value">
-                        {opportunity.contactPhone || "-"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="info-item">
-                    <TrendingUp
-                      className="info-icon"
-                      style={{ width: "1.25rem", height: "1.25rem" }}
-                    />
-                    <div>
-                      <p className="info-label">產業</p>
-                      <p className="info-value">
-                        {opportunity.industry || "-"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="info-item">
-                    <Building2
-                      className="info-icon"
-                      style={{ width: "1.25rem", height: "1.25rem" }}
-                    />
-                    <div>
-                      <p className="info-label">公司規模</p>
-                      <p className="info-value">
-                        {opportunity.companySize || "-"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                {opportunity.notes && (
-                  <div className="notes-section">
-                    <p className="info-label">備註</p>
-                    <p className="info-value" style={{ marginTop: "0.5rem" }}>
-                      {opportunity.notes}
-                    </p>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             </div>
 
-            {/* Conversations */}
-            <div className="detail-card" style={{ animationDelay: "0.2s" }}>
-              <div
-                className="card-header"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
-                <div>
-                  <h2 className="card-title">對話記錄</h2>
-                  <p className="card-description">
-                    共 {opportunity.conversations?.length ?? 0} 筆對話
-                  </p>
-                </div>
-                <Link
-                  className="action-button action-button-primary"
-                  search={{ opportunityId: opportunity.id }}
-                  style={{ padding: "0.5rem 1rem", fontSize: "0.8125rem" }}
-                  to="/conversations/new"
+            {/* Conversation Content - 嵌入對話內容 */}
+            {opportunity.conversations &&
+            opportunity.conversations.length > 0 ? (
+              <>
+                {/* 銷售分析 / 轉錄文字 Tabs - 極簡顯示 */}
+                <Tabs
+                  className="detail-card"
+                  defaultValue="analysis"
+                  style={{ animationDelay: "0.2s" }}
                 >
-                  <Plus style={{ width: "0.875rem", height: "0.875rem" }} />
-                  上傳對話
-                </Link>
-              </div>
-              <div className="card-content">
-                {opportunity.conversations &&
-                opportunity.conversations.length > 0 ? (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "1rem",
-                    }}
-                  >
-                    {opportunity.conversations.map((conv, idx) => (
-                      <div
-                        className="conversation-item"
-                        key={conv.id}
-                        onClick={() =>
-                          navigate({
-                            to: "/conversations/$id",
-                            params: { id: conv.id },
-                          })
-                        }
-                        style={{ animationDelay: `${0.05 * idx}s` }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "1rem",
-                          }}
-                        >
-                          <div
-                            className={`conversation-status-icon status-${conv.status}`}
-                          >
-                            <MessageSquare
-                              style={{
-                                width: "1.25rem",
-                                height: "1.25rem",
-                                color: "white",
-                              }}
-                            />
-                          </div>
-                          <div>
-                            <p className="conversation-title">{conv.title}</p>
-                            <div className="conversation-meta">
-                              <span className="conversation-badge">
-                                {getConversationTypeLabel(conv.type)}
-                              </span>
-                              <span>•</span>
-                              <span>{formatDuration(conv.duration)}</span>
-                              {conv.conversationDate && (
-                                <>
-                                  <span>•</span>
-                                  <span>
-                                    {new Date(
-                                      conv.conversationDate
-                                    ).toLocaleDateString("zh-TW")}
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        {conv.latestAnalysis && (
-                          <div>
-                            <span
-                              className={`pdcm-badge ${
-                                conv.latestAnalysis.overallScore
-                                  ? conv.latestAnalysis.overallScore >= 70
-                                    ? ""
-                                    : conv.latestAnalysis.overallScore >= 40
-                                      ? "score-medium"
-                                      : "score-low"
-                                  : "score-low"
-                              }`}
+                  <TabsList className="custom-tabs w-full justify-start">
+                    <TabsTrigger
+                      className="custom-tab"
+                      disabled={!conversation?.analysis}
+                      value="analysis"
+                    >
+                      <TrendingUp className="mr-2 h-4 w-4" />
+                      銷售分析
+                    </TabsTrigger>
+                    <TabsTrigger className="custom-tab" value="transcript">
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      轉錄文字
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent className="mt-6 px-6 pb-6" value="transcript">
+                    {conversation?.transcript?.segments &&
+                    conversation.transcript.segments.length > 0 ? (
+                      <div className="space-y-4">
+                        {conversation.transcript.segments.map(
+                          (segment, idx) => (
+                            <div
+                              className="transcript-segment flex gap-4"
+                              key={idx}
                             >
-                              PDCM {conv.latestAnalysis.overallScore ?? "-"}
-                            </span>
-                          </div>
+                              <div className="shrink-0">
+                                <Badge
+                                  className="speaker-badge"
+                                  variant="outline"
+                                >
+                                  <User className="mr-1.5 h-3 w-3" />
+                                  {segment.speaker || "說話者"}
+                                </Badge>
+                                <p className="timestamp mt-2">
+                                  {formatTime(segment.start)}
+                                </p>
+                              </div>
+                              <p className="flex-1 text-slate-300 leading-relaxed">
+                                {segment.text}
+                              </p>
+                            </div>
+                          )
                         )}
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty-state">尚無對話記錄</div>
+                    ) : conversation?.transcript?.fullText ? (
+                      <p className="whitespace-pre-wrap text-slate-300 leading-relaxed">
+                        {conversation.transcript.fullText}
+                      </p>
+                    ) : (
+                      <div className="empty-state">
+                        <MessageSquare
+                          style={{
+                            width: "3rem",
+                            height: "3rem",
+                            marginBottom: "1rem",
+                            color: "rgb(71 85 105)",
+                          }}
+                        />
+                        <p>尚無轉錄文字</p>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent className="mt-6 px-6 pb-6" value="analysis">
+                    {conversation?.analysis ? (
+                      <div className="space-y-6">
+                        {/* PDCM+SPIN Analysis Section */}
+                        {conversation.analysis.agentOutputs && (
+                          <>
+                            {/* Two Column Layout for PDCM and SPIN details */}
+                            <div className="grid gap-6 md:grid-cols-2">
+                              {/* PDCM Detailed Analysis */}
+                              {conversation.analysis.agentOutputs.agent2
+                                ?.pdcm_scores && (
+                                <Card className="detail-card border-purple-600/20">
+                                  <CardContent className="space-y-4 p-4">
+                                    <h3 className="flex items-center gap-2 font-semibold text-lg text-slate-200">
+                                      <BarChart3 className="h-5 w-5 text-purple-400" />
+                                      PDCM 詳細分析
+                                    </h3>
+                                    {(() => {
+                                      const pdcmScores = conversation.analysis
+                                        ?.agentOutputs?.agent2?.pdcm_scores as
+                                        | Record<string, unknown>
+                                        | undefined;
+                                      if (!pdcmScores) {
+                                        return null;
+                                      }
+
+                                      const dimensions = [
+                                        {
+                                          key: "pain",
+                                          label: "P (痛點)",
+                                          color: "purple",
+                                        },
+                                        {
+                                          key: "decision",
+                                          label: "D (決策)",
+                                          color: "blue",
+                                        },
+                                        {
+                                          key: "champion",
+                                          label: "C (支持)",
+                                          color: "emerald",
+                                        },
+                                        {
+                                          key: "metrics",
+                                          label: "M (量化)",
+                                          color: "amber",
+                                        },
+                                      ];
+
+                                      return dimensions.map(
+                                        ({ key, label }) => {
+                                          const data = pdcmScores[key] as
+                                            | {
+                                                score?: number;
+                                                evidence?: string[];
+                                              }
+                                            | undefined;
+                                          if (!data) {
+                                            return null;
+                                          }
+                                          const score = data.score ?? 0;
+                                          const evidence = data.evidence?.[0];
+
+                                          return (
+                                            <div
+                                              className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-3"
+                                              key={key}
+                                            >
+                                              <div className="mb-1 flex items-center justify-between">
+                                                <span className="font-semibold text-slate-300 text-sm">
+                                                  {label}
+                                                </span>
+                                                <span
+                                                  className={`font-bold ${score >= 60 ? "text-green-400" : score >= 30 ? "text-yellow-400" : "text-red-400"}`}
+                                                >
+                                                  {score}分
+                                                </span>
+                                              </div>
+                                              {evidence && (
+                                                <p className="text-slate-400 text-xs leading-relaxed">
+                                                  {evidence}
+                                                </p>
+                                              )}
+                                            </div>
+                                          );
+                                        }
+                                      );
+                                    })()}
+                                  </CardContent>
+                                </Card>
+                              )}
+
+                              {/* SPIN Detailed Analysis */}
+                              {conversation.analysis.agentOutputs.agent3
+                                ?.spin_analysis && (
+                                <Card className="detail-card border-cyan-600/20">
+                                  <CardContent className="space-y-3 p-4">
+                                    <h3 className="flex items-center gap-2 font-semibold text-lg text-slate-200">
+                                      <TrendingUp className="h-5 w-5 text-cyan-400" />
+                                      SPIN 銷售技巧
+                                    </h3>
+                                    {(() => {
+                                      const spinAnalysis = conversation.analysis
+                                        ?.agentOutputs?.agent3?.spin_analysis as
+                                        | Record<string, unknown>
+                                        | undefined;
+                                      if (!spinAnalysis) {
+                                        return null;
+                                      }
+
+                                      const stages = [
+                                        { key: "situation", label: "S 情境" },
+                                        { key: "problem", label: "P 問題" },
+                                        { key: "implication", label: "I 影響" },
+                                        { key: "need_payoff", label: "N 需求" },
+                                      ];
+
+                                      return (
+                                        <>
+                                          {stages.map(({ key, label }) => {
+                                            const data = spinAnalysis[key] as
+                                              | {
+                                                  score?: number;
+                                                  achieved?: boolean;
+                                                }
+                                              | undefined;
+                                            if (!data) {
+                                              return null;
+                                            }
+                                            const score = data.score ?? 0;
+                                            const achieved =
+                                              data.achieved ?? false;
+
+                                            return (
+                                              <div
+                                                className="flex items-center justify-between rounded-lg border border-slate-700/50 bg-slate-800/30 p-2.5"
+                                                key={key}
+                                              >
+                                                <div className="flex items-center gap-2">
+                                                  <span
+                                                    className={`${achieved && score >= 60 ? "text-green-400" : score >= 30 ? "text-yellow-400" : "text-red-400"}`}
+                                                  >
+                                                    {achieved && score >= 60
+                                                      ? "✅"
+                                                      : score >= 30
+                                                        ? "⚠️"
+                                                        : "❌"}
+                                                  </span>
+                                                  <span className="text-slate-300 text-sm">
+                                                    {label}
+                                                  </span>
+                                                </div>
+                                                <span
+                                                  className={`font-bold text-sm ${score >= 60 ? "text-green-400" : score >= 30 ? "text-yellow-400" : "text-red-400"}`}
+                                                >
+                                                  {score}分
+                                                </span>
+                                              </div>
+                                            );
+                                          })}
+                                          {spinAnalysis.spin_completion_rate !==
+                                            undefined && (
+                                            <div className="mt-3 rounded-lg border border-cyan-500/30 bg-cyan-500/5 p-3 text-center">
+                                              <p className="text-slate-400 text-xs">
+                                                達成率
+                                              </p>
+                                              <p className="font-bold text-2xl text-cyan-400">
+                                                {Math.round(
+                                                  (spinAnalysis.spin_completion_rate as number) *
+                                                    100
+                                                )}
+                                                %
+                                              </p>
+                                            </div>
+                                          )}
+                                        </>
+                                      );
+                                    })()}
+                                  </CardContent>
+                                </Card>
+                              )}
+                            </div>
+
+                            {/* Tactical Suggestions */}
+                            <TacticalSuggestions
+                              suggestions={
+                                conversation.analysis.agentOutputs.agent6
+                                  ?.tactical_suggestions as
+                                  | TacticalSuggestion[]
+                                  | null
+                                  | undefined
+                              }
+                            />
+
+                            {/* PDCM+SPIN Alerts */}
+                            <PdcmSpinAlerts
+                              alerts={
+                                conversation.analysis.agentOutputs.agent6
+                                  ?.pdcm_spin_alerts as
+                                  | PdcmSpinAlertsData
+                                  | null
+                                  | undefined
+                              }
+                            />
+                          </>
+                        )}
+
+                        {/* Key Findings */}
+                        {conversation.analysis.keyFindings &&
+                          conversation.analysis.keyFindings.length > 0 && (
+                            <Card className="detail-card border-purple-600/20">
+                              <CardContent className="p-4">
+                                <h3 className="mb-3 flex items-center gap-2 font-semibold text-lg text-slate-200">
+                                  <Lightbulb className="h-5 w-5 text-purple-400" />
+                                  關鍵發現
+                                </h3>
+                                <ul className="space-y-2.5">
+                                  {conversation.analysis.keyFindings.map(
+                                    (finding, idx) => (
+                                      <li className="finding-item" key={idx}>
+                                        {finding}
+                                      </li>
+                                    )
+                                  )}
+                                </ul>
+                              </CardContent>
+                            </Card>
+                          )}
+
+                        {/* Next Steps */}
+                        {conversation.analysis.nextSteps &&
+                          conversation.analysis.nextSteps.length > 0 && (
+                            <Card className="detail-card border-purple-500/20">
+                              <CardContent className="p-4">
+                                <h3 className="mb-3 flex items-center gap-2 font-semibold text-lg text-slate-200">
+                                  <TrendingUp className="h-5 w-5 text-purple-400" />
+                                  下一步行動
+                                </h3>
+                                <div className="space-y-3">
+                                  {conversation.analysis.nextSteps.map(
+                                    (step, idx) => (
+                                      <div className="action-card" key={idx}>
+                                        <div className="flex items-start gap-3">
+                                          <Badge
+                                            className={
+                                              step.priority === "high"
+                                                ? "priority-badge-high"
+                                                : step.priority === "medium"
+                                                  ? "priority-badge-medium"
+                                                  : "priority-badge-low"
+                                            }
+                                          >
+                                            {step.priority === "high"
+                                              ? "HIGH"
+                                              : step.priority === "medium"
+                                                ? "MED"
+                                                : "LOW"}
+                                          </Badge>
+                                          <div className="flex-1">
+                                            <p className="text-slate-200 leading-relaxed">
+                                              {step.action}
+                                            </p>
+                                            {step.owner && (
+                                              <p className="mt-1.5 text-slate-400 text-sm">
+                                                負責人: {step.owner}
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          )}
+
+                        {/* Risks */}
+                        {conversation.analysis.risks &&
+                          conversation.analysis.risks.length > 0 && (
+                            <Card className="detail-card border-red-500/20">
+                              <CardContent className="p-4">
+                                <h3 className="mb-3 flex items-center gap-2 font-semibold text-lg text-slate-200">
+                                  <AlertTriangle className="h-5 w-5 text-red-400" />
+                                  風險警示
+                                </h3>
+                                <div className="space-y-3">
+                                  {conversation.analysis.risks.map(
+                                    (risk, idx) => (
+                                      <div className="risk-card" key={idx}>
+                                        <div className="flex items-center gap-2.5">
+                                          <Badge
+                                            className={
+                                              risk.severity === "high"
+                                                ? "priority-badge-high"
+                                                : "priority-badge-medium"
+                                            }
+                                          >
+                                            {risk.severity === "high"
+                                              ? "高風險"
+                                              : risk.severity === "medium"
+                                                ? "中風險"
+                                                : "低風險"}
+                                          </Badge>
+                                          <p className="font-semibold text-red-300">
+                                            {risk.risk}
+                                          </p>
+                                        </div>
+                                        {risk.mitigation && (
+                                          <p className="mt-2.5 text-slate-400 text-sm leading-relaxed">
+                                            建議: {risk.mitigation}
+                                          </p>
+                                        )}
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          )}
+                      </div>
+                    ) : (
+                      <div className="empty-state">
+                        <BarChart3
+                          style={{
+                            width: "3rem",
+                            height: "3rem",
+                            marginBottom: "1rem",
+                            color: "rgb(71 85 105)",
+                          }}
+                        />
+                        <p>尚無分析結果</p>
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
+
+                {/* 會議摘要 - 放在頁面最下面，預設收合 */}
+                {conversation?.summary && (
+                  <Collapsible
+                    className="detail-card"
+                    onOpenChange={setIsSummaryOpen}
+                    open={isSummaryOpen}
+                    style={{ animationDelay: "0.3s" }}
+                  >
+                    <CollapsibleTrigger className="collapsible-trigger">
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.75rem",
+                        }}
+                      >
+                        <FileText
+                          style={{
+                            width: "1.25rem",
+                            height: "1.25rem",
+                            color: "rgb(99 94 246)",
+                          }}
+                        />
+                        <h2
+                          className="card-title"
+                          style={{ fontSize: "1.25rem" }}
+                        >
+                          會議摘要
+                        </h2>
+                      </div>
+                      <ChevronDown
+                        className="chevron"
+                        style={{
+                          width: "1.25rem",
+                          height: "1.25rem",
+                          color: "rgb(148 163 184)",
+                        }}
+                      />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="card-content" style={{ paddingTop: 0 }}>
+                        <p className="notes-display">{conversation.summary}</p>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                 )}
+              </>
+            ) : (
+              /* 無對話情況 */
+              <div className="detail-card" style={{ animationDelay: "0.2s" }}>
+                <div className="card-header">
+                  <h2 className="card-title">對話記錄</h2>
+                </div>
+                <div className="card-content">
+                  <div className="empty-state">
+                    <MessageSquare
+                      style={{
+                        width: "3rem",
+                        height: "3rem",
+                        marginBottom: "1rem",
+                        color: "rgb(71 85 105)",
+                      }}
+                    />
+                    <p style={{ marginBottom: "1rem" }}>尚未上傳對話</p>
+                    <Link
+                      className="action-button action-button-primary"
+                      search={{ opportunityId: opportunity.id }}
+                      style={{ fontSize: "0.875rem" }}
+                      to="/conversations/new"
+                    >
+                      <Plus style={{ width: "1rem", height: "1rem" }} />
+                      上傳錄音
+                    </Link>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Sidebar */}
           <div className="sidebar-column">
             {/* PDCM Score */}
-            {opportunity.meddicScore ? (
-              <div className="detail-card" style={{ animationDelay: "0.25s" }}>
-                <PdcmScoreCard
-                  dimensions={opportunity.meddicScore.dimensions}
-                  overallScore={opportunity.meddicScore.overall}
-                />
-              </div>
-            ) : (
-              <div className="detail-card" style={{ animationDelay: "0.25s" }}>
+            <div style={{ animationDelay: "0.25s" }}>
+              <PdcmScoreCard
+                pdcmScores={
+                  conversation?.analysis?.agentOutputs?.agent2?.pdcm_scores as
+                    | {
+                        pain: {
+                          score: number;
+                          level?: string;
+                          urgency?: string;
+                          evidence?: string[];
+                        };
+                        decision: {
+                          score: number;
+                          level?: string;
+                          evidence?: string[];
+                        };
+                        champion: {
+                          score: number;
+                          level?: string;
+                          evidence?: string[];
+                        };
+                        metrics: {
+                          score: number;
+                          level?: string;
+                          evidence?: string[];
+                        };
+                        total_score?: number;
+                      }
+                    | null
+                    | undefined
+                }
+              />
+            </div>
+
+            {/* SPIN Progress */}
+            <div style={{ animationDelay: "0.3s" }}>
+              <SpinProgressCard
+                spinAnalysis={
+                  conversation?.analysis?.agentOutputs?.agent3?.spin_analysis as
+                    | {
+                        situation: { score: number; achieved: boolean };
+                        problem: { score: number; achieved: boolean };
+                        implication: {
+                          score: number;
+                          achieved: boolean;
+                          gap?: string;
+                        };
+                        need_payoff: { score: number; achieved: boolean };
+                        overall_spin_score?: number;
+                        spin_completion_rate?: number;
+                        key_gap?: string;
+                        improvement_suggestion?: string;
+                      }
+                    | null
+                    | undefined
+                }
+              />
+            </div>
+
+            {/* Audio Player */}
+            {conversation?.audioUrl && (
+              <div className="detail-card" style={{ animationDelay: "0.35s" }}>
                 <div className="card-header">
-                  <h2 className="card-title">PDCM 評分</h2>
+                  <h2 className="card-title" style={{ fontSize: "1.25rem" }}>
+                    音檔
+                  </h2>
                 </div>
                 <div className="card-content">
-                  <div className="empty-state">尚無 PDCM 分析</div>
+                  <audio
+                    className="audio-player"
+                    controls
+                    src={conversation.audioUrl}
+                  >
+                    <track kind="captions" />
+                    您的瀏覽器不支援音檔播放
+                  </audio>
                 </div>
               </div>
             )}
 
             {/* Timeline */}
-            <div className="detail-card" style={{ animationDelay: "0.3s" }}>
+            <div className="detail-card" style={{ animationDelay: "0.4s" }}>
               <div className="card-header">
-                <h2 className="card-title">客戶歷程</h2>
+                <h2 className="card-title" style={{ fontSize: "1.25rem" }}>
+                  客戶歷程
+                </h2>
                 <p className="card-description">Sales Pipeline 時間軸</p>
               </div>
               <div className="card-content">
@@ -1164,9 +1817,11 @@ function OpportunityDetailPage() {
             </div>
 
             {/* Quick Info */}
-            <div className="detail-card" style={{ animationDelay: "0.35s" }}>
+            <div className="detail-card" style={{ animationDelay: "0.45s" }}>
               <div className="card-header">
-                <h2 className="card-title">基本時間</h2>
+                <h2 className="card-title" style={{ fontSize: "1.25rem" }}>
+                  基本時間
+                </h2>
               </div>
               <div className="card-content">
                 <div
@@ -1216,7 +1871,7 @@ function OpportunityDetailPage() {
                   </div>
                   {opportunity.lastContactedAt && (
                     <div className="timeline-item">
-                      <Phone
+                      <Target
                         className="timeline-icon"
                         style={{ width: "1.25rem", height: "1.25rem" }}
                       />

@@ -7,6 +7,7 @@
  *   /report help - 顯示幫助訊息
  */
 
+import { formatDateTimeInTaipei } from "@sales_ai_automation_v3/shared";
 import { ApiClient } from "../api-client";
 import type {
   Env,
@@ -151,7 +152,7 @@ function buildDashboardBlocks(stats: OpportunityStatsResponse): object[] {
       elements: [
         {
           type: "mrkdwn",
-          text: `:clock1: 更新時間: ${new Date().toLocaleString("zh-TW")}`,
+          text: `:clock1: 更新時間: ${formatDateTimeInTaipei(new Date())}`,
         },
       ],
     },

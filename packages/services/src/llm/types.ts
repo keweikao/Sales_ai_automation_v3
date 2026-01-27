@@ -150,6 +150,13 @@ export interface Agent2Output {
 
   // 現有系統
   current_system: "無" | "其他品牌" | "舊用戶";
+
+  // 競品偵測
+  detected_competitors?: Array<{
+    name: string; // 競品名稱
+    customer_quote: string; // 客戶原話
+    attitude: "positive" | "negative" | "neutral"; // 客戶態度
+  }>;
 }
 
 /**
@@ -268,6 +275,30 @@ export interface Agent6Output {
   };
   manager_alert: boolean;
   manager_alert_reason: string | null;
+
+  // 競品提及摘要（資訊區塊）
+  competitor_mentions?: Array<{
+    competitor_name: string;
+    mention_count: number;
+    customer_attitude: "positive" | "negative" | "neutral";
+    quotes: string[]; // 客戶原話
+  }>;
+
+  competitor_threat_level?: "high" | "medium" | "low" | "none";
+
+  // 競品應對評估（教練區塊）
+  competitor_handling_evaluation?: Array<{
+    competitor_name: string;
+    customer_quote: string; // 客戶說了什麼
+    rep_response: string; // 業務怎麼回應
+    score: number; // 1-5 分
+    evaluation: {
+      strengths: string[]; // 做得好的
+      weaknesses: string[]; // 待改進的
+    };
+    recommended_response: string; // 建議的更好回應
+    improvement_tips: string[]; // 改進重點
+  }>;
 }
 
 // ============================================================

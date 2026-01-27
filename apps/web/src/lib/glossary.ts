@@ -17,13 +17,13 @@ export const glossary: Record<string, TermDefinition> = {
   "PDCM+SPIN": {
     term: "PDCM+SPIN",
     definition:
-      "結合 PDCM（Pain-Decision-Champion-Metrics）與 SPIN 銷售技巧的分析框架，用於評估商機成熟度和銷售技巧表現。",
+      "結合 PDCM（Pain-Decision-Champion-Metrics）與 SPIN 銷售技巧的分析框架，用於評估機會成熟度和銷售技巧表現。",
     calculation:
       "PDCM 總分由四個維度加權計算：Pain（痛點 35%）、Decision（決策 25%）、Champion（支持度 25%）、Metrics（量化 15%）。SPIN 則評估 Situation、Problem、Implication、Need-Payoff 四階段的達成率。",
   },
   pdcmScore: {
     term: "PDCM 分數",
-    definition: "根據 PDCM 方法論評估的商機資格分數，滿分為 100 分。",
+    definition: "根據 PDCM 方法論評估的機會資格分數，滿分為 100 分。",
     calculation:
       "四個維度各佔比重不同（P:35%, D:25%, C:25%, M:15%），系統根據對話內容自動分析並計算加權總分。",
   },
@@ -76,9 +76,9 @@ export const glossary: Record<string, TermDefinition> = {
     calculation: "根據是否讓客戶認同解決方案的價值進行評分。",
   },
 
-  // 商機狀態相關
+  // 機會狀態相關
   opportunity: {
-    term: "商機",
+    term: "機會",
     definition: "潛在的銷售機會，代表一個可能成交的業務案件。",
   },
   lead: {
@@ -87,14 +87,14 @@ export const glossary: Record<string, TermDefinition> = {
   },
   qualificationStatus: {
     term: "資格狀態",
-    definition: "商機的資格認定階段，表示商機的成熟度。",
+    definition: "機會的資格認定階段，表示機會的成熟度。",
     calculation:
       "根據 PDCM 分數自動判定：Strong（>70）、Medium（40-70）、Weak（20-40）、At Risk（<20）。",
   },
   conversionRate: {
     term: "轉換率",
-    definition: "商機轉換為成交的比例。",
-    calculation: "成交商機數 / 總商機數 × 100%",
+    definition: "機會轉換為成交的比例。",
+    calculation: "成交機會數 / 總機會數 × 100%",
   },
 
   // 對話相關
@@ -120,12 +120,12 @@ export const glossary: Record<string, TermDefinition> = {
   // 報告相關
   avgPdcmScore: {
     term: "平均 PDCM 分數",
-    definition: "所有商機的 PDCM 分數平均值，反映整體商機品質。",
-    calculation: "所有商機 PDCM 分數總和 / 商機數量",
+    definition: "所有機會的 PDCM 分數平均值，反映整體機會品質。",
+    calculation: "所有機會 PDCM 分數總和 / 機會數量",
   },
   totalOpportunities: {
-    term: "商機總數",
-    definition: "系統中記錄的所有商機數量。",
+    term: "機會總數",
+    definition: "系統中記錄的所有機會數量。",
   },
   totalConversations: {
     term: "對話總數",
@@ -179,21 +179,21 @@ export const glossary: Record<string, TermDefinition> = {
   },
   pipeline: {
     term: "銷售管線",
-    definition: "所有進行中商機的總覽，用於預測未來營收。",
+    definition: "所有進行中機會的總覽，用於預測未來營收。",
   },
   winRate: {
     term: "勝率",
-    definition: "成功成交的商機佔總商機的比例。",
-    calculation: "成交商機數 / 已結案商機數 × 100%",
+    definition: "成功成交的機會佔總機會的比例。",
+    calculation: "成交機會數 / 已結案機會數 × 100%",
   },
   dealSize: {
-    term: "商機金額",
+    term: "機會金額",
     definition: "預估或實際的交易金額。",
   },
   salesCycle: {
     term: "銷售週期",
     definition: "從首次接觸到成交所需的平均時間。",
-    calculation: "所有成交商機的銷售天數總和 / 成交商機數",
+    calculation: "所有成交機會的銷售天數總和 / 成交機會數",
   },
 
   // 戰術建議相關

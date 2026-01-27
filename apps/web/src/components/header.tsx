@@ -5,7 +5,6 @@ import {
   CheckSquare,
   FileText,
   Home,
-  MessageSquare,
   Shield,
 } from "lucide-react";
 
@@ -23,8 +22,8 @@ export default function Header() {
 
   const links = [
     { to: "/", label: "首頁", icon: Home },
-    { to: "/opportunities", label: "商機", icon: Building2 },
-    { to: "/conversations", label: "對話", icon: MessageSquare },
+    { to: "/opportunities", label: "機會", icon: Building2 },
+    // { to: "/conversations", label: "對話", icon: MessageSquare }, // 暫時屏蔽
     { to: "/reports", label: "報告", icon: FileText },
     { to: "/todos", label: "待辦", icon: CheckSquare },
     { to: "/admin/team", label: "團隊管理", icon: Shield },

@@ -316,7 +316,7 @@ export async function processAudioWithMetadata(
         }),
       });
 
-      // 訊息 2: Agent 4 Summary（含編輯/寄送按鈕）
+      // 訊息 2: Agent 4 Summary（含編輯按鈕）
       await slackClient.postMessage({
         channel: pendingFile.channelId,
         text: `會議摘要 - ${result.opportunityName}`,
@@ -324,11 +324,7 @@ export async function processAudioWithMetadata(
         blocks: buildSummaryBlocks(
           result.conversationId,
           result.analysisResult.executiveSummary,
-          result.analysisResult.nextSteps,
-          {
-            phone: result.contactPhone,
-            email: result.contactEmail,
-          }
+          result.analysisResult.nextSteps
         ),
       });
     } else {
@@ -474,7 +470,9 @@ async function processAudioFile(
         const createResult = await apiClient.createOpportunity({
           customerNumber: metadata.customerNumber,
           companyName: metadata.customerName,
-          contactPhone: metadata.contactPhone, // 新增客戶電話
+          contactName: metadata.contactName,
+          contactPhone: metadata.contactPhone,
+          contactEmail: metadata.contactEmail,
           source: "slack",
           notes: formatMetadataNotes(metadata),
         });

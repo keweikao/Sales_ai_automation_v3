@@ -312,7 +312,9 @@ export interface AudioUploadMetadata {
   decisionMakerPresent?: string; // 新版欄位名稱 (yes/no/unknown)
 
   // 客戶聯絡資訊
-  contactPhone?: string; // 客戶電話
+  contactName?: string; // 聯絡人姓名
+  contactPhone?: string; // 聯絡人電話
+  contactEmail?: string; // 聯絡人 Email
 }
 
 // Slack Modal 相關類型

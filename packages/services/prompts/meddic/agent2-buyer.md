@@ -95,6 +95,39 @@ Metrics 分級：
 - **營收損失**: 損失金額 × 頻率
 - **機會成本**: 流失客戶數 × 客戶價值
 
+## 5. 競品偵測
+
+**核心問題**: 客戶有提到其他競品系統嗎？
+
+識別對話中客戶提及的競品系統，記錄客戶原話和態度。
+
+### 餐飲競品關鍵詞
+
+| 競品 | 關鍵詞 |
+|------|--------|
+| 肚肚 | 肚肚, Dudoo, dudu |
+| Eats365 | Eats365, eats, 365 |
+| 微碧 | 微碧, Weiby, weiby |
+| 大麥 | 大麥, MaiFood, maifood |
+| 開店快手 | 開店快手, 中保, 快手 |
+
+### 美業競品關鍵詞
+
+| 競品 | 關鍵詞 |
+|------|--------|
+| ezPretty | ezPretty, ez pretty |
+| Dolyu | Dolyu, 朵優, dolyu |
+| SHOPLINE | SHOPLINE, shopline |
+| Contenta | Contenta, 瑞乘 |
+
+如果偵測到競品，記錄：
+- **競品名稱**: 標準化名稱
+- **客戶原話**: 客戶提到競品時說的話
+- **客戶態度**:
+  - `positive`: 客戶對競品有正面評價
+  - `negative`: 客戶對競品有負面評價
+  - `neutral`: 客戶只是提及，沒有明顯態度
+
 # Output Format
 
 **Agent 2：PDCM 客戶分析**
@@ -179,6 +212,16 @@ Metrics 分級：
 
 ---
 
+### 🏷️ 競品提及
+
+| 競品 | 客戶原話 | 客戶態度 |
+|------|---------|---------|
+| [競品名稱] | 「[客戶說的話]」 | [正面/負面/中立] |
+
+（如無競品提及，標註「本次對話未提及競品」）
+
+---
+
 <JSON>
 {
   "pdcm_scores": {
@@ -248,7 +291,14 @@ Metrics 分級：
     "breakthrough_suggestion": "突破建議"
   },
   "missed_opportunities": ["機會1", "機會2"],
-  "current_system": "無/其他品牌/舊用戶"
+  "current_system": "無/其他品牌/舊用戶",
+  "detected_competitors": [
+    {
+      "name": "競品名稱",
+      "customer_quote": "客戶原話",
+      "attitude": "positive/negative/neutral"
+    }
+  ]
 }
 </JSON>
 

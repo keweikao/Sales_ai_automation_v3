@@ -2,13 +2,25 @@ import { createContext } from "@Sales_ai_automation_v3/api/context";
 import { appRouter } from "@Sales_ai_automation_v3/api/routers/index";
 import { auth } from "@Sales_ai_automation_v3/auth";
 import { db } from "@Sales_ai_automation_v3/db";
+import {
+  conversations,
+  meddicAnalyses,
+  opportunities,
+} from "@Sales_ai_automation_v3/db/schema";
 import { env } from "@Sales_ai_automation_v3/env/server";
+import {
+  computeRepReport,
+  computeTeamReport,
+  computeUploadRankings,
+  createKVCacheService,
+  extractCoachingNotes,
+} from "@Sales_ai_automation_v3/services";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
-import { sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -131,6 +143,46 @@ app.get("/live", (c) => {
   return c.json({ alive: true }, 200);
 });
 
+// 手動觸發報表預計算（僅限管理員）
+app.post("/api/admin/precompute-reports", async (c) => {
+  const kv = (c.env as any).CACHE_KV as KVNamespace | undefined;
+  if (!kv) {
+    return c.json({ error: "CACHE_KV not configured" }, 500);
+  }
+
+  try {
+    console.log("[Reports] Manual precomputation triggered...");
+    await precomputeReports(kv);
+    return c.json({
+      success: true,
+      message: "Reports precomputed successfully",
+    });
+  } catch (error) {
+    console.error("[Reports] Manual precomputation failed:", error);
+    return c.json({ error: String(error) }, 500);
+  }
+});
+
+// 測試 KV Cache 讀取（完整資料）
+app.get("/api/admin/test-cache/:key", async (c) => {
+  const kv = (c.env as any).CACHE_KV as KVNamespace | undefined;
+  if (!kv) {
+    return c.json({ error: "CACHE_KV not configured" }, 500);
+  }
+
+  const key = c.req.param("key");
+  try {
+    const value = await kv.get(key, "json");
+    return c.json({
+      key,
+      found: value !== null,
+      data: value,
+    });
+  } catch (error) {
+    return c.json({ error: String(error) }, 500);
+  }
+});
+
 // ============================================================
 // Cloudflare Workers Export
 // 合併 Hono fetch handler 和 Scheduled handler
@@ -139,6 +191,7 @@ app.get("/live", (c) => {
 // Type declarations for Cloudflare Workers
 interface Env {
   SLACK_BOT_TOKEN?: string;
+  CACHE_KV?: KVNamespace;
   [key: string]: unknown;
 }
 
@@ -146,56 +199,270 @@ export default {
   // HTTP 請求處理 (Hono app)
   fetch: app.fetch,
 
-  // Cron Trigger 處理 - 定期健康檢查與自動修復
+  // Cron Trigger 處理 - 定期健康檢查與報表預處理
   async scheduled(
     event: ScheduledEvent,
-    _env: Env,
+    cronEnv: Env,
     _ctx: ExecutionContext
   ): Promise<void> {
-    console.log("[Ops] Scheduled event triggered:", event.cron);
+    console.log("[Scheduled] Event triggered:", event.cron);
 
     try {
-      // TODO: Ops orchestrator 功能暫時停用，等待 services/ops 模組完成
-      // const { createOpsOrchestrator, sendOpsAlert } = await import(
-      //   "@Sales_ai_automation_v3/services/ops"
-      // );
-
-      // const orchestrator = createOpsOrchestrator({
-      //   enableParallelChecks: true,
-      //   enableAutoRepair: true,
-      //   checkTimeoutMs: 30_000,
-      //   repairTimeoutMs: 30_000,
-      // });
-
-      // // 執行健康檢查與自動修復
-      // const summary = await orchestrator.execute();
-
-      // // 產生報告
-      // const report = orchestrator.generateReport(summary);
-      // console.log("[Ops] Execution completed:");
-      // console.log(report);
-
-      // // 如果有 critical 問題，發送警示到 Slack
-      // const criticalFailures = summary.checkResults.filter(
-      //   (r: { status: string }) => r.status === "critical"
-      // );
-
-      // if (criticalFailures.length > 0) {
-      //   console.warn("[Ops] Critical failures detected:", criticalFailures);
-
-      //   // 發送 Slack 警示
-      //   if (env.SLACK_BOT_TOKEN) {
-      //     await sendOpsAlert(summary, env.SLACK_BOT_TOKEN);
-      //   } else {
-      //     console.warn("[Ops] SLACK_BOT_TOKEN not configured, skipping alert");
-      //   }
-      // }
+      // ============================================================
+      // 報表預處理 - 每 15 分鐘更新 KV Cache
+      // ============================================================
+      if (cronEnv.CACHE_KV) {
+        console.log("[Reports] Starting precomputation...");
+        await precomputeReports(cronEnv.CACHE_KV);
+        console.log("[Reports] Precomputation completed");
+      } else {
+        console.warn(
+          "[Reports] CACHE_KV not configured, skipping precomputation"
+        );
+      }
 
       // TODO: Ops orchestrator 功能等待實作
-      // TODO: 將結果記錄到資料庫
       console.log("[Ops] Health check placeholder - ops module pending");
     } catch (error) {
-      console.error("[Ops] Scheduled event failed:", error);
+      console.error("[Scheduled] Event failed:", error);
     }
   },
 };
+
+// ============================================================
+// Report Precomputation
+// ============================================================
+
+async function precomputeReports(kv: KVNamespace): Promise<void> {
+  const cacheService = createKVCacheService(kv);
+  const TTL_SECONDS = 1800; // 30 分鐘
+
+  // 計算日期範圍
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const thisWeekStart = new Date(now);
+  thisWeekStart.setDate(now.getDate() - now.getDay());
+  thisWeekStart.setHours(0, 0, 0, 0);
+
+  try {
+    // ========== Step 1: 取得所有用戶和 profiles ==========
+    const allUsers = await db.query.user.findMany({
+      columns: { id: true, name: true, email: true },
+    });
+
+    const allProfiles = await db.query.userProfiles.findMany();
+    const profileMap = new Map(allProfiles.map((p) => [p.userId, p]));
+
+    // ========== Step 2: 取得所有對話（用於上傳排名）==========
+    const allConversations = await db
+      .select({
+        id: conversations.id,
+        opportunityId: conversations.opportunityId,
+        createdAt: conversations.createdAt,
+        createdBy: conversations.createdBy,
+      })
+      .from(conversations)
+      .where(gte(conversations.createdAt, thisMonthStart));
+
+    // 為對話加入用戶資訊
+    const conversationsWithUser = allConversations.map((c) => {
+      const creator = allUsers.find((u) => u.id === c.createdBy);
+      const profile = c.createdBy ? profileMap.get(c.createdBy) : undefined;
+      return {
+        ...c,
+        userName: creator?.name || undefined,
+        userEmail: creator?.email || undefined,
+        department: profile?.department || null,
+      };
+    });
+
+    // ========== Step 3: 計算上傳排名 ==========
+    const uploadRankingsWeekly = computeUploadRankings({
+      conversations: conversationsWithUser,
+      period: "weekly",
+    });
+
+    const uploadRankingsMonthly = computeUploadRankings({
+      conversations: conversationsWithUser,
+      period: "monthly",
+    });
+
+    // 存入 KV
+    await cacheService.set(
+      "report:upload-ranking:weekly",
+      uploadRankingsWeekly,
+      TTL_SECONDS
+    );
+    await cacheService.set(
+      "report:upload-ranking:monthly",
+      uploadRankingsMonthly,
+      TTL_SECONDS
+    );
+    console.log("[Reports] Upload rankings cached");
+
+    // ========== Step 4: 計算每個用戶的個人報表 ==========
+    const repReports: Array<{
+      userId: string;
+      report: ReturnType<typeof computeRepReport>;
+    }> = [];
+
+    for (const u of allUsers) {
+      // 取得用戶的 opportunities
+      const userOpportunities = await db.query.opportunities.findMany({
+        where: eq(opportunities.userId, u.id),
+        columns: { id: true, userId: true, companyName: true },
+      });
+
+      if (userOpportunities.length === 0) {
+        continue;
+      }
+
+      const oppIds = userOpportunities.map((o) => o.id);
+
+      // 取得用戶的 conversations
+      const userConversations = await db.query.conversations.findMany({
+        where: inArray(conversations.opportunityId, oppIds),
+        columns: {
+          id: true,
+          opportunityId: true,
+          createdAt: true,
+          createdBy: true,
+        },
+      });
+
+      // 取得當期分析
+      const userAnalyses = await db.query.meddicAnalyses.findMany({
+        where: and(
+          inArray(meddicAnalyses.opportunityId, oppIds),
+          gte(meddicAnalyses.createdAt, thirtyDaysAgo)
+        ),
+        orderBy: desc(meddicAnalyses.createdAt),
+      });
+
+      // 取得上期分析
+      const previousAnalyses = await db.query.meddicAnalyses.findMany({
+        where: and(
+          inArray(meddicAnalyses.opportunityId, oppIds),
+          gte(meddicAnalyses.createdAt, sixtyDaysAgo),
+          lte(meddicAnalyses.createdAt, thirtyDaysAgo)
+        ),
+      });
+
+      // 提取教練建議
+      const coachingNotes: string[] = [];
+      for (const a of userAnalyses.slice(0, 5)) {
+        const note = extractCoachingNotes(a.agentOutputs);
+        if (note) {
+          coachingNotes.push(note);
+        }
+      }
+
+      // 計算所有用戶的平均分數（用於百分位計算）
+      const allUserScores = repReports.map((r) => ({
+        userId: r.userId,
+        avgScore: r.report.summary.averagePdcmScore,
+      }));
+
+      const report = computeRepReport({
+        userId: u.id,
+        analyses: userAnalyses.map((a) => ({
+          id: a.id,
+          opportunityId: a.opportunityId,
+          agentOutputs: a.agentOutputs,
+          overallScore: a.overallScore,
+          createdAt: a.createdAt,
+        })),
+        previousPeriodAnalyses: previousAnalyses.map((a) => ({
+          id: a.id,
+          opportunityId: a.opportunityId,
+          agentOutputs: a.agentOutputs,
+          overallScore: a.overallScore,
+          createdAt: a.createdAt,
+        })),
+        opportunities: userOpportunities,
+        conversations: userConversations,
+        allUserScores,
+        coachingNotes,
+      });
+
+      repReports.push({ userId: u.id, report });
+
+      // 存入 KV
+      await cacheService.set(`report:rep:${u.id}`, report, TTL_SECONDS);
+    }
+
+    console.log(`[Reports] ${repReports.length} rep reports cached`);
+
+    // ========== Step 5: 計算團隊報表 ==========
+    const departments = ["all", "beauty", "ichef"];
+
+    for (const dept of departments) {
+      // 篩選成員
+      const members = allUsers
+        .filter((u) => {
+          if (dept === "all") {
+            return true;
+          }
+          const profile = profileMap.get(u.id);
+          return profile?.department === dept;
+        })
+        .map((u) => ({
+          ...u,
+          profile: profileMap.get(u.id),
+        }));
+
+      // 篩選成員報表
+      const memberReports = repReports
+        .filter((r) => {
+          if (dept === "all") {
+            return true;
+          }
+          const profile = profileMap.get(r.userId);
+          return profile?.department === dept;
+        })
+        .map((r) => r.report);
+
+      // 取得需要關注的機會
+      const attentionNeeded: Array<{
+        opportunityId: string;
+        companyName: string;
+        assignedTo: string;
+        score: number;
+        risk: string;
+      }> = [];
+
+      // 從成員報表中提取低分機會
+      for (const report of memberReports) {
+        if (report.summary.averagePdcmScore < 50) {
+          const memberUser = allUsers.find((u) => u.id === report.userId);
+          attentionNeeded.push({
+            opportunityId: report.userId,
+            companyName: "整體表現",
+            assignedTo: memberUser?.name || "未知",
+            score: report.summary.averagePdcmScore,
+            risk: "PDCM 平均分數低於 50",
+          });
+        }
+      }
+
+      const teamReport = computeTeamReport({
+        department: dept,
+        members,
+        memberReports,
+        uploadRankingsWeekly,
+        uploadRankingsMonthly,
+        attentionNeededOpportunities: attentionNeeded.slice(0, 10),
+      });
+
+      // 存入 KV
+      await cacheService.set(`report:team:${dept}`, teamReport, TTL_SECONDS);
+    }
+
+    console.log("[Reports] Team reports cached");
+  } catch (error) {
+    console.error("[Reports] Precomputation failed:", error);
+    throw error;
+  }
+}

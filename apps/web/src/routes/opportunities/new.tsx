@@ -1,5 +1,5 @@
 /**
- * 新增商機頁面
+ * 新增機會頁面
  */
 
 import type { ProductLine } from "@Sales_ai_automation_v3/shared/product-configs";
@@ -86,7 +86,7 @@ function NewOpportunityPage() {
   const createMutation = useMutation({
     mutationFn: () => client.opportunities.create(formData),
     onSuccess: (data) => {
-      toast.success("商機已建立");
+      toast.success("機會已建立");
       queryClient.invalidateQueries({ queryKey: ["opportunities"] });
       navigate({ to: "/opportunities/$id", params: { id: data.id } });
     },
@@ -151,8 +151,8 @@ function NewOpportunityPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="font-bold text-3xl tracking-tight">新增商機</h1>
-          <p className="text-muted-foreground">建立新的銷售商機</p>
+          <h1 className="font-bold text-3xl tracking-tight">新增機會</h1>
+          <p className="text-muted-foreground">建立新的銷售機會</p>
         </div>
       </div>
 
@@ -161,9 +161,9 @@ function NewOpportunityPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5" />
-              商機資訊
+              機會資訊
             </CardTitle>
-            <CardDescription>填寫商機的基本資訊</CardDescription>
+            <CardDescription>填寫機會的基本資訊</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Required Fields */}
@@ -392,7 +392,7 @@ function NewOpportunityPage() {
                 {createMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                建立商機
+                建立機會
               </Button>
             </div>
           </CardContent>

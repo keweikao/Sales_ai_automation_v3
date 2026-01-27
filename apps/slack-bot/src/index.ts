@@ -316,8 +316,6 @@ app.post("/slack/interactions", async (c) => {
                 const modal = buildEditSummaryModal({
                   conversationId: data.conversationId,
                   currentSummary: data.summary,
-                  contactPhone: data.contactPhone,
-                  contactEmail: data.contactEmail,
                 });
 
                 const result = await slackClient.openView(
@@ -412,49 +410,6 @@ app.post("/slack/interactions", async (c) => {
                     }),
                   });
                 }
-              }
-              break;
-            }
-
-            case "send_sms": {
-              // 發送簡訊給客戶 (舊版,保留向後相容)
-              try {
-                const data = JSON.parse(value);
-                const notificationService = createNotificationService(env);
-
-                if (!data.contactPhone) {
-                  if (payload.response_url) {
-                    await fetch(payload.response_url, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        text: ":x: 無法發送簡訊：客戶電話資訊不存在",
-                        replace_original: false,
-                      }),
-                    });
-                  }
-                  break;
-                }
-
-                const result = await notificationService.sendSMS(
-                  data.contactPhone,
-                  data.summary
-                );
-
-                if (payload.response_url) {
-                  await fetch(payload.response_url, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      text: result.success
-                        ? `:white_check_mark: 簡訊已發送至 ${data.contactPhone}`
-                        : `:x: 簡訊發送失敗: ${result.error}`,
-                      replace_original: false,
-                    }),
-                  });
-                }
-              } catch (error) {
-                console.error("Error sending SMS:", error);
               }
               break;
             }
@@ -679,16 +634,6 @@ app.post("/slack/interactions", async (c) => {
         }
         if (!metadata.customerName?.trim()) {
           errors.customer_name = "請輸入客戶名稱";
-        }
-        if (metadata.contactPhone?.trim()) {
-          // 驗證電話格式
-          const phoneDigits = metadata.contactPhone.replace(/\D/g, "");
-          if (!/^09\d{8}$/.test(phoneDigits)) {
-            errors.contact_phone =
-              "請輸入有效的台灣手機號碼（例如：0912-345-678）";
-          }
-        } else {
-          errors.contact_phone = "請輸入客戶電話";
         }
         if (!metadata.storeType) {
           errors.store_type = "請選擇店型";

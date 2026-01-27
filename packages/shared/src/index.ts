@@ -15,5 +15,7 @@ export * from "./constants/meddic.js";
 export * from "./errors/index.js";
 // 導出類型定義
 export * from "./types/index.js";
+// 導出工具函式
+export * from "./utils/index.js";
 
 // 注意: Schemas 不在此導出,請使用 '@sales_ai_automation_v3/shared/schemas' 導入

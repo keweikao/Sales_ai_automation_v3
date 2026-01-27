@@ -4,6 +4,8 @@
  * 每日提醒訊息和相關 Modal 的 Block 建構器
  */
 
+import { formatTaiwanDate, nowInTaipei } from "@sales_ai_automation_v3/shared";
+
 // Slack Block 類型（簡化版，避免依賴 @slack/types）
 type SlackBlock = object;
 
@@ -184,10 +186,13 @@ export function buildPostponeTodoModal(
   todoId: string,
   todoTitle: string
 ): object {
-  // 計算預設日期為明天
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const defaultDate = tomorrow.toISOString().split("T")[0];
+  // 計算預設日期為明天 (使用 UTC+8 時區)
+  const taipeiTomorrow = nowInTaipei();
+  taipeiTomorrow.setUTCDate(taipeiTomorrow.getUTCDate() + 1);
+  const year = taipeiTomorrow.getUTCFullYear();
+  const month = String(taipeiTomorrow.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(taipeiTomorrow.getUTCDate()).padStart(2, "0");
+  const defaultDate = `${year}-${month}-${day}`;
 
   return {
     type: "modal",
@@ -360,15 +365,11 @@ export function parseCancelTodoFormValues(
 }
 
 /**
- * 格式化日期為顯示格式
+ * 格式化日期為顯示格式 (使用 UTC+8 時區)
  */
 function formatDate(isoDate: string): string {
   try {
-    const date = new Date(isoDate);
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    const weekday = ["日", "一", "二", "三", "四", "五", "六"][date.getDay()];
-    return `${month}/${day} (${weekday})`;
+    return formatTaiwanDate(isoDate);
   } catch {
     return isoDate;
   }

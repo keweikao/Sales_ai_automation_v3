@@ -15,10 +15,61 @@ import {
 } from "@Sales_ai_automation_v3/db/schema";
 import { randomUUID } from "node:crypto";
 import { ORPCError } from "@orpc/server";
-import { and, between, desc, eq, gte, lte, or } from "drizzle-orm";
+import { and, between, count, desc, eq, gte, lte, or } from "drizzle-orm";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
+
+// ============================================================
+// Timezone Utilities (UTC+8)
+// ============================================================
+
+const UTC_PLUS_8_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+function nowInTaipei(): Date {
+  const now = new Date();
+  return new Date(now.getTime() + UTC_PLUS_8_OFFSET_MS);
+}
+
+function getTodayStartInTaipei(): Date {
+  const taipeiNow = nowInTaipei();
+  const year = taipeiNow.getUTCFullYear();
+  const month = String(taipeiNow.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(taipeiNow.getUTCDate()).padStart(2, "0");
+  const todayStr = `${year}-${month}-${day}`;
+  return getDateStartInTaipei(todayStr);
+}
+
+function getTodayEndInTaipei(): Date {
+  const taipeiNow = nowInTaipei();
+  const year = taipeiNow.getUTCFullYear();
+  const month = String(taipeiNow.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(taipeiNow.getUTCDate()).padStart(2, "0");
+  const todayStr = `${year}-${month}-${day}`;
+  return getDateEndInTaipei(todayStr);
+}
+
+function getDateStartInTaipei(dateStr: string): Date {
+  // 支援 ISO 字串或 yyyy-MM-dd 格式，只取前 10 字符
+  const dateOnly = dateStr.slice(0, 10);
+  const parts = dateOnly.split("-").map(Number);
+  const year = parts[0] ?? 0;
+  const month = parts[1] ?? 1;
+  const day = parts[2] ?? 1;
+  const date = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  return new Date(date.getTime() - UTC_PLUS_8_OFFSET_MS);
+}
+
+function getDateEndInTaipei(dateStr: string): Date {
+  // 支援 ISO 字串或 yyyy-MM-dd 格式，只取前 10 字符
+  const dateOnly = dateStr.slice(0, 10);
+  const parts = dateOnly.split("-").map(Number);
+  const year = parts[0] ?? 0;
+  const month = parts[1] ?? 1;
+  const day = parts[2] ?? 1;
+  const date = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+  return new Date(date.getTime() - UTC_PLUS_8_OFFSET_MS);
+}
 
 // ============================================================
 // Schemas
@@ -702,37 +753,43 @@ export const listTodos = protectedProcedure
       conditions.push(eq(salesTodos.status, status));
     }
 
-    // 日期篩選
+    // 日期篩選（使用 UTC+8 時區）
     if (dateFrom) {
-      conditions.push(gte(salesTodos.dueDate, new Date(dateFrom)));
+      conditions.push(gte(salesTodos.dueDate, getDateStartInTaipei(dateFrom)));
     }
     if (dateTo) {
-      conditions.push(lte(salesTodos.dueDate, new Date(dateTo)));
+      conditions.push(lte(salesTodos.dueDate, getDateEndInTaipei(dateTo)));
     }
 
     // 查詢待辦
-    const todos = await db.query.salesTodos.findMany({
-      where: conditions.length > 0 ? and(...conditions) : undefined,
-      with: {
-        opportunity: {
-          columns: {
-            id: true,
-            companyName: true,
-            customerNumber: true,
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // 同時查詢資料和總數
+    const [todos, totalResult] = await Promise.all([
+      db.query.salesTodos.findMany({
+        where: whereClause,
+        with: {
+          opportunity: {
+            columns: {
+              id: true,
+              companyName: true,
+              customerNumber: true,
+            },
+          },
+          conversation: {
+            columns: {
+              id: true,
+              title: true,
+              caseNumber: true,
+            },
           },
         },
-        conversation: {
-          columns: {
-            id: true,
-            title: true,
-            caseNumber: true,
-          },
-        },
-      },
-      orderBy: [desc(salesTodos.dueDate)],
-      limit,
-      offset,
-    });
+        orderBy: [desc(salesTodos.dueDate)],
+        limit,
+        offset,
+      }),
+      db.select({ count: count() }).from(salesTodos).where(whereClause),
+    ]);
 
     return {
       todos: todos.map((todo) => ({
@@ -752,7 +809,7 @@ export const listTodos = protectedProcedure
         opportunity: todo.opportunity,
         conversation: todo.conversation,
       })),
-      total: todos.length,
+      total: totalResult[0]?.count ?? 0,
       limit,
       offset,
     };
@@ -799,13 +856,9 @@ export const getTodaysTodos = protectedProcedure
   .handler(async ({ input }) => {
     const { includeOverdue } = input;
 
-    // 取得今天的日期範圍 (Asia/Taipei timezone)
-    const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-
-    const todayEnd = new Date(now);
-    todayEnd.setHours(23, 59, 59, 999);
+    // 取得今天的日期範圍 (Asia/Taipei timezone, UTC+8)
+    const todayStart = getTodayStartInTaipei();
+    const todayEnd = getTodayEndInTaipei();
 
     // 建立查詢條件
     let dateCondition;

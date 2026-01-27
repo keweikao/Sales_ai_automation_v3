@@ -191,10 +191,12 @@ const getConversationByToken = publicProcedure
       companyName: conversation.opportunity?.companyName || "",
       conversationDate: conversation.conversationDate,
       summary: conversation.summary, // Agent 4 生成的會議摘要
+      productLine: conversation.opportunity?.productLine || "ichef",
       opportunity: conversation.opportunity
         ? {
             customerNumber: conversation.opportunity.customerNumber,
             companyName: conversation.opportunity.companyName,
+            productLine: conversation.opportunity.productLine,
           }
         : null,
       slackUser: conversation.slackUsername

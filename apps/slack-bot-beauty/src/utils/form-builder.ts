@@ -13,46 +13,6 @@ export type { ProductLine };
 
 import type { PendingAudioFile } from "../types";
 
-/**
- * 驗證台灣手機號碼格式
- * 支援格式:
- * - 0912345678
- * - 0912-345-678
- * - 09-1234-5678
- */
-function validateTaiwanPhoneNumber(phone: string): boolean {
-  if (!phone) {
-    return false; // 必填欄位，空值視為無效
-  }
-
-  // 移除所有非數字字元
-  const digitsOnly = phone.replace(/\D/g, "");
-
-  // 檢查是否為 10 碼且以 09 開頭
-  const isValid = /^09\d{8}$/.test(digitsOnly);
-
-  return isValid;
-}
-
-/**
- * 格式化台灣手機號碼為標準格式
- * 輸入: "0912345678" 或 "0912-345-678"
- * 輸出: "0912-345-678"
- */
-function formatTaiwanPhoneNumber(phone: string): string {
-  if (!phone) {
-    return "";
-  }
-
-  const digitsOnly = phone.replace(/\D/g, "");
-
-  if (digitsOnly.length === 10 && digitsOnly.startsWith("09")) {
-    return `${digitsOnly.slice(0, 4)}-${digitsOnly.slice(4, 7)}-${digitsOnly.slice(7)}`;
-  }
-
-  return phone; // 無法格式化則返回原值
-}
-
 // Slack Modal View 類型
 interface SlackModalView {
   type: "modal";
@@ -77,13 +37,16 @@ interface SlackModalView {
 export interface AudioUploadMetadata {
   customerNumber: string;
   customerName: string;
-  contactPhone?: string; // 客戶電話（選填）
   productLine?: ProductLine;
   storeType?: string;
   serviceType?: string; // iCHEF only
   staffCount?: string; // Beauty only
   currentSystem?: string;
   decisionMakerPresent?: string;
+  // 聯絡人資訊
+  contactName?: string;
+  contactPhone?: string;
+  contactEmail?: string;
 }
 
 /**
@@ -168,11 +131,17 @@ export function buildAudioUploadModal(
   const commonBlocks = [
     buildTextInput("customer_number", "客戶編號", "例如：C001、A0123", true),
     buildTextInput("customer_name", "客戶名稱", "例如：王小明咖啡店", true),
+  ];
+
+  // 聯絡人欄位
+  const contactBlocks = [
+    buildTextInput("contact_name", "聯絡人姓名", "例如：王小明", false),
+    buildTextInput("contact_phone", "聯絡人電話", "例如：0912345678", false),
     buildTextInput(
-      "contact_phone",
-      "客戶電話（用於發送 SMS 通知）",
-      "例如：0912-345-678",
-      true // 必填
+      "contact_email",
+      "聯絡人 Email",
+      "例如：contact@example.com",
+      false
     ),
   ];
 
@@ -262,6 +231,7 @@ export function buildAudioUploadModal(
         type: "divider",
       },
       ...commonBlocks,
+      ...contactBlocks,
       ...productBlocks,
       ...additionalBlocks,
     ],
@@ -292,26 +262,14 @@ export function parseAudioUploadFormValues(
   >,
   productLine: ProductLine
 ): Partial<AudioUploadMetadata> {
-  // 取得電話號碼原始值
-  const rawPhone = values.contact_phone?.contact_phone?.value;
-
-  // 驗證並格式化電話號碼
-  let contactPhone: string | undefined;
-  if (rawPhone) {
-    if (validateTaiwanPhoneNumber(rawPhone)) {
-      contactPhone = formatTaiwanPhoneNumber(rawPhone);
-    } else {
-      // 格式不正確，忽略此欄位
-      console.warn(`[Form] Invalid phone number: ${rawPhone}`);
-      contactPhone = undefined;
-    }
-  }
-
   const metadata: Partial<AudioUploadMetadata> = {
     productLine, // 加入產品線
     customerNumber: values.customer_number?.customer_number?.value,
     customerName: values.customer_name?.customer_name?.value,
-    contactPhone, // 新增電話號碼
+    // 聯絡人資訊
+    contactName: values.contact_name?.contact_name?.value,
+    contactPhone: values.contact_phone?.contact_phone?.value,
+    contactEmail: values.contact_email?.contact_email?.value,
     storeType: values.store_type?.store_type?.selected_option?.value,
     currentSystem:
       values.current_system?.current_system?.selected_option?.value,

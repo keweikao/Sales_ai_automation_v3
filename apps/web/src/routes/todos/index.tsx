@@ -1058,7 +1058,7 @@ function TodosPage() {
       const result = await client.salesTodo.list({
         status: "pending",
         dateFrom: monthStart,
-        dateTo: monthEnd,
+        dateTo: `${monthEnd}T23:59:59`,
         limit: 100,
         offset: 0,
       });

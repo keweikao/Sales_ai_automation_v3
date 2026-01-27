@@ -1,10 +1,10 @@
 /**
  * Opportunities 列表頁面
- * 顯示所有商機並支援搜尋、篩選、分頁
+ * 顯示所有機會並支援搜尋、篩選、分頁
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   Building2,
   ChevronLeft,
@@ -19,7 +19,6 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { LeadStatusBadge } from "@/components/lead/lead-status-badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -30,13 +29,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -54,16 +46,6 @@ export const Route = createFileRoute("/opportunities/")({
   component: OpportunitiesPage,
 });
 
-const statusOptions = [
-  { value: "new", label: "新建立" },
-  { value: "contacted", label: "已聯繫" },
-  { value: "qualified", label: "已合格" },
-  { value: "proposal", label: "報價中" },
-  { value: "negotiation", label: "議價中" },
-  { value: "won", label: "成交" },
-  { value: "lost", label: "流失" },
-] as const;
-
 function getScoreBarColor(score: number): string {
   if (score >= 70) {
     return "bg-green-500";
@@ -79,7 +61,6 @@ function OpportunitiesPage() {
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [page, setPage] = useState(0);
   const pageSize = 20;
 
@@ -89,7 +70,6 @@ function OpportunitiesPage() {
       "list",
       {
         search: search || undefined,
-        status: statusFilter !== "all" ? statusFilter : undefined,
         limit: pageSize,
         offset: page * pageSize,
       },
@@ -97,17 +77,6 @@ function OpportunitiesPage() {
     queryFn: async () => {
       const result = await client.opportunities.list({
         search: search || undefined,
-        status:
-          statusFilter !== "all"
-            ? (statusFilter as
-                | "new"
-                | "contacted"
-                | "qualified"
-                | "proposal"
-                | "negotiation"
-                | "won"
-                | "lost")
-            : undefined,
         limit: pageSize,
         offset: page * pageSize,
       });
@@ -119,7 +88,7 @@ function OpportunitiesPage() {
     mutationFn: (opportunityId: string) =>
       client.opportunities.delete({ opportunityId }),
     onSuccess: () => {
-      toast.success("商機已刪除");
+      toast.success("機會已刪除");
       queryClient.invalidateQueries({ queryKey: ["opportunities"] });
     },
     onError: () => {
@@ -137,7 +106,7 @@ function OpportunitiesPage() {
   };
 
   const handleDelete = (id: string) => {
-    if (window.confirm("確定要刪除這個商機嗎？")) {
+    if (window.confirm("確定要刪除這個機會嗎？")) {
       deleteMutation.mutate(id);
     }
   };
@@ -147,14 +116,12 @@ function OpportunitiesPage() {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-bold text-3xl tracking-tight">商機管理</h1>
-          <p className="text-muted-foreground">管理所有銷售商機和客戶資料</p>
+          <h1 className="font-bold text-3xl tracking-tight">機會管理</h1>
+          <p className="text-muted-foreground">管理所有銷售機會和客戶資料</p>
         </div>
-        <Button asChild>
-          <Link to="/opportunities/new">
-            <Plus className="mr-2 h-4 w-4" />
-            新增商機
-          </Link>
+        <Button onClick={() => navigate({ to: "/opportunities/new" })}>
+          <Plus className="mr-2 h-4 w-4" />
+          新增機會
         </Button>
       </div>
 
@@ -172,25 +139,6 @@ function OpportunitiesPage() {
             value={search}
           />
         </div>
-        <Select
-          onValueChange={(value) => {
-            setStatusFilter(value);
-            setPage(0);
-          }}
-          value={statusFilter}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="全部狀態" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部狀態</SelectItem>
-            {statusOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Table */}
@@ -204,13 +152,13 @@ function OpportunitiesPage() {
                   公司名稱
                 </div>
               </TableHead>
+              <TableHead>案件編號</TableHead>
               <TableHead>客戶編號</TableHead>
               <TableHead>聯絡人</TableHead>
-              <TableHead>狀態</TableHead>
               <TableHead>
                 <div className="flex items-center gap-2">
                   <TrendingUp className="h-4 w-4" />
-                  <TermTooltip termKey="opportunity">商機分數</TermTooltip>
+                  <TermTooltip termKey="spinScore">SPIN</TermTooltip>
                 </div>
               </TableHead>
               <TableHead>
@@ -231,10 +179,10 @@ function OpportunitiesPage() {
                     <Skeleton className="h-4 w-24" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-4 w-24" />
                   </TableCell>
                   <TableCell>
-                    <Skeleton className="h-6 w-16" />
+                    <Skeleton className="h-4 w-28" />
                   </TableCell>
                   <TableCell>
                     <Skeleton className="h-4 w-20" />
@@ -260,6 +208,9 @@ function OpportunitiesPage() {
                   <TableCell className="font-medium">
                     {opportunity.companyName}
                   </TableCell>
+                  <TableCell className="font-mono text-muted-foreground text-sm">
+                    {opportunity.latestCaseNumber || "-"}
+                  </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
                     {opportunity.customerNumber}
                   </TableCell>
@@ -281,24 +232,21 @@ function OpportunitiesPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <LeadStatusBadge status={opportunity.status} />
-                  </TableCell>
-                  <TableCell>
-                    {opportunity.opportunityScore !== null ? (
+                    {opportunity.spinScore !== null ? (
                       <div className="flex items-center gap-2">
                         <div className="h-2 w-16 rounded-full bg-gray-200 dark:bg-gray-700">
                           <div
                             className={cn(
                               "h-full rounded-full",
-                              getScoreBarColor(opportunity.opportunityScore)
+                              getScoreBarColor(opportunity.spinScore)
                             )}
                             style={{
-                              width: `${opportunity.opportunityScore}%`,
+                              width: `${opportunity.spinScore}%`,
                             }}
                           />
                         </div>
                         <span className="font-medium text-sm">
-                          {opportunity.opportunityScore}
+                          {opportunity.spinScore}%
                         </span>
                       </div>
                     ) : (
@@ -350,17 +298,6 @@ function OpportunitiesPage() {
                         >
                           查看詳情
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate({
-                              to: "/opportunities/$id/edit",
-                              params: { id: opportunity.id },
-                            });
-                          }}
-                        >
-                          編輯
-                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-red-600 focus:text-red-600"
@@ -378,7 +315,7 @@ function OpportunitiesPage() {
               ))
             ) : (
               <TableRow>
-                <TableCell className="h-24 text-center" colSpan={8}>
+                <TableCell className="h-24 text-center" colSpan={7}>
                   沒有找到資料
                 </TableCell>
               </TableRow>

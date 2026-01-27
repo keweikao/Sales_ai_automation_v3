@@ -2,6 +2,7 @@ name = "sales-ai-server"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+find_additional_modules = true
 
 [vars]
 ENVIRONMENT = "production"

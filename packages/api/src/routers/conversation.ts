@@ -757,9 +757,12 @@ export const listConversations = protectedProcedure
       throw new ORPCError("UNAUTHORIZED");
     }
 
-    // 檢查用戶角色
+    // 檢查用戶角色 (Service Account 擁有完全訪問權限)
     const userRole = getUserRole(userEmail);
-    const hasAdminAccess = userRole === "admin" || userRole === "manager";
+    const hasAdminAccess =
+      userRole === "admin" ||
+      userRole === "manager" ||
+      context.isServiceAccount === true;
 
     // 初始化快取服務
     const { createKVCacheService } = await import(

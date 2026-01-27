@@ -242,10 +242,6 @@ function DashboardPage() {
           animation: slideInRight 0.6s ease-out 0.5s backwards;
         }
 
-        .quick-action-card {
-          animation: fadeInUp 0.6s ease-out 0.7s backwards;
-        }
-
         .metric-pulse {
           animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
@@ -354,7 +350,7 @@ function DashboardPage() {
               >
                 <Link to="/opportunities">
                   <Building2 className="mr-2 h-4 w-4" />
-                  商機管理
+                  機會管理
                 </Link>
               </Button>
               <Button
@@ -377,7 +373,7 @@ function DashboardPage() {
               icon={Building2}
               loading={isLoading}
               termKey="totalOpportunities"
-              title="商機總數"
+              title="機會總數"
               trend="up"
               value={dashboard?.summary.totalOpportunities ?? 0}
             />
@@ -400,7 +396,7 @@ function DashboardPage() {
               value={dashboard?.summary.totalAnalyses ?? 0}
             />
             <StatCard
-              description="所有商機的平均分數"
+              description="所有機會的平均分數"
               icon={TrendingUp}
               loading={isLoading}
               termKey="avgPdcmScore"
@@ -588,77 +584,6 @@ function DashboardPage() {
               </CardContent>
             </Card>
           </div>
-
-          {/* Quick Actions */}
-          <Card className="quick-action-card border-slate-800 bg-gradient-to-br from-slate-950/80 to-slate-900/80 backdrop-blur-sm">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-purple-500/10 p-2 ring-1 ring-purple-500/30">
-                  <Zap className="h-5 w-5 text-purple-400" />
-                </div>
-                <div>
-                  <CardTitle className="data-font text-white">
-                    快速操作
-                  </CardTitle>
-                  <CardDescription className="data-font text-slate-500 text-xs uppercase tracking-wider">
-                    常用功能入口
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Button
-                  asChild
-                  className="action-button h-auto border-slate-700 bg-slate-900/50 py-6 backdrop-blur-sm hover:border-purple-600/50 hover:bg-slate-800"
-                  variant="outline"
-                >
-                  <Link className="flex flex-col gap-3" to="/opportunities/new">
-                    <Building2 className="h-8 w-8 text-purple-400" />
-                    <span className="data-font text-sm uppercase tracking-wider">
-                      新增商機
-                    </span>
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  className="action-button h-auto border-slate-700 bg-slate-900/50 py-6 backdrop-blur-sm hover:border-purple-500/50 hover:bg-slate-800"
-                  variant="outline"
-                >
-                  <Link className="flex flex-col gap-3" to="/conversations/new">
-                    <MessageSquare className="h-8 w-8 text-purple-400" />
-                    <span className="data-font text-sm uppercase tracking-wider">
-                      上傳錄音
-                    </span>
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  className="action-button h-auto border-slate-700 bg-slate-900/50 py-6 backdrop-blur-sm hover:border-purple-500/50 hover:bg-slate-800"
-                  variant="outline"
-                >
-                  <Link className="flex flex-col gap-3" to="/opportunities">
-                    <BarChart3 className="h-8 w-8 text-purple-400" />
-                    <span className="data-font text-sm uppercase tracking-wider">
-                      所有商機
-                    </span>
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  className="action-button h-auto border-slate-700 bg-slate-900/50 py-6 backdrop-blur-sm hover:border-emerald-500/50 hover:bg-slate-800"
-                  variant="outline"
-                >
-                  <Link className="flex flex-col gap-3" to="/conversations">
-                    <TrendingUp className="h-8 w-8 text-emerald-400" />
-                    <span className="data-font text-sm uppercase tracking-wider">
-                      所有對話
-                    </span>
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </main>
     </>

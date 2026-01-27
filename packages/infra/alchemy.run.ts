@@ -62,6 +62,9 @@ export const server = await Worker("server", {
 
     // Environment
     ENVIRONMENT: alchemy.env.ENVIRONMENT!,
+
+    // Service API Token (for Slack Bot authentication)
+    API_TOKEN: alchemy.secret.env.API_TOKEN || alchemy.secret(""),
   },
   dev: {
     port: 3000,

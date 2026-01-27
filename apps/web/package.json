@@ -21,6 +21,7 @@
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/tanstack-query": "^1.12.2",
+    "@radix-ui/react-collapsible": "^1.1.12",
     "@sales_ai_automation_v3/shared": "workspace:*",
     "@tailwindcss/vite": "^4.0.15",
     "@tanstack/react-form": "^1.12.3",

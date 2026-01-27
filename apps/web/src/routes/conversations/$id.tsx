@@ -11,14 +11,14 @@ import {
   BarChart3,
   Building2,
   Calendar,
-  CheckCircle2,
   Clock,
   Edit,
   ExternalLink,
   Lightbulb,
   Loader2,
   MessageSquare,
-  Send,
+  Star,
+  Target,
   TrendingUp,
   User,
   XCircle,
@@ -171,19 +171,6 @@ function ConversationDetailPage() {
     },
     onError: (error) => {
       toast.error(`更新失敗: ${error.message}`);
-    },
-  });
-
-  const sendSmsMutation = useMutation({
-    mutationFn: () => client.sms.sendCustomer({ conversationId: id }),
-    onSuccess: (data) => {
-      toast.success(`簡訊已成功發送至 ${data.phoneNumber}!`);
-      queryClient.invalidateQueries({
-        queryKey: ["conversations", "detail", id],
-      });
-    },
-    onError: (error) => {
-      toast.error(`發送失敗: ${error.message}`);
     },
   });
 
@@ -624,13 +611,6 @@ function ConversationDetailPage() {
             filter: saturate(0.8) hue-rotate(-10deg);
           }
 
-          .sms-sent-card {
-            padding: 1rem;
-            border-radius: 0.5rem;
-            border: 1px solid rgb(6 78 59);
-            background: linear-gradient(135deg, rgb(6 78 59 / 0.2) 0%, rgb(6 78 59 / 0.1) 100%);
-          }
-
           .timeline-item {
             display: flex;
             align-items: center;
@@ -768,7 +748,7 @@ function ConversationDetailPage() {
                   <div className="info-grid-item">
                     <Building2 className="h-5 w-5 shrink-0 text-purple-400" />
                     <div>
-                      <p className="data-label mb-1">商機</p>
+                      <p className="data-label mb-1">機會</p>
                       <Link
                         className="data-value hover:text-purple-400 hover:underline"
                         params={{ id: conversation.opportunityId }}
@@ -1100,6 +1080,303 @@ function ConversationDetailPage() {
                               | undefined
                           }
                         />
+
+                        {/* Competitor Mentions Section */}
+                        {conversation.analysis.agentOutputs.agent6
+                          ?.competitor_mentions &&
+                          (
+                            conversation.analysis.agentOutputs.agent6
+                              .competitor_mentions as Array<{
+                              competitor_name: string;
+                              mention_count: number;
+                              customer_attitude:
+                                | "positive"
+                                | "negative"
+                                | "neutral";
+                              quotes: string[];
+                            }>
+                          ).length > 0 && (
+                            <Card className="detail-card border-amber-600/20">
+                              <CardHeader>
+                                <CardTitle className="section-title flex items-center gap-2 text-lg">
+                                  <Target className="h-5 w-5 text-amber-400" />
+                                  競品提及
+                                </CardTitle>
+                                <CardDescription className="text-slate-400 text-sm">
+                                  本次對話中提及的競品系統
+                                </CardDescription>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                {/* Threat Level */}
+                                {conversation.analysis.agentOutputs.agent6
+                                  ?.competitor_threat_level && (
+                                  <div className="flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/30 p-3">
+                                    <span className="font-semibold text-slate-300 text-sm">
+                                      競品威脅程度：
+                                    </span>
+                                    <Badge
+                                      className={
+                                        conversation.analysis.agentOutputs
+                                          .agent6.competitor_threat_level ===
+                                        "high"
+                                          ? "priority-badge-high"
+                                          : conversation.analysis.agentOutputs
+                                                .agent6
+                                                .competitor_threat_level ===
+                                              "medium"
+                                            ? "priority-badge-medium"
+                                            : "priority-badge-low"
+                                      }
+                                    >
+                                      {conversation.analysis.agentOutputs.agent6
+                                        .competitor_threat_level === "high"
+                                        ? "高"
+                                        : conversation.analysis.agentOutputs
+                                              .agent6
+                                              .competitor_threat_level ===
+                                            "medium"
+                                          ? "中"
+                                          : conversation.analysis.agentOutputs
+                                                .agent6
+                                                .competitor_threat_level ===
+                                              "low"
+                                            ? "低"
+                                            : "無"}
+                                    </Badge>
+                                  </div>
+                                )}
+
+                                {/* Competitor List */}
+                                {(
+                                  conversation.analysis.agentOutputs.agent6
+                                    ?.competitor_mentions as Array<{
+                                    competitor_name: string;
+                                    mention_count: number;
+                                    customer_attitude:
+                                      | "positive"
+                                      | "negative"
+                                      | "neutral";
+                                    quotes: string[];
+                                  }>
+                                )?.map((competitor, idx) => (
+                                  <div
+                                    className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-3"
+                                    key={idx}
+                                  >
+                                    <div className="mb-2 flex items-center justify-between">
+                                      <span className="font-semibold text-amber-400">
+                                        {competitor.competitor_name}
+                                      </span>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-slate-400 text-xs">
+                                          提及 {competitor.mention_count} 次
+                                        </span>
+                                        <Badge
+                                          className={
+                                            competitor.customer_attitude ===
+                                            "positive"
+                                              ? "bg-green-500/20 text-green-400"
+                                              : competitor.customer_attitude ===
+                                                  "negative"
+                                                ? "bg-red-500/20 text-red-400"
+                                                : "bg-slate-500/20 text-slate-400"
+                                          }
+                                        >
+                                          {competitor.customer_attitude ===
+                                          "positive"
+                                            ? "正面"
+                                            : competitor.customer_attitude ===
+                                                "negative"
+                                              ? "負面"
+                                              : "中立"}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                    {competitor.quotes.length > 0 && (
+                                      <div className="space-y-1">
+                                        {competitor.quotes
+                                          .slice(0, 2)
+                                          .map((quote, qIdx) => (
+                                            <p
+                                              className="border-amber-500/30 border-l-2 pl-2 text-slate-400 text-xs italic"
+                                              key={qIdx}
+                                            >
+                                              「{quote}」
+                                            </p>
+                                          ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </CardContent>
+                            </Card>
+                          )}
+
+                        {/* Competitor Handling Evaluation Section */}
+                        {conversation.analysis.agentOutputs.agent6
+                          ?.competitor_handling_evaluation &&
+                          (
+                            conversation.analysis.agentOutputs.agent6
+                              .competitor_handling_evaluation as Array<{
+                              competitor_name: string;
+                              customer_quote: string;
+                              rep_response: string;
+                              score: number;
+                              evaluation: {
+                                strengths: string[];
+                                weaknesses: string[];
+                              };
+                              recommended_response: string;
+                              improvement_tips: string[];
+                            }>
+                          ).length > 0 && (
+                            <Card className="detail-card border-cyan-600/20">
+                              <CardHeader>
+                                <CardTitle className="section-title flex items-center gap-2 text-lg">
+                                  <Star className="h-5 w-5 text-cyan-400" />
+                                  競品應對評估
+                                </CardTitle>
+                                <CardDescription className="text-slate-400 text-sm">
+                                  業務對競品提及的回應表現評估
+                                </CardDescription>
+                              </CardHeader>
+                              <CardContent className="space-y-6">
+                                {(
+                                  conversation.analysis.agentOutputs.agent6
+                                    ?.competitor_handling_evaluation as Array<{
+                                    competitor_name: string;
+                                    customer_quote: string;
+                                    rep_response: string;
+                                    score: number;
+                                    evaluation: {
+                                      strengths: string[];
+                                      weaknesses: string[];
+                                    };
+                                    recommended_response: string;
+                                    improvement_tips: string[];
+                                  }>
+                                )?.map((evalItem, idx) => (
+                                  <div
+                                    className="space-y-3 rounded-lg border border-slate-700/50 bg-slate-800/30 p-4"
+                                    key={idx}
+                                  >
+                                    {/* Header with competitor name and score */}
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-semibold text-cyan-400">
+                                        {evalItem.competitor_name}
+                                      </span>
+                                      <div className="flex items-center gap-1">
+                                        {[1, 2, 3, 4, 5].map((star) => (
+                                          <span
+                                            className={
+                                              star <= evalItem.score
+                                                ? "text-amber-400"
+                                                : "text-slate-600"
+                                            }
+                                            key={star}
+                                          >
+                                            ★
+                                          </span>
+                                        ))}
+                                        <span className="ml-1 text-slate-400 text-xs">
+                                          ({evalItem.score}/5)
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Customer quote */}
+                                    <div className="rounded border border-slate-700 bg-slate-900/50 p-2">
+                                      <p className="mb-1 font-semibold text-slate-400 text-xs">
+                                        客戶原話
+                                      </p>
+                                      <p className="text-slate-300 text-sm">
+                                        「{evalItem.customer_quote}」
+                                      </p>
+                                    </div>
+
+                                    {/* Rep response */}
+                                    <div className="rounded border border-slate-700 bg-slate-900/50 p-2">
+                                      <p className="mb-1 font-semibold text-slate-400 text-xs">
+                                        業務回應
+                                      </p>
+                                      <p className="text-slate-300 text-sm">
+                                        「{evalItem.rep_response}」
+                                      </p>
+                                    </div>
+
+                                    {/* Evaluation */}
+                                    <div className="grid gap-2 md:grid-cols-2">
+                                      {evalItem.evaluation.strengths.length >
+                                        0 && (
+                                        <div className="rounded border border-green-500/20 bg-green-500/5 p-2">
+                                          <p className="mb-1 font-semibold text-green-400 text-xs">
+                                            做得好
+                                          </p>
+                                          {evalItem.evaluation.strengths.map(
+                                            (s, sIdx) => (
+                                              <p
+                                                className="text-slate-300 text-xs"
+                                                key={sIdx}
+                                              >
+                                                ✅ {s}
+                                              </p>
+                                            )
+                                          )}
+                                        </div>
+                                      )}
+                                      {evalItem.evaluation.weaknesses.length >
+                                        0 && (
+                                        <div className="rounded border border-amber-500/20 bg-amber-500/5 p-2">
+                                          <p className="mb-1 font-semibold text-amber-400 text-xs">
+                                            待改進
+                                          </p>
+                                          {evalItem.evaluation.weaknesses.map(
+                                            (w, wIdx) => (
+                                              <p
+                                                className="text-slate-300 text-xs"
+                                                key={wIdx}
+                                              >
+                                                ⚠️ {w}
+                                              </p>
+                                            )
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Recommended response */}
+                                    <div className="rounded border border-cyan-500/20 bg-cyan-500/5 p-2">
+                                      <p className="mb-1 font-semibold text-cyan-400 text-xs">
+                                        💡 建議回應
+                                      </p>
+                                      <p className="text-slate-300 text-sm leading-relaxed">
+                                        {evalItem.recommended_response}
+                                      </p>
+                                    </div>
+
+                                    {/* Improvement tips */}
+                                    {evalItem.improvement_tips.length > 0 && (
+                                      <div className="rounded border border-purple-500/20 bg-purple-500/5 p-2">
+                                        <p className="mb-1 font-semibold text-purple-400 text-xs">
+                                          改進重點
+                                        </p>
+                                        {evalItem.improvement_tips.map(
+                                          (tip, tIdx) => (
+                                            <p
+                                              className="text-slate-300 text-xs"
+                                              key={tIdx}
+                                            >
+                                              {tIdx + 1}. {tip}
+                                            </p>
+                                          )
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </CardContent>
+                            </Card>
+                          )}
                       </>
                     )}
 
@@ -1242,17 +1519,17 @@ function ConversationDetailPage() {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Customer Notification */}
+            {/* Share Preview */}
             <Card className="detail-card" style={{ animationDelay: "0.4s" }}>
               <CardHeader>
                 <CardTitle className="section-title text-lg">
-                  客戶通知
+                  分享連結
                 </CardTitle>
                 <CardDescription className="text-slate-400 text-xs">
-                  SMS 發送狀態與預覽
+                  公開分享頁面預覽
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent>
                 <Button
                   className="btn-secondary w-full"
                   onClick={handlePreviewShare}
@@ -1261,41 +1538,6 @@ function ConversationDetailPage() {
                   <ExternalLink className="mr-2 h-4 w-4" />
                   預覽公開分享頁面
                 </Button>
-
-                <Button
-                  className="btn-primary w-full"
-                  disabled={
-                    !conversation.customerPhone || sendSmsMutation.isPending
-                  }
-                  onClick={() => sendSmsMutation.mutate()}
-                >
-                  {sendSmsMutation.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="mr-2 h-4 w-4" />
-                  )}
-                  發送 SMS 給客戶
-                </Button>
-
-                {!conversation.customerPhone && (
-                  <p className="text-center text-red-400 text-xs">
-                    客戶電話號碼未設定
-                  </p>
-                )}
-
-                {conversation.smsSent && conversation.smsSentAt && (
-                  <div className="sms-sent-card mt-4">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                      <span className="font-semibold text-emerald-300 text-sm">
-                        已發送簡訊
-                      </span>
-                    </div>
-                    <p className="mt-1.5 text-emerald-400/80 text-xs">
-                      {new Date(conversation.smsSentAt).toLocaleString("zh-TW")}
-                    </p>
-                  </div>
-                )}
               </CardContent>
             </Card>
 

@@ -12,9 +12,10 @@ import {
   user,
   userProfiles,
 } from "@Sales_ai_automation_v3/db/schema";
+import { createKVCacheService } from "@Sales_ai_automation_v3/services";
 import { ORPCError } from "@orpc/server";
 import { MEDDIC_DIMENSION_NAMES } from "@sales_ai_automation_v3/shared";
-import { and, avg, count, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, avg, count, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
@@ -58,6 +59,7 @@ const repPerformanceSchema = z.object({
 const teamPerformanceSchema = z.object({
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
+  department: z.enum(["all", "beauty", "ichef"]).optional(), // 部門篩選 (admin/manager 可用)
 });
 
 // Schema for MTD uploads list
@@ -105,14 +107,11 @@ function buildDateConditions(dateFrom?: string, dateTo?: string) {
 // KV Cache Helper
 // ============================================================
 
-async function getKVCacheService(context: any) {
+function getKVCacheService(context: any) {
   const honoEnv = context.honoContext?.env;
   if (!honoEnv?.CACHE_KV) {
     return null;
   }
-  const { createKVCacheService } = await import(
-    "@Sales_ai_automation_v3/services"
-  );
   return createKVCacheService(honoEnv.CACHE_KV);
 }
 
@@ -126,7 +125,7 @@ export const getOpportunityStats = protectedProcedure.handler(
     const TTL_SECONDS = 300; // 5 minutes
 
     // 1. Try to get from KV cache
-    const cacheService = await getKVCacheService(context);
+    const cacheService = getKVCacheService(context);
     if (cacheService) {
       const cached = await cacheService.get<{
         total: number;
@@ -219,7 +218,7 @@ export const getDashboard = protectedProcedure
     const TTL_SECONDS = 300; // 5 minutes
 
     if (shouldCache) {
-      const cacheService = await getKVCacheService(context);
+      const cacheService = getKVCacheService(context);
       if (cacheService) {
         const cached = await cacheService.get<{
           summary: {
@@ -362,7 +361,7 @@ export const getDashboard = protectedProcedure
 
     // 寫入 KV 快取
     if (shouldCache) {
-      const cacheService = await getKVCacheService(context);
+      const cacheService = getKVCacheService(context);
       if (cacheService) {
         await cacheService.set(cacheKey, result, TTL_SECONDS);
         console.log(`[Dashboard] Wrote cache for user ${userId}`);
@@ -575,13 +574,16 @@ export const getMeddicTrends = protectedProcedure
 // ============================================================
 
 /**
- * 業務個人表現報告
- * - 基本統計（商機數、對話數、分析數、平均分數）
- * - MEDDIC 六維度分析（分數、趨勢、缺口）
- * - 強項/弱項識別
- * - 團隊對比（百分位）
- * - 個人化教練建議（聚合自 Agent 6）
- * - 進步追蹤
+ * 業務個人表現報告 - 優先從 KV Cache 讀取預處理資料
+ * Cache Key: report:rep:{userId}
+ *
+ * 資料結構 (新版 PDCM+SPIN):
+ * - summary: totalOpportunities, totalConversations, totalAnalyses, averagePdcmScore, averageProgressScore, uploadCount
+ * - pdcmAnalysis: pain, decision, champion, metrics (各含 score, trend, weight)
+ * - spinAnalysis: situation, problem, implication, needPayoff, averageCompletionRate
+ * - strengths, weaknesses
+ * - coachingInsights
+ * - progressTracking
  */
 export const getRepPerformance = protectedProcedure
   .input(repPerformanceSchema)
@@ -597,9 +599,8 @@ export const getRepPerformance = protectedProcedure
     // 確定要查詢的目標用戶
     let queryUserId = currentUserId;
 
-    // 如果指定了其他用戶 ID，需要驗證權限（只有經理可以查看團隊成員）
+    // 權限檢查（查看他人報告）
     if (targetUserId && targetUserId !== currentUserId) {
-      // 檢查當前用戶是否是經理
       const currentUserProfile = await db.query.userProfiles.findFirst({
         where: eq(userProfiles.userId, currentUserId),
       });
@@ -636,6 +637,88 @@ export const getRepPerformance = protectedProcedure
 
       queryUserId = targetUserId;
     }
+
+    // ========== 嘗試從 KV Cache 讀取 ==========
+    // 只有在沒有指定日期範圍時才使用快取
+    const shouldUseCache = !(dateFrom || dateTo);
+
+    if (shouldUseCache) {
+      const cacheService = getKVCacheService(context);
+      if (cacheService) {
+        const cacheKey = `report:rep:${queryUserId}`;
+        const cached = await cacheService.get<{
+          userId: string;
+          generatedAt: string;
+          summary: {
+            totalOpportunities: number;
+            totalConversations: number;
+            totalAnalyses: number;
+            averagePdcmScore: number;
+            averageProgressScore: number;
+            uploadCountThisMonth: number;
+            uploadCountThisWeek: number;
+          };
+          pdcmAnalysis: {
+            pain: {
+              score: number;
+              trend: "up" | "down" | "stable";
+              weight: number;
+            };
+            decision: {
+              score: number;
+              trend: "up" | "down" | "stable";
+              weight: number;
+            };
+            champion: {
+              score: number;
+              trend: "up" | "down" | "stable";
+              weight: number;
+            };
+            metrics: {
+              score: number;
+              trend: "up" | "down" | "stable";
+              weight: number;
+            };
+          };
+          spinAnalysis: {
+            situation: { score: number; weight: number };
+            problem: { score: number; weight: number };
+            implication: { score: number; weight: number };
+            needPayoff: { score: number; weight: number };
+            averageCompletionRate: number;
+          };
+          strengths: string[];
+          weaknesses: string[];
+          teamComparison: { overallPercentile: number };
+          coachingInsights: {
+            recentFeedback: string[];
+            recurringPatterns: string[];
+            improvementPlan: string[];
+          };
+          progressTracking: {
+            last30Days: {
+              avgPdcmScore: number;
+              avgProgressScore: number;
+              change: number;
+            };
+            last90Days: {
+              avgPdcmScore: number;
+              avgProgressScore: number;
+              change: number;
+            };
+          };
+        }>(cacheKey);
+
+        if (cached) {
+          console.log(`[RepPerformance] Cache hit for user ${queryUserId}`);
+          return cached;
+        }
+        console.log(`[RepPerformance] Cache miss for user ${queryUserId}`);
+      }
+    }
+
+    // ========== Fallback: 即時計算（舊邏輯）==========
+    // 以下保留原有邏輯作為 fallback（當 Cache miss 或有日期篩選時）
 
     // 建立日期過濾條件
     const currentPeriodStart = dateFrom
@@ -921,19 +1004,24 @@ export const getRepPerformance = protectedProcedure
     }
 
     // ========== 個人化教練建議（聚合自 Agent 6）==========
-    const recentAnalyses = await db.query.meddicAnalyses.findMany({
-      where: and(
-        eq(
-          meddicAnalyses.opportunityId,
-          sql`(
-          SELECT id FROM opportunities WHERE user_id = ${queryUserId}
-        )`
-        ),
-        ...dateConditions
-      ),
-      orderBy: desc(meddicAnalyses.createdAt),
-      limit: 5,
+    // 先取得用戶的 opportunity IDs
+    const userOpportunities = await db.query.opportunities.findMany({
+      where: eq(opportunities.userId, queryUserId),
+      columns: { id: true },
     });
+    const userOpportunityIds = userOpportunities.map((o) => o.id);
+
+    const recentAnalyses =
+      userOpportunityIds.length > 0
+        ? await db.query.meddicAnalyses.findMany({
+            where: and(
+              inArray(meddicAnalyses.opportunityId, userOpportunityIds),
+              ...dateConditions
+            ),
+            orderBy: desc(meddicAnalyses.createdAt),
+            limit: 5,
+          })
+        : [];
 
     const recentFeedback: string[] = [];
     const allImprovements: string[] = [];
@@ -1156,7 +1244,119 @@ export const getTeamPerformance = protectedProcedure
       throw new ORPCError("FORBIDDEN", { message: "只有經理可以查看團隊報告" });
     }
 
-    const { dateFrom, dateTo } = input;
+    const { dateFrom, dateTo, department: filterDepartment } = input;
+
+    // 決定要查詢的部門
+    // Admin 可以選擇任何部門，Manager 只能選擇自己的部門或 all
+    let queryDepartment: string;
+    if (currentUserProfile?.role === "admin") {
+      queryDepartment = filterDepartment || "all";
+    } else if (currentUserProfile?.department === "all") {
+      queryDepartment = filterDepartment || "all";
+    } else {
+      // 非 admin 且 department 不是 all 的 manager，只能看自己的 department
+      queryDepartment = currentUserProfile?.department || "all";
+    }
+
+    // ========== 嘗試從 KV Cache 讀取 ==========
+    const shouldUseCache = !(dateFrom || dateTo);
+
+    if (shouldUseCache) {
+      const cacheService = getKVCacheService(context);
+      if (cacheService) {
+        const cacheKey = `report:team:${queryDepartment}`;
+        const cached = await cacheService.get<{
+          department: string;
+          generatedAt: string;
+          summary: {
+            teamSize: number;
+            totalOpportunities: number;
+            totalConversations: number;
+            averagePdcmScore: number;
+            averageProgressScore: number;
+          };
+          pdcmAnalysis: {
+            pain: { teamAvg: number };
+            decision: { teamAvg: number };
+            champion: { teamAvg: number };
+            metrics: { teamAvg: number };
+          };
+          spinAnalysis: {
+            averageCompletionRate: number;
+          };
+          memberRankings: Array<{
+            userId: string;
+            name: string;
+            averagePdcmScore: number;
+            progressScore: number;
+            uploadCountThisMonth: number;
+            trend: "up" | "down" | "stable";
+          }>;
+          uploadRankingsWeekly: Array<{
+            userId: string;
+            name: string;
+            uploadCount: number;
+            rank: number;
+          }>;
+          uploadRankingsMonthly: Array<{
+            userId: string;
+            name: string;
+            uploadCount: number;
+            rank: number;
+          }>;
+          attentionNeeded: Array<{
+            opportunityId: string;
+            companyName: string;
+            assignedTo: string;
+            score: number;
+            risk: string;
+          }>;
+        }>(cacheKey);
+
+        if (cached) {
+          console.log(
+            `[TeamPerformance] Cache hit for department ${queryDepartment}`
+          );
+          // 轉換為舊格式以維持向後兼容
+          return {
+            teamSummary: {
+              teamSize: cached.summary.teamSize,
+              totalOpportunities: cached.summary.totalOpportunities,
+              totalConversations: cached.summary.totalConversations,
+              teamAverageScore: cached.summary.averagePdcmScore,
+              scoreChange: 0, // Cache 中沒有這個欄位
+            },
+            memberRankings: cached.memberRankings.map((m) => ({
+              userId: m.userId,
+              name: m.name,
+              opportunityCount: 0,
+              conversationCount: m.uploadCountThisMonth,
+              averageScore: m.averagePdcmScore,
+              trend: m.trend,
+              needsAttention: m.averagePdcmScore < 50,
+            })),
+            teamDimensionAnalysis: null, // 新版用 pdcmAnalysis
+            attentionNeeded: cached.attentionNeeded.map((a) => ({
+              opportunityId: a.opportunityId,
+              companyName: a.companyName,
+              assignedTo: a.assignedTo,
+              score: a.score,
+              risk: a.risk,
+              suggestedAction: "需要經理協助跟進",
+            })),
+            teamTrends: { weeklyScores: [], dimensionTrends: {} },
+            coachingPriority: [],
+            // 新增欄位（新版 UI 用）
+            cachedData: cached,
+          };
+        }
+        console.log(
+          `[TeamPerformance] Cache miss for department ${queryDepartment}`
+        );
+      }
+    }
+
+    // ========== Fallback: 即時計算（舊邏輯）==========
 
     // 建立日期過濾條件
     const currentPeriodStart = dateFrom
@@ -1177,23 +1377,16 @@ export const getTeamPerformance = protectedProcedure
     );
     const previousPeriodEnd = new Date(currentPeriodStart.getTime() - 1);
 
-    // 取得團隊成員列表
-    // Admin 或 department='all' 的 Manager 可以查看所有成員
-    // 其他 Manager 只能查看同 department 的成員
+    // 取得團隊成員列表（根據 queryDepartment 篩選）
     let teamMemberProfiles: Awaited<
       ReturnType<typeof db.query.userProfiles.findMany>
     >;
-    if (
-      currentUserProfile?.role === "admin" ||
-      currentUserProfile?.department === "all"
-    ) {
+    if (queryDepartment === "all") {
       teamMemberProfiles = await db.query.userProfiles.findMany();
-    } else if (currentUserProfile?.department) {
-      teamMemberProfiles = await db.query.userProfiles.findMany({
-        where: eq(userProfiles.department, currentUserProfile.department),
-      });
     } else {
-      teamMemberProfiles = [];
+      teamMemberProfiles = await db.query.userProfiles.findMany({
+        where: eq(userProfiles.department, queryDepartment),
+      });
     }
 
     const memberIds = teamMemberProfiles.map((p) => p.userId);

@@ -58,7 +58,7 @@ export function AlertList({
 
             {alert.opportunityName && (
               <p className="text-sm">
-                <span className="font-medium">商機：</span>
+                <span className="font-medium">機會：</span>
                 {alert.opportunityName}
               </p>
             )}
