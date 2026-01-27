@@ -23,7 +23,7 @@ import {
   ListTodo,
   Users,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -376,46 +376,46 @@ function TeamTodosPage() {
   const completionRate =
     totalTodos > 0 ? Math.round((completedTodos.length / totalTodos) * 100) : 0;
 
-  // 計算每個成員的統計（如果是看全部）
-  const memberStats: TeamMemberStats[] = [];
+  // 計算每個成員的統計
+  const allTodos = useMemo(
+    () => [...pendingTodos, ...completedTodos, ...cancelledTodos],
+    [pendingTodos, completedTodos, cancelledTodos]
+  );
 
-  if (selectedUserId === "all" && viewableUsers.length > 0) {
-    // 從待辦資料中提取用戶資訊
-    const allTodos = [...pendingTodos, ...completedTodos];
-    const userMap = new Map<string, { name: string; email: string }>();
+  const memberStatsMap = useMemo(() => {
+    const stats = new Map<
+      string,
+      { pending: number; overdue: number; completed: number }
+    >();
+    const today = new Date(new Date().toDateString());
 
-    // 先從 viewableUsers 建立 map
-    for (const user of viewableUsers) {
-      userMap.set(user.id, {
-        name: user.name || user.email,
-        email: user.email,
-      });
+    for (const todo of allTodos) {
+      const userId = (todo as { userId?: string }).userId;
+      if (!userId) {
+        continue;
+      }
+
+      const current = stats.get(userId) || {
+        pending: 0,
+        overdue: 0,
+        completed: 0,
+      };
+
+      if (todo.status === "pending") {
+        current.pending++;
+        // 判斷逾期：dueDate < 今天
+        if (new Date(todo.dueDate) < today) {
+          current.overdue++;
+        }
+      } else if (todo.status === "completed") {
+        current.completed++;
+      }
+
+      stats.set(userId, current);
     }
 
-    // 統計每個用戶
-    for (const user of viewableUsers) {
-      const userPending = pendingTodos.filter(
-        // Note: API 沒有返回 userId，這裡需要假設待辦已經按用戶過濾
-        // 實際上需要 API 支援返回 userId 或按用戶分組
-        () => false // 暫時禁用，因為 API 沒有返回 userId
-      ).length;
-
-      const userCompleted = completedTodos.filter(() => false).length;
-      const userOverdue = overdueTodos.filter(() => false).length;
-      const userTotal = userPending + userCompleted;
-
-      memberStats.push({
-        userId: user.id,
-        userName: getDisplayNameByEmail(user.email, user.name),
-        userEmail: user.email,
-        todayCount: userPending,
-        overdueCount: userOverdue,
-        completedCount: userCompleted,
-        completionRate:
-          userTotal > 0 ? Math.round((userCompleted / userTotal) * 100) : 0,
-      });
-    }
-  }
+    return stats;
+  }, [allTodos]);
 
   const isLoading =
     viewableUsersQuery.isLoading ||
@@ -595,8 +595,8 @@ function TeamTodosPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>業務</TableHead>
-                  <TableHead className="text-center">待辦</TableHead>
+                  <TableHead>業務姓名</TableHead>
+                  <TableHead className="text-center">待辦中</TableHead>
                   <TableHead className="text-center">逾期</TableHead>
                   <TableHead className="text-center">已完成</TableHead>
                   <TableHead>完成率</TableHead>
@@ -624,21 +624,41 @@ function TeamTodosPage() {
                     </TableRow>
                   ))
                 ) : viewableUsers.length > 0 ? (
-                  viewableUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">
-                        {getDisplayNameByEmail(user.email, user.name)}
-                      </TableCell>
-                      <TableCell className="text-center">-</TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="outline">-</Badge>
-                      </TableCell>
-                      <TableCell className="text-center">-</TableCell>
-                      <TableCell>
-                        <CompletionRateBar rate={0} />
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  viewableUsers.map((user) => {
+                    const userStats = memberStatsMap.get(user.id);
+                    const pending = userStats?.pending ?? 0;
+                    const overdue = userStats?.overdue ?? 0;
+                    const completed = userStats?.completed ?? 0;
+                    const total = pending + completed;
+                    const rate =
+                      total > 0 ? Math.round((completed / total) * 100) : -1;
+
+                    return (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium">
+                          {getDisplayNameByEmail(user.email, user.name)}
+                        </TableCell>
+                        <TableCell className="text-center">{pending}</TableCell>
+                        <TableCell className="text-center">
+                          {overdue > 0 ? (
+                            <Badge variant="destructive">{overdue}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {completed}
+                        </TableCell>
+                        <TableCell>
+                          {rate >= 0 ? (
+                            <CompletionRateBar rate={rate} />
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 ) : (
                   <TableRow>
                     <TableCell className="h-24 text-center" colSpan={5}>
@@ -648,9 +668,6 @@ function TeamTodosPage() {
                 )}
               </TableBody>
             </Table>
-            <p className="mt-4 text-muted-foreground text-xs">
-              注意：目前 API 尚未支援按用戶分組統計，此表格僅顯示團隊成員列表。
-            </p>
           </CardContent>
         </Card>
       )}

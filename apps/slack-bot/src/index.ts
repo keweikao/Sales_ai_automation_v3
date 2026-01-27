@@ -807,28 +807,22 @@ app.post("/slack/interactions", async (c) => {
               const dueDate = new Date();
               dueDate.setDate(dueDate.getDate() + days);
 
-              // TODO: 呼叫後端 API 建立 Todo
-              // 目前 API 尚未實作，先記錄 log
-              console.log("[Follow-up] Would create todo via API:", {
-                apiBaseUrl: env.API_BASE_URL,
+              // 呼叫後端 API 建立 Todo
+              const apiClient = new ApiClient(env.API_BASE_URL, env.API_TOKEN);
+              const result = await apiClient.createTodo({
                 title,
                 description,
                 dueDate: dueDate.toISOString(),
-                opportunityName: modalData.opportunityName,
-                caseNumber: modalData.caseNumber,
-                slackUserId: payload.user?.id,
+                opportunityId: modalData.opportunityId,
+                conversationId: modalData.conversationId,
+                source: "slack",
               });
 
-              // 未來 API 呼叫範例：
-              // const apiClient = new ApiClient(env.API_BASE_URL, env.API_TOKEN);
-              // await apiClient.createTodo({
-              //   title,
-              //   description,
-              //   dueDate: dueDate.toISOString(),
-              //   opportunityId: modalData.opportunityId,
-              //   conversationId: modalData.conversationId,
-              //   slackUserId: payload.user?.id,
-              // });
+              console.log("[Follow-up] Created todo via API:", {
+                todoId: result.id,
+                title,
+                dueDate: dueDate.toISOString(),
+              });
             } catch (error) {
               console.error("[Follow-up] Failed to create todo:", error);
             }
@@ -870,19 +864,17 @@ app.post("/slack/interactions", async (c) => {
         c.executionCtx.waitUntil(
           (async () => {
             try {
-              // TODO: 呼叫後端 API 完成 Todo
-              console.log("[Todo] Would complete todo via API:", {
-                apiBaseUrl: env.API_BASE_URL,
+              const apiClient = new ApiClient(env.API_BASE_URL, env.API_TOKEN);
+              await apiClient.completeTodo({
+                todoId: modalData.todoId,
+                result: completionNote || "已完成",
+                completedVia: "slack",
+              });
+
+              console.log("[Todo] Completed todo via API:", {
                 todoId: modalData.todoId,
                 completionNote,
               });
-
-              // 未來 API 呼叫範例：
-              // const apiClient = new ApiClient(env.API_BASE_URL, env.API_TOKEN);
-              // await apiClient.completeTodo({
-              //   todoId: modalData.todoId,
-              //   completionNote,
-              // });
             } catch (error) {
               console.error("[Todo] Failed to complete todo:", error);
             }
@@ -932,21 +924,18 @@ app.post("/slack/interactions", async (c) => {
         c.executionCtx.waitUntil(
           (async () => {
             try {
-              // TODO: 呼叫後端 API 改期 Todo
-              console.log("[Todo] Would postpone todo via API:", {
-                apiBaseUrl: env.API_BASE_URL,
+              const apiClient = new ApiClient(env.API_BASE_URL, env.API_TOKEN);
+              await apiClient.postponeTodo({
                 todoId: modalData.todoId,
                 newDate,
                 reason,
               });
 
-              // 未來 API 呼叫範例：
-              // const apiClient = new ApiClient(env.API_BASE_URL, env.API_TOKEN);
-              // await apiClient.postponeTodo({
-              //   todoId: modalData.todoId,
-              //   newDate,
-              //   reason,
-              // });
+              console.log("[Todo] Postponed todo via API:", {
+                todoId: modalData.todoId,
+                newDate,
+                reason,
+              });
             } catch (error) {
               console.error("[Todo] Failed to postpone todo:", error);
             }
@@ -995,19 +984,16 @@ app.post("/slack/interactions", async (c) => {
         c.executionCtx.waitUntil(
           (async () => {
             try {
-              // TODO: 呼叫後端 API 取消 Todo
-              console.log("[Todo] Would cancel todo via API:", {
-                apiBaseUrl: env.API_BASE_URL,
+              const apiClient = new ApiClient(env.API_BASE_URL, env.API_TOKEN);
+              await apiClient.cancelTodo({
                 todoId: modalData.todoId,
                 reason,
               });
 
-              // 未來 API 呼叫範例：
-              // const apiClient = new ApiClient(env.API_BASE_URL, env.API_TOKEN);
-              // await apiClient.cancelTodo({
-              //   todoId: modalData.todoId,
-              //   reason,
-              // });
+              console.log("[Todo] Cancelled todo via API:", {
+                todoId: modalData.todoId,
+                reason,
+              });
             } catch (error) {
               console.error("[Todo] Failed to cancel todo:", error);
             }

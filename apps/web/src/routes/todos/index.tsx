@@ -30,7 +30,9 @@ import {
   ChevronRight,
   Clock,
   ListTodo,
+  Plus,
   RefreshCw,
+  X,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -49,6 +51,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { authClient } from "@/lib/auth-client";
@@ -342,6 +351,190 @@ function PostponeDialog({
 }
 
 // ============================================================
+// Cancel Dialog Component
+// ============================================================
+
+interface CancelDialogProps {
+  todo: Todo | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCancel: (todoId: string, reason: string) => void;
+  isLoading: boolean;
+}
+
+function CancelDialog({
+  todo,
+  open,
+  onOpenChange,
+  onCancel,
+  isLoading,
+}: CancelDialogProps) {
+  const [reason, setReason] = useState("");
+
+  const handleCancel = () => {
+    if (!(todo && reason.trim())) {
+      return;
+    }
+    onCancel(todo.id, reason.trim());
+    setReason("");
+  };
+
+  return (
+    <Dialog onOpenChange={onOpenChange} open={open}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>確定要取消此待辦？</DialogTitle>
+          <DialogDescription>{todo?.title}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="cancelReason">取消原因</Label>
+            <Textarea
+              id="cancelReason"
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="請說明取消原因..."
+              rows={3}
+              value={reason}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">返回</Button>
+          </DialogClose>
+          <Button
+            disabled={!reason.trim() || isLoading}
+            onClick={handleCancel}
+            variant="destructive"
+          >
+            {isLoading ? "處理中..." : "確認取消"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ============================================================
+// Create Dialog Component
+// ============================================================
+
+interface CreateDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreate: (data: {
+    title: string;
+    description?: string;
+    dueDate: string;
+    opportunityId?: string;
+  }) => void;
+  isLoading: boolean;
+  opportunities: Array<{ id: string; companyName: string }>;
+}
+
+function CreateDialog({
+  open,
+  onOpenChange,
+  onCreate,
+  isLoading,
+  opportunities,
+}: CreateDialogProps) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [opportunityId, setOpportunityId] = useState<string>("");
+
+  const handleCreate = () => {
+    if (!(title.trim() && dueDate)) {
+      return;
+    }
+    onCreate({
+      title: title.trim(),
+      description: description.trim() || undefined,
+      dueDate,
+      opportunityId: opportunityId || undefined,
+    });
+    // 重置表單
+    setTitle("");
+    setDescription("");
+    setDueDate("");
+    setOpportunityId("");
+  };
+
+  // 設定最小日期為今天
+  const minDate = format(new Date(), "yyyy-MM-dd");
+
+  return (
+    <Dialog onOpenChange={onOpenChange} open={open}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>建立待辦</DialogTitle>
+          <DialogDescription>新增一個待辦事項</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="createTitle">標題</Label>
+            <Input
+              id="createTitle"
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="請輸入待辦標題..."
+              value={title}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="createDescription">描述（選填）</Label>
+            <Textarea
+              id="createDescription"
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="請輸入詳細描述..."
+              rows={3}
+              value={description}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="createDueDate">到期日</Label>
+            <Input
+              id="createDueDate"
+              min={minDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              type="date"
+              value={dueDate}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="createOpportunity">關聯商機（選填）</Label>
+            <Select onValueChange={setOpportunityId} value={opportunityId}>
+              <SelectTrigger id="createOpportunity">
+                <SelectValue placeholder="選擇商機" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">不關聯商機</SelectItem>
+                {opportunities.map((opp) => (
+                  <SelectItem key={opp.id} value={opp.id}>
+                    {opp.companyName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">取消</Button>
+          </DialogClose>
+          <Button
+            disabled={!(title.trim() && dueDate) || isLoading}
+            onClick={handleCreate}
+          >
+            {isLoading ? "處理中..." : "建立待辦"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ============================================================
 // Todo Item Component
 // ============================================================
 
@@ -349,9 +542,10 @@ interface TodoItemProps {
   todo: Todo;
   onComplete: (todo: Todo) => void;
   onPostpone: (todo: Todo) => void;
+  onCancel: (todo: Todo) => void;
 }
 
-function TodoItem({ todo, onComplete, onPostpone }: TodoItemProps) {
+function TodoItem({ todo, onComplete, onPostpone, onCancel }: TodoItemProps) {
   const isOverdue =
     todo.status === "pending" &&
     new Date(todo.dueDate) < new Date(new Date().setHours(0, 0, 0, 0));
@@ -470,6 +664,10 @@ function TodoItem({ todo, onComplete, onPostpone }: TodoItemProps) {
                 <Clock className="mr-1 h-4 w-4" />
                 改期
               </Button>
+              <Button onClick={() => onCancel(todo)} size="sm" variant="ghost">
+                <X className="mr-1 h-4 w-4" />
+                取消
+              </Button>
             </div>
           )}
         </div>
@@ -489,6 +687,8 @@ function TodosPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
   const [postponeDialogOpen, setPostponeDialogOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null);
 
   // 新增：狀態篩選
@@ -691,6 +891,69 @@ function TodosPage() {
     },
   });
 
+  // 取消待辦 mutation
+  const cancelMutation = useMutation({
+    mutationFn: async ({
+      todoId,
+      reason,
+    }: {
+      todoId: string;
+      reason: string;
+    }) => {
+      return await client.salesTodo.cancel({
+        todoId,
+        reason,
+      });
+    },
+    onSuccess: () => {
+      toast.success("待辦已取消");
+      setCancelDialogOpen(false);
+      setSelectedTodo(null);
+      queryClient.invalidateQueries({ queryKey: ["salesTodo"] });
+    },
+    onError: () => {
+      toast.error("取消待辦失敗");
+    },
+  });
+
+  // 建立待辦 mutation
+  const createMutation = useMutation({
+    mutationFn: async (data: {
+      title: string;
+      description?: string;
+      dueDate: string;
+      opportunityId?: string;
+    }) => {
+      return await client.salesTodo.create({
+        title: data.title,
+        description: data.description,
+        dueDate: data.dueDate,
+        opportunityId: data.opportunityId,
+        source: "web",
+      });
+    },
+    onSuccess: () => {
+      toast.success("待辦已建立");
+      setCreateDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["salesTodo"] });
+    },
+    onError: () => {
+      toast.error("建立待辦失敗");
+    },
+  });
+
+  // 取得商機列表（用於建立待辦的下拉選單）
+  const opportunitiesQuery = useQuery({
+    queryKey: ["opportunity", "list"],
+    queryFn: async () => {
+      const result = await client.opportunity.list({
+        limit: 100,
+        offset: 0,
+      });
+      return result;
+    },
+  });
+
   const handleOpenComplete = (todo: Todo) => {
     setSelectedTodo(todo);
     setCompleteDialogOpen(true);
@@ -701,12 +964,30 @@ function TodosPage() {
     setPostponeDialogOpen(true);
   };
 
+  const handleOpenCancel = (todo: Todo) => {
+    setSelectedTodo(todo);
+    setCancelDialogOpen(true);
+  };
+
   const handleComplete = (todoId: string, result: string) => {
     completeMutation.mutate({ todoId, result });
   };
 
   const handlePostpone = (todoId: string, newDate: string, reason?: string) => {
     postponeMutation.mutate({ todoId, newDate, reason });
+  };
+
+  const handleCancel = (todoId: string, reason: string) => {
+    cancelMutation.mutate({ todoId, reason });
+  };
+
+  const handleCreate = (data: {
+    title: string;
+    description?: string;
+    dueDate: string;
+    opportunityId?: string;
+  }) => {
+    createMutation.mutate(data);
   };
 
   // 待辦列表（根據 statusFilter API 已過濾）
@@ -723,6 +1004,10 @@ function TodosPage() {
           <h1 className="font-bold text-3xl tracking-tight">待辦事項</h1>
           <p className="text-muted-foreground">管理您的日常工作待辦</p>
         </div>
+        <Button onClick={() => setCreateDialogOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          建立待辦
+        </Button>
       </div>
 
       {/* 篩選區域 */}
@@ -870,6 +1155,7 @@ function TodosPage() {
               {filteredTodos.map((todo) => (
                 <TodoItem
                   key={todo.id}
+                  onCancel={handleOpenCancel}
                   onComplete={handleOpenComplete}
                   onPostpone={handleOpenPostpone}
                   todo={todo as Todo}
@@ -901,6 +1187,25 @@ function TodosPage() {
         onPostpone={handlePostpone}
         open={postponeDialogOpen}
         todo={selectedTodo}
+      />
+      <CancelDialog
+        isLoading={cancelMutation.isPending}
+        onCancel={handleCancel}
+        onOpenChange={setCancelDialogOpen}
+        open={cancelDialogOpen}
+        todo={selectedTodo}
+      />
+      <CreateDialog
+        isLoading={createMutation.isPending}
+        onCreate={handleCreate}
+        onOpenChange={setCreateDialogOpen}
+        open={createDialogOpen}
+        opportunities={
+          opportunitiesQuery.data?.opportunities.map((opp) => ({
+            id: opp.id,
+            companyName: opp.companyName,
+          })) || []
+        }
       />
     </main>
   );

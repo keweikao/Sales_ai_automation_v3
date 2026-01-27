@@ -1524,36 +1524,49 @@ function buildDailyReminderBlocks(
       const daysOverdue = Math.ceil(
         (Date.now() - todo.dueDate.getTime()) / (1000 * 60 * 60 * 24)
       );
-      const companyInfo = todo.companyName
-        ? ` - _${todo.companyName}_`
-        : todo.customerNumber
-          ? ` - _${todo.customerNumber}_`
-          : "";
+      const dueDateStr = todo.dueDate.toISOString().split("T")[0];
+      const displayPrefixParts: string[] = [];
+      if (todo.customerNumber) {
+        displayPrefixParts.push(todo.customerNumber);
+      }
+      if (todo.companyName) {
+        displayPrefixParts.push(todo.companyName);
+      }
+      const displayPrefix =
+        displayPrefixParts.length > 0 ? displayPrefixParts.join(" ") : "無客戶";
 
+      // Section block（只有文字）
       blocks.push({
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `• *${todo.title}*${companyInfo}\n   ⚠️ 逾期 ${daysOverdue} 天`,
+          text: `🔴 *[${displayPrefix}] ${todo.title}*\n   📅 預計 ${dueDateStr} → 已逾期 ${daysOverdue} 天`,
         },
-        accessory: {
-          type: "overflow",
-          action_id: `todo_action_${todo.id}`,
-          options: [
-            {
-              text: { type: "plain_text", text: "✅ 完成", emoji: true },
-              value: `complete_${todo.id}`,
-            },
-            {
-              text: { type: "plain_text", text: "📅 改期", emoji: true },
-              value: `postpone_${todo.id}`,
-            },
-            {
-              text: { type: "plain_text", text: "❌ 取消", emoji: true },
-              value: `cancel_${todo.id}`,
-            },
-          ],
-        },
+      });
+
+      // Actions block（三個獨立按鈕）
+      blocks.push({
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: { type: "plain_text", text: "✅ 完成", emoji: true },
+            action_id: "complete_todo",
+            value: JSON.stringify({ todoId: todo.id, todoTitle: todo.title }),
+          },
+          {
+            type: "button",
+            text: { type: "plain_text", text: "📅 改期", emoji: true },
+            action_id: "postpone_todo",
+            value: JSON.stringify({ todoId: todo.id, todoTitle: todo.title }),
+          },
+          {
+            type: "button",
+            text: { type: "plain_text", text: "❌ 取消", emoji: true },
+            action_id: "cancel_todo",
+            value: JSON.stringify({ todoId: todo.id, todoTitle: todo.title }),
+          },
+        ],
       });
     }
 
@@ -1583,36 +1596,49 @@ function buildDailyReminderBlocks(
 
     for (const todo of todayTodos.slice(0, 5)) {
       // 最多顯示 5 項
-      const companyInfo = todo.companyName
-        ? ` - _${todo.companyName}_`
-        : todo.customerNumber
-          ? ` - _${todo.customerNumber}_`
-          : "";
+      const dueDateStr = todo.dueDate.toISOString().split("T")[0];
+      const displayPrefixParts: string[] = [];
+      if (todo.customerNumber) {
+        displayPrefixParts.push(todo.customerNumber);
+      }
+      if (todo.companyName) {
+        displayPrefixParts.push(todo.companyName);
+      }
+      const displayPrefix =
+        displayPrefixParts.length > 0 ? displayPrefixParts.join(" ") : "無客戶";
 
+      // Section block（只有文字）
       blocks.push({
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `• *${todo.title}*${companyInfo}`,
+          text: `⚪ *[${displayPrefix}] ${todo.title}*\n   📅 預計 ${dueDateStr} → 今日到期`,
         },
-        accessory: {
-          type: "overflow",
-          action_id: `todo_action_${todo.id}`,
-          options: [
-            {
-              text: { type: "plain_text", text: "✅ 完成", emoji: true },
-              value: `complete_${todo.id}`,
-            },
-            {
-              text: { type: "plain_text", text: "📅 改期", emoji: true },
-              value: `postpone_${todo.id}`,
-            },
-            {
-              text: { type: "plain_text", text: "❌ 取消", emoji: true },
-              value: `cancel_${todo.id}`,
-            },
-          ],
-        },
+      });
+
+      // Actions block（三個獨立按鈕）
+      blocks.push({
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: { type: "plain_text", text: "✅ 完成", emoji: true },
+            action_id: "complete_todo",
+            value: JSON.stringify({ todoId: todo.id, todoTitle: todo.title }),
+          },
+          {
+            type: "button",
+            text: { type: "plain_text", text: "📅 改期", emoji: true },
+            action_id: "postpone_todo",
+            value: JSON.stringify({ todoId: todo.id, todoTitle: todo.title }),
+          },
+          {
+            type: "button",
+            text: { type: "plain_text", text: "❌ 取消", emoji: true },
+            action_id: "cancel_todo",
+            value: JSON.stringify({ todoId: todo.id, todoTitle: todo.title }),
+          },
+        ],
       });
     }
 

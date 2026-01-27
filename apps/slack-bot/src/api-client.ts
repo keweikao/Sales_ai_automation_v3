@@ -104,6 +104,8 @@ export class ApiClient {
     industry?: string;
     companySize?: string;
     notes?: string;
+    productLine?: "ichef" | "beauty";
+    slackUserEmail?: string; // 用於對應系統用戶
   }): Promise<OpportunityResponse> {
     return this.request<OpportunityResponse>("/rpc/opportunities/create", {
       body: JSON.stringify(data),
@@ -259,6 +261,46 @@ export class ApiClient {
       message: string;
       phoneNumber?: string;
     }>("/rpc/sms/sendCustomer", {
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Todo 相關 API
+  async createTodo(data: {
+    title: string;
+    description?: string;
+    dueDate: string; // ISO string
+    opportunityId?: string;
+    conversationId?: string;
+    source: string;
+  }): Promise<{ id: string }> {
+    return this.request<{ id: string }>("/rpc/salesTodo/create", {
+      body: JSON.stringify(data),
+    });
+  }
+
+  async completeTodo(data: {
+    todoId: string;
+    result: string;
+    completedVia: "slack" | "web";
+  }): Promise<void> {
+    await this.request("/rpc/salesTodo/complete", {
+      body: JSON.stringify(data),
+    });
+  }
+
+  async postponeTodo(data: {
+    todoId: string;
+    newDate: string; // ISO string
+    reason?: string;
+  }): Promise<void> {
+    await this.request("/rpc/salesTodo/postpone", {
+      body: JSON.stringify(data),
+    });
+  }
+
+  async cancelTodo(data: { todoId: string; reason: string }): Promise<void> {
+    await this.request("/rpc/salesTodo/cancel", {
       body: JSON.stringify(data),
     });
   }

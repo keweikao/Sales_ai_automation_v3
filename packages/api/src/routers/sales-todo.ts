@@ -453,6 +453,7 @@ export const listTodos = protectedProcedure
     return {
       todos: todos.map((todo) => ({
         id: todo.id,
+        userId: todo.userId,
         title: todo.title,
         description: todo.description,
         dueDate: todo.dueDate,
