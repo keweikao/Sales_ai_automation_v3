@@ -142,32 +142,42 @@ function AnalyticsCard({
   icon: Icon,
   children,
   delay = 0,
+  compact = false,
 }: {
   title: React.ReactNode;
   description?: string;
   icon: React.ComponentType<{ className?: string }>;
   children: React.ReactNode;
   delay?: number;
+  compact?: boolean;
 }) {
   return (
     <Card
       className="animate-fade-in-up opacity-0 transition-all duration-300 hover:shadow-lg hover:shadow-teal-500/5"
       style={{ animationDelay: `${delay}ms`, animationFillMode: "forwards" }}
     >
-      <CardHeader className="border-border/50 border-b pb-4">
-        <CardTitle className="flex items-center gap-2 font-display text-xl">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500/10">
-            <Icon className="h-4 w-4 text-teal-400" />
+      <CardHeader
+        className={`border-border/50 border-b ${compact ? "p-3 pb-2" : "p-4 pb-3"}`}
+      >
+        <CardTitle
+          className={`flex items-center gap-2 font-display ${compact ? "text-base" : "text-lg"}`}
+        >
+          <div
+            className={`flex items-center justify-center rounded-lg bg-teal-500/10 ${compact ? "h-6 w-6" : "h-7 w-7"}`}
+          >
+            <Icon
+              className={`text-teal-400 ${compact ? "h-3 w-3" : "h-3.5 w-3.5"}`}
+            />
           </div>
           {title}
         </CardTitle>
         {description && (
-          <CardDescription className="font-data text-xs">
+          <CardDescription className="mt-1 font-data text-xs leading-tight">
             {description}
           </CardDescription>
         )}
       </CardHeader>
-      <CardContent className="pt-4">{children}</CardContent>
+      <CardContent className={compact ? "p-3" : "p-4"}>{children}</CardContent>
     </Card>
   );
 }
@@ -250,10 +260,10 @@ function RepPerformanceReport() {
       : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 用戶選擇器（僅經理/admin 可見） */}
       {canSelectUser && (
-        <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-card/50 p-4">
+        <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-card/50 p-3">
           <span className="font-data text-muted-foreground text-sm">
             查看報告：
           </span>
@@ -261,7 +271,7 @@ function RepPerformanceReport() {
             onValueChange={(v) => setSelectedUserId(v || undefined)}
             value={selectedUserId || ""}
           >
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="自己" />
             </SelectTrigger>
             <SelectContent>
@@ -276,8 +286,8 @@ function RepPerformanceReport() {
         </div>
       )}
 
-      {/* Summary Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6 xl:grid-cols-8">
+      {/* Summary Stats - 統一 4 欄佈局 */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
         <StatCard
           accentColor="teal"
           delay={0}
@@ -346,15 +356,17 @@ function RepPerformanceReport() {
         )}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* 主要分析卡片區 - 兩欄佈局 */}
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* PDCM 四維度分析 */}
         <AnalyticsCard
+          compact
           delay={400}
           description="Pain 35% · Decision 25% · Champion 25% · Metrics 15%"
           icon={Target}
           title={<TermTooltip termKey="pdcmScore">PDCM 四維度分析</TermTooltip>}
         >
-          <div className="space-y-5">
+          <div className="space-y-3">
             {hasCachedData
               ? Object.entries((report as any).pdcmAnalysis || {}).map(
                   ([key, dim]: [string, any]) => {
@@ -432,6 +444,7 @@ function RepPerformanceReport() {
         {/* SPIN 四階段分析（僅新版有） */}
         {hasSpinData ? (
           <AnalyticsCard
+            compact
             delay={500}
             description="Situation 15% · Problem 25% · Implication 40% · Need-payoff 20%"
             icon={BarChart3}
@@ -439,7 +452,7 @@ function RepPerformanceReport() {
               <TermTooltip termKey="spinAnalysis">SPIN 銷售階段</TermTooltip>
             }
           >
-            <div className="space-y-5">
+            <div className="space-y-3">
               {Object.entries((report as any).spinAnalysis || {})
                 .filter(([key]) => key !== "averageCompletionRate")
                 .map(([key, dim]: [string, any]) => {
@@ -478,12 +491,12 @@ function RepPerformanceReport() {
                 })}
               {(report as any).spinAnalysis?.averageCompletionRate !==
                 undefined && (
-                <div className="mt-4 rounded-lg border border-border/50 bg-muted/30 p-4">
+                <div className="mt-3 rounded-lg border border-border/50 bg-muted/30 p-3">
                   <div className="flex items-center justify-between">
                     <span className="font-data font-medium text-sm">
                       SPIN 完成率
                     </span>
-                    <span className="font-bold font-data text-teal-400 text-xl">
+                    <span className="font-bold font-data text-lg text-teal-400">
                       {(
                         (report as any).spinAnalysis.averageCompletionRate * 100
                       ).toFixed(0)}
@@ -497,12 +510,13 @@ function RepPerformanceReport() {
         ) : (
           // 舊版：強項與弱項
           <AnalyticsCard
+            compact
             delay={500}
             description="基於 PDCM 分數自動識別"
             icon={Medal}
             title="強項與弱項"
           >
-            <div className="space-y-6">
+            <div className="space-y-4">
               <div>
                 <h4 className="mb-3 flex items-center gap-2 font-data font-semibold text-emerald-400 text-sm">
                   <ArrowUp className="h-4 w-4" />
@@ -556,12 +570,13 @@ function RepPerformanceReport() {
       {hasSpinData &&
         (report.strengths.length > 0 || report.weaknesses.length > 0) && (
           <AnalyticsCard
+            compact
             delay={600}
             description="基於 PDCM 分數自動識別"
             icon={Medal}
             title="強項與弱項"
           >
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <h4 className="mb-3 flex items-center gap-2 font-data font-semibold text-emerald-400 text-sm">
                   <ArrowUp className="h-4 w-4" />
@@ -612,12 +627,13 @@ function RepPerformanceReport() {
 
       {/* Coaching Insights */}
       <AnalyticsCard
+        compact
         delay={700}
         description="基於 AI 分析的改善建議"
         icon={UserCircle}
         title="個人化教練建議"
       >
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Recurring Patterns */}
           {report.coachingInsights.recurringPatterns.length > 0 && (
             <div>
@@ -680,16 +696,17 @@ function RepPerformanceReport() {
 
       {/* Progress Tracking */}
       <AnalyticsCard
+        compact
         delay={800}
         description="不同時間區間的表現變化"
         icon={Calendar}
         title="進步追蹤"
       >
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className="rounded-lg border border-border/50 bg-muted/30 p-4">
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
             <h4 className="font-data font-medium text-sm">最近 30 天</h4>
-            <div className="mt-2 flex items-center gap-3">
-              <span className="font-bold font-data text-3xl">
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="font-bold font-data text-2xl">
                 {(report.progressTracking.last30Days as any).avgPdcmScore ??
                   report.progressTracking.last30Days.avgScore}
               </span>
@@ -698,10 +715,10 @@ function RepPerformanceReport() {
               />
             </div>
           </div>
-          <div className="rounded-lg border border-border/50 bg-muted/30 p-4">
+          <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
             <h4 className="font-data font-medium text-sm">最近 90 天</h4>
-            <div className="mt-2 flex items-center gap-3">
-              <span className="font-bold font-data text-3xl">
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="font-bold font-data text-2xl">
                 {(report.progressTracking.last90Days as any).avgPdcmScore ??
                   report.progressTracking.last90Days.avgScore}
               </span>
@@ -715,8 +732,8 @@ function RepPerformanceReport() {
         {/* Milestones */}
         {report.progressTracking.milestones &&
           report.progressTracking.milestones.length > 0 && (
-            <div className="mt-6">
-              <h4 className="mb-3 font-data font-medium text-sm">達成里程碑</h4>
+            <div className="mt-4">
+              <h4 className="mb-2 font-data font-medium text-sm">達成里程碑</h4>
               <div className="space-y-2">
                 {report.progressTracking.milestones.map((m, i) => (
                   <div
@@ -846,9 +863,9 @@ function TeamPerformanceReport() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 部門篩選器 */}
-      <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-card/50 p-4">
+      <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-card/50 p-3">
         <span className="font-data text-muted-foreground text-sm">
           篩選部門：
         </span>
@@ -856,7 +873,7 @@ function TeamPerformanceReport() {
           onValueChange={(v) => setDepartment(v as "all" | "beauty" | "ichef")}
           value={department}
         >
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="全部" />
           </SelectTrigger>
           <SelectContent>
@@ -867,8 +884,8 @@ function TeamPerformanceReport() {
         </Select>
       </div>
 
-      {/* Team Summary */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 xl:grid-cols-6">
+      {/* Team Summary - 統一 4 欄佈局 */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         <StatCard
           accentColor="teal"
           delay={0}
@@ -912,15 +929,17 @@ function TeamPerformanceReport() {
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* 排名卡片區 - 兩欄佈局 */}
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* Upload Rankings（新版才有） */}
         {hasCachedData && uploadRankings.length > 0 ? (
           <AnalyticsCard
+            compact
             delay={500}
             description={`${uploadRankingPeriod === "weekly" ? "本週" : "本月"}上傳音檔數量`}
             icon={MessageSquare}
             title={
-              <div className="flex items-center justify-between">
+              <div className="flex w-full items-center justify-between">
                 <span>音檔上傳排名</span>
                 <Select
                   onValueChange={(v) =>
@@ -928,7 +947,7 @@ function TeamPerformanceReport() {
                   }
                   value={uploadRankingPeriod}
                 >
-                  <SelectTrigger className="w-[100px]">
+                  <SelectTrigger className="h-7 w-[90px] text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -944,6 +963,7 @@ function TeamPerformanceReport() {
         ) : (
           // 舊版：Member Rankings
           <AnalyticsCard
+            compact
             delay={500}
             description="依 PDCM 平均分數排序"
             icon={Trophy}
@@ -956,6 +976,7 @@ function TeamPerformanceReport() {
         {/* PDCM Score Rankings（新版顯示 member rankings） */}
         {hasCachedData ? (
           <AnalyticsCard
+            compact
             delay={600}
             description="依 PDCM 平均分數排序"
             icon={Trophy}
@@ -966,13 +987,14 @@ function TeamPerformanceReport() {
         ) : (
           // 舊版：Team Dimension Analysis
           <AnalyticsCard
+            compact
             delay={600}
             description="各維度團隊平均與最佳/最差表現"
             icon={BarChart3}
             title="團隊維度分析"
           >
             {report.teamDimensionAnalysis && (
-              <div className="space-y-5">
+              <div className="space-y-3">
                 {Object.entries(report.teamDimensionAnalysis).map(
                   ([key, dim]) => {
                     const labels: Record<string, string> = {
@@ -1009,12 +1031,13 @@ function TeamPerformanceReport() {
       {/* PDCM 維度分析（新版 Cache 資料） */}
       {hasCachedData && cachedData.pdcmAnalysis && (
         <AnalyticsCard
+          compact
           delay={700}
           description="各維度團隊平均分數"
           icon={BarChart3}
           title="團隊 PDCM 維度分析"
         >
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {Object.entries(cachedData.pdcmAnalysis).map(
               ([key, dim]: [string, any]) => {
                 const labelInfo = PDCM_LABELS[key];
@@ -1023,16 +1046,19 @@ function TeamPerformanceReport() {
                 }
                 return (
                   <div
-                    className="rounded-lg border border-border/50 bg-muted/30 p-4 text-center"
+                    className="rounded-lg border border-border/50 bg-muted/30 p-3 text-center"
                     key={key}
                   >
-                    <p className="font-data text-muted-foreground text-sm">
+                    <p className="font-data text-muted-foreground text-xs">
                       {labelInfo.label}
                     </p>
-                    <p className="mt-1 font-bold font-data text-3xl text-teal-400">
+                    <p className="mt-1 font-bold font-data text-2xl text-teal-400">
                       {dim.teamAvg}
                     </p>
-                    <Badge className="mt-2 font-data text-xs" variant="outline">
+                    <Badge
+                      className="mt-1.5 font-data text-xs"
+                      variant="outline"
+                    >
                       權重 {PDCM_WEIGHTS[key as keyof typeof PDCM_WEIGHTS]}%
                     </Badge>
                   </div>
@@ -1046,6 +1072,7 @@ function TeamPerformanceReport() {
       {/* Attention Needed */}
       {report.attentionNeeded.length > 0 && (
         <AnalyticsCard
+          compact
           delay={800}
           description="分數低於 50 分的機會，需要經理介入"
           icon={Target}
@@ -1055,30 +1082,24 @@ function TeamPerformanceReport() {
             </span>
           }
         >
-          <div className="space-y-3">
+          <div className="space-y-2">
             {report.attentionNeeded.map((opp) => (
               <div
-                className="flex items-center justify-between rounded-lg border border-rose-500/30 bg-rose-500/10 p-4"
+                className="flex items-center justify-between rounded-lg border border-rose-500/30 bg-rose-500/10 p-3"
                 key={opp.opportunityId}
               >
-                <div>
-                  <p className="font-data font-semibold text-sm">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-data font-semibold text-sm">
                     {opp.companyName}
                   </p>
                   <p className="font-data text-muted-foreground text-xs">
-                    負責人: {opp.assignedTo}
-                  </p>
-                  <p className="font-data text-rose-400 text-xs">
-                    風險: {opp.risk}
+                    {opp.assignedTo} · {opp.risk}
                   </p>
                 </div>
-                <div className="text-right">
-                  <span className="inline-flex rounded-md bg-rose-500/20 px-2 py-1 font-bold font-data text-rose-400 text-sm ring-1 ring-rose-500/30">
+                <div className="ml-3 flex-shrink-0 text-right">
+                  <span className="inline-flex rounded-md bg-rose-500/20 px-2 py-0.5 font-bold font-data text-rose-400 text-sm ring-1 ring-rose-500/30">
                     {opp.score} 分
                   </span>
-                  <p className="mt-1 font-data text-muted-foreground text-xs">
-                    {opp.suggestedAction}
-                  </p>
                 </div>
               </div>
             ))}
@@ -1089,6 +1110,7 @@ function TeamPerformanceReport() {
       {/* Team Trends（舊版才有） */}
       {!hasCachedData && report.teamTrends.weeklyScores.length > 0 && (
         <AnalyticsCard
+          compact
           delay={900}
           description="過去 8 週團隊平均分數變化"
           icon={TrendingUp}
@@ -1130,15 +1152,16 @@ function TeamPerformanceReport() {
       {/* Coaching Priority（舊版才有） */}
       {!hasCachedData && report.coachingPriority.length > 0 && (
         <AnalyticsCard
+          compact
           delay={1000}
           description="優先需要輔導的團隊成員"
           icon={UserCircle}
           title="教練優先級"
         >
-          <div className="space-y-3">
+          <div className="space-y-2">
             {report.coachingPriority.map((member) => (
               <div
-                className="rounded-lg border border-border/50 bg-muted/30 p-4"
+                className="rounded-lg border border-border/50 bg-muted/30 p-3"
                 key={member.userId}
               >
                 <div className="flex items-center justify-between">
@@ -1177,17 +1200,17 @@ function TeamPerformanceReport() {
 // Main Reports Page
 function ReportsPage() {
   return (
-    <div className="min-h-screen bg-background p-6 lg:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="min-h-screen bg-background p-4 lg:p-6">
+      <div className="mx-auto max-w-6xl space-y-4">
         {/* Page Header */}
         <div
           className="animate-fade-in-up opacity-0"
           style={{ animationFillMode: "forwards" }}
         >
-          <h1 className="font-bold font-display text-3xl tracking-tight">
+          <h1 className="font-bold font-display text-2xl tracking-tight lg:text-3xl">
             績效報告
           </h1>
-          <p className="font-data text-muted-foreground text-sm">
+          <p className="font-data text-muted-foreground text-xs lg:text-sm">
             業務個人報告與經理團隊報告
           </p>
         </div>
@@ -1200,26 +1223,26 @@ function ReportsPage() {
         >
           <TabsList className="inline-flex gap-1 rounded-full bg-muted p-1">
             <TabsTrigger
-              className="rounded-full px-4 py-2 font-data font-medium text-sm transition-all data-[state=active]:bg-teal-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_15px_rgba(45,212,191,0.3)]"
+              className="rounded-full px-3 py-1.5 font-data font-medium text-sm transition-all data-[state=active]:bg-teal-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_15px_rgba(45,212,191,0.3)]"
               value="personal"
             >
-              <UserCircle className="mr-2 h-4 w-4" />
+              <UserCircle className="mr-1.5 h-4 w-4" />
               個人報告
             </TabsTrigger>
             <TabsTrigger
-              className="rounded-full px-4 py-2 font-data font-medium text-sm transition-all data-[state=active]:bg-teal-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_15px_rgba(45,212,191,0.3)]"
+              className="rounded-full px-3 py-1.5 font-data font-medium text-sm transition-all data-[state=active]:bg-teal-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_15px_rgba(45,212,191,0.3)]"
               value="team"
             >
-              <Users className="mr-2 h-4 w-4" />
+              <Users className="mr-1.5 h-4 w-4" />
               團隊報告
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent className="mt-6" value="personal">
+          <TabsContent className="mt-4" value="personal">
             <RepPerformanceReport />
           </TabsContent>
 
-          <TabsContent className="mt-6" value="team">
+          <TabsContent className="mt-4" value="team">
             <TeamPerformanceReport />
           </TabsContent>
         </Tabs>

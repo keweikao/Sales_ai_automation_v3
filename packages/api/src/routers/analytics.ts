@@ -217,9 +217,44 @@ export const getDashboard = protectedProcedure
 
     const { dateFrom, dateTo } = input;
 
-    // KV 快取 (只快取無日期參數的預設查詢)
+    // ========== 取得用戶角色和部門 ==========
+    const userProfile = await db.query.userProfiles.findFirst({
+      where: eq(userProfiles.userId, userId),
+    });
+
+    const role = userProfile?.role || "sales_rep";
+    const department = userProfile?.department;
+
+    // ========== 根據角色決定查詢範圍 ==========
+    // Admin: 全部機會
+    // Manager: 同部門的機會
+    // Sales Rep: 只看自己的機會
+    let targetUserIds: string[] = [userId];
+    let scopeLabel = "personal";
+
+    if (role === "admin") {
+      // Admin 看全部
+      scopeLabel = "all";
+      targetUserIds = []; // 空陣列表示不過濾 userId
+    } else if (role === "manager" && department) {
+      // Manager 看同部門
+      scopeLabel = `dept:${department}`;
+      if (department === "all") {
+        // department 是 'all' 的 manager 看全部
+        targetUserIds = [];
+      } else {
+        // 取得同部門的所有用戶
+        const teamProfiles = await db.query.userProfiles.findMany({
+          where: eq(userProfiles.department, department),
+        });
+        targetUserIds = teamProfiles.map((p) => p.userId);
+      }
+    }
+    // Sales Rep 維持只看自己 (targetUserIds = [userId])
+
+    // ========== KV 快取 ==========
     const shouldCache = !(dateFrom || dateTo);
-    const cacheKey = `user:${userId}:dashboard`;
+    const cacheKey = `dashboard:${scopeLabel}:${role === "sales_rep" ? userId : scopeLabel}`;
     const TTL_SECONDS = 300; // 5 minutes
 
     if (shouldCache) {
@@ -242,30 +277,50 @@ export const getDashboard = protectedProcedure
             status: string | null;
             createdAt: Date;
           }>;
+          scope: string;
         }>(cacheKey);
 
         if (cached) {
-          console.log(`[Dashboard] Cache hit for user ${userId}`);
+          console.log(`[Dashboard] Cache hit for ${scopeLabel}`);
           return cached;
         }
       }
     }
 
-    console.log(`[Dashboard] Cache miss for user ${userId}, querying DB`);
+    console.log(`[Dashboard] Cache miss for ${scopeLabel}, querying DB`);
 
     // Build date filters
     const dateConditions = buildDateConditions(dateFrom, dateTo);
+
+    // ========== 建立用戶過濾條件 ==========
+    // 如果 targetUserIds 為空，表示不過濾（全部）
+    const buildUserCondition = () => {
+      if (targetUserIds.length === 0) {
+        return undefined; // 不過濾
+      }
+      if (targetUserIds.length === 1) {
+        return eq(opportunities.userId, targetUserIds[0]!);
+      }
+      return inArray(opportunities.userId, targetUserIds);
+    };
+
+    const userCondition = buildUserCondition();
 
     // Total opportunities
     const totalOpportunitiesResults = await db
       .select({ count: count() })
       .from(opportunities)
-      .where(eq(opportunities.userId, userId));
+      .where(userCondition);
     const totalOpportunitiesResult = totalOpportunitiesResults[0] ?? {
       count: 0,
     };
 
     // Total conversations (排除已封存的對話)
+    const conversationConditions = [ne(conversations.status, "archived")];
+    if (userCondition) {
+      conversationConditions.push(userCondition);
+    }
+
     const totalConversationsResults = await db
       .select({ count: count() })
       .from(conversations)
@@ -273,21 +328,17 @@ export const getDashboard = protectedProcedure
         opportunities,
         eq(conversations.opportunityId, opportunities.id)
       )
-      .where(
-        and(
-          eq(opportunities.userId, userId),
-          ne(conversations.status, "archived")
-        )
-      );
+      .where(and(...conversationConditions));
     const totalConversationsResult = totalConversationsResults[0] ?? {
       count: 0,
     };
 
     // Total analyses
-    const analysisConditions = [
-      eq(opportunities.userId, userId),
-      ...dateConditions,
-    ];
+    const analysisConditions = [...dateConditions];
+    if (userCondition) {
+      analysisConditions.push(userCondition);
+    }
+
     const totalAnalysesResults = await db
       .select({ count: count() })
       .from(meddicAnalyses)
@@ -295,7 +346,9 @@ export const getDashboard = protectedProcedure
         opportunities,
         eq(meddicAnalyses.opportunityId, opportunities.id)
       )
-      .where(and(...analysisConditions));
+      .where(
+        analysisConditions.length > 0 ? and(...analysisConditions) : undefined
+      );
     const totalAnalysesResult = totalAnalysesResults[0] ?? { count: 0 };
 
     // Average overall score
@@ -308,7 +361,9 @@ export const getDashboard = protectedProcedure
         opportunities,
         eq(meddicAnalyses.opportunityId, opportunities.id)
       )
-      .where(and(...analysisConditions));
+      .where(
+        analysisConditions.length > 0 ? and(...analysisConditions) : undefined
+      );
     const avgScoreResult = avgScoreResults[0];
 
     // Status distribution
@@ -322,7 +377,9 @@ export const getDashboard = protectedProcedure
         opportunities,
         eq(meddicAnalyses.opportunityId, opportunities.id)
       )
-      .where(and(...analysisConditions))
+      .where(
+        analysisConditions.length > 0 ? and(...analysisConditions) : undefined
+      )
       .groupBy(meddicAnalyses.status);
 
     // Recent analyses
@@ -341,9 +398,31 @@ export const getDashboard = protectedProcedure
         opportunities,
         eq(meddicAnalyses.opportunityId, opportunities.id)
       )
-      .where(and(...analysisConditions))
+      .where(
+        analysisConditions.length > 0 ? and(...analysisConditions) : undefined
+      )
       .orderBy(desc(meddicAnalyses.createdAt))
       .limit(10);
+
+    // 決定 scope 顯示文字
+    const getScopeDisplay = () => {
+      if (role === "admin") {
+        return "全部";
+      }
+      if (role === "manager") {
+        if (department === "all") {
+          return "全部";
+        }
+        if (department === "ichef") {
+          return "iCHEF 團隊";
+        }
+        if (department === "beauty") {
+          return "Beauty 團隊";
+        }
+        return department || "團隊";
+      }
+      return "個人";
+    };
 
     const result = {
       summary: {
@@ -367,6 +446,7 @@ export const getDashboard = protectedProcedure
         status: a.status,
         createdAt: a.createdAt,
       })),
+      scope: getScopeDisplay(),
     };
 
     // 寫入 KV 快取
@@ -374,7 +454,7 @@ export const getDashboard = protectedProcedure
       const cacheService = getKVCacheService(context);
       if (cacheService) {
         await cacheService.set(cacheKey, result, TTL_SECONDS);
-        console.log(`[Dashboard] Wrote cache for user ${userId}`);
+        console.log(`[Dashboard] Wrote cache for ${scopeLabel}`);
       }
     }
 

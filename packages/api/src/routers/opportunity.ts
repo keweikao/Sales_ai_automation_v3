@@ -15,7 +15,7 @@ import {
 } from "@Sales_ai_automation_v3/db/schema";
 import { randomUUID } from "node:crypto";
 import { ORPCError } from "@orpc/server";
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
@@ -176,6 +176,18 @@ export const createOpportunity = protectedProcedure
       throw new ORPCError("INTERNAL_SERVER_ERROR");
     }
 
+    // 失效 opportunities 快取
+    try {
+      const { createKVCacheService, invalidateOpportunitiesCache } =
+        await import("@Sales_ai_automation_v3/services");
+      const cacheService = createKVCacheService(
+        context.honoContext.env.CACHE_KV
+      );
+      await invalidateOpportunitiesCache(cacheService, userId);
+    } catch (error) {
+      console.warn("[Cache] Failed to invalidate cache:", error);
+    }
+
     return {
       id: opportunity.id,
       customerNumber: opportunity.customerNumber,
@@ -241,6 +253,18 @@ export const updateOpportunity = protectedProcedure
       throw new ORPCError("INTERNAL_SERVER_ERROR");
     }
 
+    // 失效 opportunities 快取（包含詳情）
+    try {
+      const { createKVCacheService, invalidateOpportunitiesCache } =
+        await import("@Sales_ai_automation_v3/services");
+      const cacheService = createKVCacheService(
+        context.honoContext.env.CACHE_KV
+      );
+      await invalidateOpportunitiesCache(cacheService, userId, opportunityId);
+    } catch (error) {
+      console.warn("[Cache] Failed to invalidate cache:", error);
+    }
+
     return {
       id: updatedOpportunity.id,
       customerNumber: updatedOpportunity.customerNumber,
@@ -304,6 +328,30 @@ export const deleteOpportunity = protectedProcedure
 // List Opportunities
 // ============================================================
 
+// 機會列表的快取資料類型
+export interface CachedOpportunity {
+  id: string;
+  customerNumber: string;
+  companyName: string;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  source: string;
+  status: string;
+  industry: string | null;
+  companySize: string | null;
+  notes: string | null;
+  opportunityScore: number | null;
+  meddicScore: { overall: number } | null;
+  createdAt: Date;
+  updatedAt: Date;
+  wonAt: Date | null;
+  lostAt: Date | null;
+  spinScore: number | null;
+  salesRepName: string | null;
+  latestCaseNumber: string | null;
+}
+
 export const listOpportunities = protectedProcedure
   .input(listOpportunitiesSchema)
   .handler(async ({ input, context }) => {
@@ -329,6 +377,41 @@ export const listOpportunities = protectedProcedure
     // - Sales rep: see only their own opportunities
     const isServiceAccount = context.isServiceAccount === true;
     const canViewAll = isServiceAccount || isAdmin;
+
+    // ============================================================
+    // KV Cache 邏輯
+    // ============================================================
+    const { createKVCacheService } = await import(
+      "@Sales_ai_automation_v3/services"
+    );
+    const cacheService = createKVCacheService(context.honoContext.env.CACHE_KV);
+
+    // 只有無搜尋、無 source 篩選、無 productLine 篩選時才使用快取
+    const canUseCache = !(search || source || productLine);
+    const statusKey = status || "active";
+    const cacheKey = canViewAll
+      ? `admin:opportunities:list:${statusKey}`
+      : isManager && managerProductLine
+        ? `manager:${managerProductLine}:opportunities:list:${statusKey}`
+        : `user:${userId}:opportunities:list:${statusKey}`;
+
+    // 嘗試從快取讀取
+    if (canUseCache) {
+      try {
+        const cached = await cacheService.get<CachedOpportunity[]>(cacheKey);
+        if (cached && cached.length > 0) {
+          console.log(`[Cache Hit] ${cacheKey}`);
+          return {
+            opportunities: cached.slice(offset, offset + limit),
+            total: cached.length,
+            limit,
+            offset,
+          };
+        }
+      } catch (error) {
+        console.warn("[Cache] Failed to read, falling back to DB:", error);
+      }
+    }
 
     const conditions: ReturnType<typeof eq>[] = [];
 
@@ -414,80 +497,310 @@ export const listOpportunities = protectedProcedure
       .limit(limit)
       .offset(offset);
 
-    // 獲取每個 opportunity 的 SPIN 分數和業務名稱
-    const opportunitiesWithExtras = await Promise.all(
-      results.map(async (opportunity) => {
-        // 獲取最新的 conversation（用於 SPIN 分數、案件編號和 slack 用戶名 fallback）
-        const latestConversation = await db.query.conversations.findFirst({
-          where: eq(conversations.opportunityId, opportunity.id),
-          orderBy: (conversations, { desc }) => [desc(conversations.createdAt)],
-          columns: { id: true, slackUsername: true, caseNumber: true },
+    // ============================================================
+    // 批次查詢優化：從 N+1 (63次查詢) 優化為 4 次批次查詢
+    // ============================================================
+
+    const opportunityIds = results.map((r) => r.id);
+
+    // 批次查詢 1: 取得所有機會的最新 conversation
+    // 使用子查詢取得每個 opportunity 的最新 conversation
+    const allConversations =
+      opportunityIds.length > 0
+        ? await db
+            .select({
+              opportunityId: conversations.opportunityId,
+              id: conversations.id,
+              caseNumber: conversations.caseNumber,
+              slackUsername: conversations.slackUsername,
+              createdAt: conversations.createdAt,
+            })
+            .from(conversations)
+            .where(inArray(conversations.opportunityId, opportunityIds))
+            .orderBy(desc(conversations.createdAt))
+        : [];
+
+    // 建立每個 opportunity 的最新 conversation 映射
+    const latestConversationMap = new Map<
+      string,
+      { id: string; caseNumber: string | null; slackUsername: string | null }
+    >();
+    for (const conv of allConversations) {
+      if (
+        conv.opportunityId &&
+        !latestConversationMap.has(conv.opportunityId)
+      ) {
+        latestConversationMap.set(conv.opportunityId, {
+          id: conv.id,
+          caseNumber: conv.caseNumber,
+          slackUsername: conv.slackUsername,
         });
+      }
+    }
 
-        // 獲取最新的 MEDDIC 分析（含 SPIN 分數）
-        let spinScore: number | null = null;
-        if (latestConversation?.id) {
-          const latestAnalysis = await db.query.meddicAnalyses.findFirst({
-            where: eq(meddicAnalyses.conversationId, latestConversation.id),
-            orderBy: (meddicAnalyses, { desc }) => [
-              desc(meddicAnalyses.createdAt),
-            ],
-            columns: { agentOutputs: true },
-          });
+    // 批次查詢 2: 取得所有相關 conversation 的 MEDDIC 分析
+    const conversationIds = [...latestConversationMap.values()].map(
+      (c) => c.id
+    );
+    const allAnalyses =
+      conversationIds.length > 0
+        ? await db
+            .select({
+              conversationId: meddicAnalyses.conversationId,
+              agentOutputs: meddicAnalyses.agentOutputs,
+              createdAt: meddicAnalyses.createdAt,
+            })
+            .from(meddicAnalyses)
+            .where(inArray(meddicAnalyses.conversationId, conversationIds))
+            .orderBy(desc(meddicAnalyses.createdAt))
+        : [];
 
-          // 提取 SPIN 完成率 (agent3.spin_analysis.spin_completion_rate)
-          if (latestAnalysis?.agentOutputs) {
-            const agent3 = (
-              latestAnalysis.agentOutputs as Record<string, unknown>
-            )?.agent3 as Record<string, unknown> | undefined;
-            const spinAnalysis = agent3?.spin_analysis as
-              | Record<string, unknown>
-              | undefined;
-            const completionRate = spinAnalysis?.spin_completion_rate;
-            if (typeof completionRate === "number") {
-              spinScore = Math.round(completionRate * 100);
-            }
+    // 建立每個 conversation 的最新分析映射
+    const latestAnalysisMap = new Map<string, Record<string, unknown> | null>();
+    for (const analysis of allAnalyses) {
+      if (
+        analysis.conversationId &&
+        !latestAnalysisMap.has(analysis.conversationId)
+      ) {
+        latestAnalysisMap.set(
+          analysis.conversationId,
+          analysis.agentOutputs as Record<string, unknown> | null
+        );
+      }
+    }
+
+    // 批次查詢 3: 取得所有相關 user 的名稱
+    const userIds = [
+      ...new Set(
+        results
+          .map((r) => r.userId)
+          .filter((id): id is string => !!id && id !== "service-account")
+      ),
+    ];
+    const allUsers =
+      userIds.length > 0
+        ? await db.query.user.findMany({
+            where: inArray(user.id, userIds),
+            columns: { id: true, name: true },
+          })
+        : [];
+    const userMap = new Map(allUsers.map((u) => [u.id, u.name]));
+
+    // 組合結果（純記憶體操作，無 DB 查詢）
+    const opportunitiesWithExtras = results.map((opportunity) => {
+      const latestConversation = latestConversationMap.get(opportunity.id);
+
+      // 從分析中提取 SPIN 分數
+      let spinScore: number | null = null;
+      if (latestConversation?.id) {
+        const agentOutputs = latestAnalysisMap.get(latestConversation.id);
+        if (agentOutputs) {
+          const agent3 = agentOutputs.agent3 as
+            | Record<string, unknown>
+            | undefined;
+          const spinAnalysis = agent3?.spin_analysis as
+            | Record<string, unknown>
+            | undefined;
+          const completionRate = spinAnalysis?.spin_completion_rate;
+          if (typeof completionRate === "number") {
+            spinScore = Math.round(completionRate * 100);
+          }
+        }
+      }
+
+      // 取得業務名稱
+      let ownerName: string | null = null;
+      if (opportunity.userId && opportunity.userId !== "service-account") {
+        ownerName = userMap.get(opportunity.userId) || null;
+      }
+      if (!ownerName && latestConversation?.slackUsername) {
+        ownerName = latestConversation.slackUsername;
+      }
+
+      return {
+        id: opportunity.id,
+        customerNumber: opportunity.customerNumber,
+        companyName: opportunity.companyName,
+        contactName: opportunity.contactName,
+        contactEmail: opportunity.contactEmail,
+        contactPhone: opportunity.contactPhone,
+        source: opportunity.source,
+        status: opportunity.status,
+        industry: opportunity.industry,
+        companySize: opportunity.companySize,
+        notes: opportunity.notes,
+        opportunityScore: opportunity.opportunityScore,
+        meddicScore: opportunity.meddicScore,
+        createdAt: opportunity.createdAt,
+        updatedAt: opportunity.updatedAt,
+        wonAt: opportunity.wonAt,
+        lostAt: opportunity.lostAt,
+        spinScore,
+        salesRepName: ownerName,
+        latestCaseNumber: latestConversation?.caseNumber || null,
+      };
+    });
+
+    // ============================================================
+    // 寫入 KV Cache（只有可快取的查詢才寫入）
+    // ============================================================
+    if (canUseCache && opportunitiesWithExtras.length > 0) {
+      try {
+        // 查詢完整列表（不分頁）用於快取
+        // 這樣分頁可以從快取中 slice
+        const fullResults = await db
+          .select()
+          .from(opportunities)
+          .where(conditions.length > 0 ? and(...conditions) : undefined)
+          .orderBy(desc(opportunities.updatedAt))
+          .limit(100); // 最多快取 100 筆
+
+        // 快取資料需要包含所有欄位
+        const fullOpportunitiesIds = fullResults.map((r) => r.id);
+
+        // 批次查詢完整列表的 conversations
+        const fullConversations =
+          fullOpportunitiesIds.length > 0
+            ? await db
+                .select({
+                  opportunityId: conversations.opportunityId,
+                  id: conversations.id,
+                  caseNumber: conversations.caseNumber,
+                  slackUsername: conversations.slackUsername,
+                  createdAt: conversations.createdAt,
+                })
+                .from(conversations)
+                .where(
+                  inArray(conversations.opportunityId, fullOpportunitiesIds)
+                )
+                .orderBy(desc(conversations.createdAt))
+            : [];
+
+        const fullConvMap = new Map<
+          string,
+          {
+            id: string;
+            caseNumber: string | null;
+            slackUsername: string | null;
+          }
+        >();
+        for (const conv of fullConversations) {
+          if (conv.opportunityId && !fullConvMap.has(conv.opportunityId)) {
+            fullConvMap.set(conv.opportunityId, {
+              id: conv.id,
+              caseNumber: conv.caseNumber,
+              slackUsername: conv.slackUsername,
+            });
           }
         }
 
-        // 獲取業務名稱：優先使用 user.name，fallback 到 slackUsername
-        let ownerName: string | null = null;
-        if (opportunity.userId && opportunity.userId !== "service-account") {
-          const ownerUser = await db.query.user.findFirst({
-            where: eq(user.id, opportunity.userId),
-            columns: { name: true },
-          });
-          ownerName = ownerUser?.name || null;
-        }
-        // Fallback 到 Slack 用戶名
-        if (!ownerName && latestConversation?.slackUsername) {
-          ownerName = latestConversation.slackUsername;
+        // 批次查詢完整列表的 meddicAnalyses
+        const fullConvIds = [...fullConvMap.values()].map((c) => c.id);
+        const fullAnalyses =
+          fullConvIds.length > 0
+            ? await db
+                .select({
+                  conversationId: meddicAnalyses.conversationId,
+                  agentOutputs: meddicAnalyses.agentOutputs,
+                  createdAt: meddicAnalyses.createdAt,
+                })
+                .from(meddicAnalyses)
+                .where(inArray(meddicAnalyses.conversationId, fullConvIds))
+                .orderBy(desc(meddicAnalyses.createdAt))
+            : [];
+
+        const fullAnalysisMap = new Map<
+          string,
+          Record<string, unknown> | null
+        >();
+        for (const analysis of fullAnalyses) {
+          if (
+            analysis.conversationId &&
+            !fullAnalysisMap.has(analysis.conversationId)
+          ) {
+            fullAnalysisMap.set(
+              analysis.conversationId,
+              analysis.agentOutputs as Record<string, unknown> | null
+            );
+          }
         }
 
-        return {
-          id: opportunity.id,
-          customerNumber: opportunity.customerNumber,
-          companyName: opportunity.companyName,
-          contactName: opportunity.contactName,
-          contactEmail: opportunity.contactEmail,
-          contactPhone: opportunity.contactPhone,
-          source: opportunity.source,
-          status: opportunity.status,
-          industry: opportunity.industry,
-          companySize: opportunity.companySize,
-          notes: opportunity.notes,
-          opportunityScore: opportunity.opportunityScore,
-          meddicScore: opportunity.meddicScore,
-          createdAt: opportunity.createdAt,
-          updatedAt: opportunity.updatedAt,
-          wonAt: opportunity.wonAt,
-          lostAt: opportunity.lostAt,
-          spinScore,
-          salesRepName: ownerName, // 業務名稱（前端使用 salesRepName）
-          latestCaseNumber: latestConversation?.caseNumber || null, // 最新案件編號
-        };
-      })
-    );
+        // 批次查詢完整列表的 users
+        const fullUserIds = [
+          ...new Set(
+            fullResults
+              .map((r) => r.userId)
+              .filter((id): id is string => !!id && id !== "service-account")
+          ),
+        ];
+        const fullUsers =
+          fullUserIds.length > 0
+            ? await db.query.user.findMany({
+                where: inArray(user.id, fullUserIds),
+                columns: { id: true, name: true },
+              })
+            : [];
+        const fullUserMap = new Map(fullUsers.map((u) => [u.id, u.name]));
+
+        // 組合完整快取資料
+        const cacheData: CachedOpportunity[] = fullResults.map((opp) => {
+          const conv = fullConvMap.get(opp.id);
+          let spinScore: number | null = null;
+          if (conv?.id) {
+            const outputs = fullAnalysisMap.get(conv.id);
+            if (outputs) {
+              const agent3 = outputs.agent3 as
+                | Record<string, unknown>
+                | undefined;
+              const spinAnalysis = agent3?.spin_analysis as
+                | Record<string, unknown>
+                | undefined;
+              const completionRate = spinAnalysis?.spin_completion_rate;
+              if (typeof completionRate === "number") {
+                spinScore = Math.round(completionRate * 100);
+              }
+            }
+          }
+
+          let ownerName: string | null = null;
+          if (opp.userId && opp.userId !== "service-account") {
+            ownerName = fullUserMap.get(opp.userId) || null;
+          }
+          if (!ownerName && conv?.slackUsername) {
+            ownerName = conv.slackUsername;
+          }
+
+          return {
+            id: opp.id,
+            customerNumber: opp.customerNumber,
+            companyName: opp.companyName,
+            contactName: opp.contactName,
+            contactEmail: opp.contactEmail,
+            contactPhone: opp.contactPhone,
+            source: opp.source,
+            status: opp.status,
+            industry: opp.industry,
+            companySize: opp.companySize,
+            notes: opp.notes,
+            opportunityScore: opp.opportunityScore,
+            meddicScore: opp.meddicScore,
+            createdAt: opp.createdAt,
+            updatedAt: opp.updatedAt,
+            wonAt: opp.wonAt,
+            lostAt: opp.lostAt,
+            spinScore,
+            salesRepName: ownerName,
+            latestCaseNumber: conv?.caseNumber || null,
+          };
+        });
+
+        await cacheService.set(cacheKey, cacheData, 600); // 10 分鐘 TTL
+        console.log(`[Cache Set] ${cacheKey} (${cacheData.length} items)`);
+      } catch (error) {
+        console.warn("[Cache] Failed to write cache:", error);
+        // 寫入失敗不影響主流程
+      }
+    }
 
     return {
       opportunities: opportunitiesWithExtras,
@@ -799,6 +1112,18 @@ export const rejectOpportunity = protectedProcedure
         throw new ORPCError("INTERNAL_SERVER_ERROR");
       }
 
+      // 失效 opportunities 快取
+      try {
+        const { createKVCacheService, invalidateOpportunitiesCache } =
+          await import("@Sales_ai_automation_v3/services");
+        const cacheService = createKVCacheService(
+          context.honoContext.env.CACHE_KV
+        );
+        await invalidateOpportunitiesCache(cacheService, userId, opportunityId);
+      } catch (error) {
+        console.warn("[Cache] Failed to invalidate cache:", error);
+      }
+
       return {
         success: true,
         message: "機會已標記為拒絕",
@@ -864,6 +1189,18 @@ export const winOpportunity = protectedProcedure
     const updatedOpportunity = updateResult[0];
     if (!updatedOpportunity) {
       throw new ORPCError("INTERNAL_SERVER_ERROR");
+    }
+
+    // 失效 opportunities 快取
+    try {
+      const { createKVCacheService, invalidateOpportunitiesCache } =
+        await import("@Sales_ai_automation_v3/services");
+      const cacheService = createKVCacheService(
+        context.honoContext.env.CACHE_KV
+      );
+      await invalidateOpportunitiesCache(cacheService, userId, opportunityId);
+    } catch (error) {
+      console.warn("[Cache] Failed to invalidate cache:", error);
     }
 
     return {

@@ -117,6 +117,7 @@ interface Todo {
   prevTodoId: string | null;
   createdAt: string;
   updatedAt: string;
+  customerNumber: string | null;
   opportunity: {
     id: string;
     companyName: string;
@@ -1008,22 +1009,28 @@ function TodoItem({
             </div>
 
             {/* 關聯資訊 - 客戶編號和公司名稱 */}
-            <div className="font-data text-muted-foreground text-sm">
-              {todo.opportunity && (
-                <Link
-                  className="transition-colors hover:text-[var(--ds-accent)] hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                  params={{ id: todo.opportunity.id }}
-                  to="/opportunities/$id"
-                >
-                  [{todo.opportunity.customerNumber}{" "}
-                  {todo.opportunity.companyName}]
-                </Link>
-              )}
-              {todo.conversation?.caseNumber && (
-                <span className="ml-2">| {todo.conversation.caseNumber}</span>
-              )}
-            </div>
+            {(todo.opportunity ||
+              todo.customerNumber ||
+              todo.conversation?.caseNumber) && (
+              <div className="font-data text-muted-foreground text-sm">
+                {todo.opportunity ? (
+                  <Link
+                    className="transition-colors hover:text-[var(--ds-accent)] hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                    params={{ id: todo.opportunity.id }}
+                    to="/opportunities/$id"
+                  >
+                    [{todo.opportunity.customerNumber}{" "}
+                    {todo.opportunity.companyName}]
+                  </Link>
+                ) : todo.customerNumber ? (
+                  <span>[{todo.customerNumber}]</span>
+                ) : null}
+                {todo.conversation?.caseNumber && (
+                  <span className="ml-2">| {todo.conversation.caseNumber}</span>
+                )}
+              </div>
+            )}
 
             {/* 描述 */}
             {todo.description && (

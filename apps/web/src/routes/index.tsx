@@ -7,16 +7,18 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import {
   Activity,
-  ArrowRight,
+  AlertCircle,
   BarChart3,
   Building2,
+  CheckCircle,
+  Clock,
+  ListTodo,
   MessageSquare,
   Target,
   TrendingUp,
   Zap,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -119,6 +121,8 @@ function getStatusColor(status: string | null): {
   bg: string;
   text: string;
   ring: string;
+  bar: string;
+  dot: string;
 } {
   switch (status) {
     case "Strong":
@@ -126,30 +130,40 @@ function getStatusColor(status: string | null): {
         bg: "bg-emerald-500/10",
         text: "text-emerald-400",
         ring: "ring-emerald-500/30",
+        bar: "bg-emerald-400",
+        dot: "bg-emerald-400",
       };
     case "Medium":
       return {
         bg: "bg-amber-500/10",
         text: "text-amber-400",
         ring: "ring-amber-500/30",
+        bar: "bg-amber-400",
+        dot: "bg-amber-400",
       };
     case "Weak":
       return {
         bg: "bg-orange-500/10",
         text: "text-orange-400",
         ring: "ring-orange-500/30",
+        bar: "bg-orange-400",
+        dot: "bg-orange-400",
       };
     case "At Risk":
       return {
         bg: "bg-red-500/10",
         text: "text-red-400",
         ring: "ring-red-500/30",
+        bar: "bg-red-400",
+        dot: "bg-red-400",
       };
     default:
       return {
         bg: "bg-slate-500/10",
         text: "text-slate-400",
         ring: "ring-slate-500/30",
+        bar: "bg-slate-400",
+        dot: "bg-slate-400",
       };
   }
 }
@@ -177,8 +191,18 @@ function DashboardPage() {
     },
   });
 
+  // 今日待辦（含過期）
+  const todosQuery = useQuery({
+    queryKey: ["salesTodo", "todaysTodos", { includeOverdue: true }],
+    queryFn: async () => {
+      return await client.salesTodo.getTodaysTodos({ includeOverdue: true });
+    },
+  });
+
   const dashboard = dashboardQuery.data;
   const isLoading = dashboardQuery.isLoading;
+  const todos = todosQuery.data;
+  const todosLoading = todosQuery.isLoading;
 
   return (
     <>
@@ -329,9 +353,16 @@ function DashboardPage() {
                   <Target className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="brand-title font-bold text-4xl tracking-tight lg:text-5xl">
-                    分析儀表板
-                  </h1>
+                  <div className="flex items-center gap-3">
+                    <h1 className="brand-title font-bold text-4xl tracking-tight lg:text-5xl">
+                      分析儀表板
+                    </h1>
+                    {dashboard?.scope && (
+                      <span className="rounded-full bg-purple-600/20 px-3 py-1 font-mono text-purple-400 text-sm ring-1 ring-purple-600/30">
+                        {dashboard.scope}
+                      </span>
+                    )}
+                  </div>
                   <p className="data-font text-slate-400 text-sm uppercase tracking-wider">
                     銷售智慧 •{" "}
                     <TermTooltip termKey="PDCM+SPIN">
@@ -340,29 +371,6 @@ function DashboardPage() {
                   </p>
                 </div>
               </div>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Button
-                asChild
-                className="action-button border-slate-700 bg-slate-800/50 font-mono text-sm backdrop-blur-sm hover:border-purple-600/50 hover:bg-slate-800"
-                size="lg"
-                variant="outline"
-              >
-                <Link to="/opportunities">
-                  <Building2 className="mr-2 h-4 w-4" />
-                  機會管理
-                </Link>
-              </Button>
-              <Button
-                asChild
-                className="action-button border-purple-600/50 bg-gradient-to-r from-purple-700 to-purple-600 font-mono text-sm shadow-lg shadow-purple-600/20 hover:from-purple-600 hover:to-purple-500"
-                size="lg"
-              >
-                <Link to="/conversations">
-                  <MessageSquare className="mr-2 h-4 w-4" />
-                  對話記錄
-                </Link>
-              </Button>
             </div>
           </div>
 
@@ -410,6 +418,113 @@ function DashboardPage() {
             />
           </div>
 
+          {/* Today's Todos Section */}
+          <Card className="section-card border-slate-800 bg-slate-950/50 backdrop-blur-sm">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-amber-500/10 p-2 ring-1 ring-amber-500/30">
+                  <ListTodo className="h-5 w-5 text-amber-400" />
+                </div>
+                <div>
+                  <CardTitle className="data-font text-white">
+                    今日待辦
+                  </CardTitle>
+                  <CardDescription className="data-font text-slate-500 text-xs uppercase tracking-wider">
+                    需要跟進的客戶
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {todosLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton className="h-16 w-full" key={i} />
+                  ))}
+                </div>
+              ) : todos && todos.length > 0 ? (
+                <div className="space-y-3">
+                  {todos.slice(0, 5).map((todo) => {
+                    const isOverdue =
+                      new Date(todo.dueDate) <
+                      new Date(new Date().setHours(0, 0, 0, 0));
+                    return (
+                      <Link
+                        className="group block rounded-lg border border-slate-800 bg-slate-900/50 p-4 transition-all hover:border-amber-600/30 hover:bg-slate-900"
+                        key={todo.id}
+                        to="/todos"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <div className="flex items-center gap-2">
+                              {isOverdue ? (
+                                <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
+                              ) : (
+                                <Clock className="h-4 w-4 shrink-0 text-amber-400" />
+                              )}
+                              <p className="truncate font-semibold text-white">
+                                {todo.title}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                              {todo.opportunity?.companyName && (
+                                <>
+                                  <span className="data-font text-slate-400">
+                                    {todo.opportunity.companyName}
+                                  </span>
+                                  <span className="text-slate-700">•</span>
+                                </>
+                              )}
+                              <span
+                                className={`data-font ${isOverdue ? "text-red-400" : "text-slate-500"}`}
+                              >
+                                {isOverdue ? "逾期 " : ""}
+                                {new Date(todo.dueDate).toLocaleDateString(
+                                  "zh-TW",
+                                  {
+                                    month: "short",
+                                    day: "numeric",
+                                  }
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                          <div
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                              isOverdue
+                                ? "bg-red-500/10 ring-1 ring-red-500/30"
+                                : "bg-amber-500/10 ring-1 ring-amber-500/30"
+                            }`}
+                          >
+                            {isOverdue ? (
+                              <AlertCircle className="h-4 w-4 text-red-400" />
+                            ) : (
+                              <CheckCircle className="h-4 w-4 text-amber-400" />
+                            )}
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                  {todos.length > 5 && (
+                    <p className="pt-2 text-center text-slate-500 text-sm">
+                      還有 {todos.length - 5} 項待辦...
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="py-8 text-center">
+                  <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-slate-800/50 p-4">
+                    <CheckCircle className="h-full w-full text-green-500" />
+                  </div>
+                  <p className="data-font text-slate-400 text-sm">
+                    太棒了！今日沒有待辦事項
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Status Distribution */}
             <Card className="section-card border-slate-800 bg-slate-950/50 backdrop-blur-sm">
@@ -440,49 +555,63 @@ function DashboardPage() {
                 ) : dashboard?.statusDistribution &&
                   dashboard.statusDistribution.length > 0 ? (
                   <div className="space-y-4">
-                    {dashboard.statusDistribution.map((item) => {
-                      const total = dashboard.statusDistribution.reduce(
-                        (sum, s) => sum + s.count,
-                        0
-                      );
-                      const percentage =
-                        total > 0 ? (item.count / total) * 100 : 0;
-                      const colors = getStatusColor(item.status);
-                      return (
-                        <div className="space-y-2" key={item.status}>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={`flex h-8 w-8 items-center justify-center rounded ${colors.bg} ring-1 ${colors.ring}`}
-                              >
+                    {/* 按照 強→中→弱→風險 排序 */}
+                    {[...dashboard.statusDistribution]
+                      .sort((a, b) => {
+                        const order: Record<string, number> = {
+                          Strong: 0,
+                          Medium: 1,
+                          Weak: 2,
+                          "At Risk": 3,
+                        };
+                        return (
+                          (order[a.status ?? ""] ?? 99) -
+                          (order[b.status ?? ""] ?? 99)
+                        );
+                      })
+                      .map((item) => {
+                        const total = dashboard.statusDistribution.reduce(
+                          (sum, s) => sum + s.count,
+                          0
+                        );
+                        const percentage =
+                          total > 0 ? (item.count / total) * 100 : 0;
+                        const colors = getStatusColor(item.status);
+                        return (
+                          <div className="space-y-2" key={item.status}>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
                                 <div
-                                  className={`h-2 w-2 rounded-full ${colors.text.replace("text-", "bg-")}`}
-                                />
+                                  className={`flex h-8 w-8 items-center justify-center rounded ${colors.bg} ring-1 ${colors.ring}`}
+                                >
+                                  <div
+                                    className={`h-2 w-2 rounded-full ${colors.dot}`}
+                                  />
+                                </div>
+                                <span
+                                  className={`data-font font-semibold text-sm uppercase tracking-wider ${colors.text}`}
+                                >
+                                  {getStatusLabel(item.status)}
+                                </span>
                               </div>
-                              <span
-                                className={`data-font font-semibold text-sm uppercase tracking-wider ${colors.text}`}
-                              >
-                                {getStatusLabel(item.status)}
-                              </span>
+                              <div className="flex items-center gap-3">
+                                <span className="data-font font-bold text-white">
+                                  {item.count}
+                                </span>
+                                <span className="data-font text-slate-500 text-sm">
+                                  {Math.round(percentage)}%
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                              <span className="data-font font-bold text-white">
-                                {item.count}
-                              </span>
-                              <span className="data-font text-slate-500 text-sm">
-                                {Math.round(percentage)}%
-                              </span>
+                            <div className="status-bar relative h-2 overflow-hidden rounded-full bg-slate-800">
+                              <div
+                                className={`h-full transition-all duration-1000 ${colors.bar}`}
+                                style={{ width: `${percentage}%` }}
+                              />
                             </div>
                           </div>
-                          <div className="status-bar relative h-2 overflow-hidden rounded-full bg-slate-800">
-                            <div
-                              className={`h-full transition-all duration-1000 ${colors.text.replace("text-", "bg-")}`}
-                              style={{ width: `${percentage}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                   </div>
                 ) : (
                   <div className="py-12 text-center">
@@ -513,17 +642,6 @@ function DashboardPage() {
                     </CardDescription>
                   </div>
                 </div>
-                <Button
-                  asChild
-                  className="data-font border-slate-700 text-purple-400 hover:border-purple-600/50 hover:bg-slate-800 hover:text-cyan-300"
-                  size="sm"
-                  variant="ghost"
-                >
-                  <Link to="/conversations">
-                    查看全部
-                    <ArrowRight className="ml-2 h-3 w-3" />
-                  </Link>
-                </Button>
               </CardHeader>
               <CardContent>
                 {isLoading ? (

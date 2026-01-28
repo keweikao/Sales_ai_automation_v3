@@ -55,3 +55,50 @@ export async function updateConversationCache(
 
   console.log(`[Cache] Updated cache for conversation: ${conversationId}`);
 }
+
+// ============================================================
+// Opportunities Cache Helpers
+// ============================================================
+
+/**
+ * 失效機會列表快取
+ * 採用 Invalidation-First 策略
+ *
+ * @param cache CacheService 實例
+ * @param userId 用戶 ID（用於個人快取）
+ * @param opportunityId 可選，機會 ID（用於失效詳情快取）
+ */
+export async function invalidateOpportunitiesCache(
+  cache: CacheService,
+  userId: string,
+  opportunityId?: string
+): Promise<void> {
+  const keys = [
+    // 個人列表快取
+    `user:${userId}:opportunities:list:active`,
+    `user:${userId}:opportunities:list:won`,
+    `user:${userId}:opportunities:list:lost`,
+    // 管理員共用列表快取
+    "admin:opportunities:list:active",
+    "admin:opportunities:list:won",
+    "admin:opportunities:list:lost",
+    // 主管列表快取（失效所有產品線）
+    "manager:ichef:opportunities:list:active",
+    "manager:ichef:opportunities:list:won",
+    "manager:ichef:opportunities:list:lost",
+    "manager:beauty:opportunities:list:active",
+    "manager:beauty:opportunities:list:won",
+    "manager:beauty:opportunities:list:lost",
+    // 相關的 analytics 快取
+    `user:${userId}:analytics:dashboard`,
+  ];
+
+  if (opportunityId) {
+    keys.push(`opportunity:${opportunityId}:detail`);
+  }
+
+  await cache.deleteMultiple(keys);
+  console.log(
+    `[Cache] Invalidated opportunities cache for user: ${userId}${opportunityId ? `, opportunity: ${opportunityId}` : ""}`
+  );
+}

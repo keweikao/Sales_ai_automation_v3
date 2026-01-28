@@ -216,6 +216,7 @@ export async function testAllConnections(): Promise<{
 
 export {
   invalidateConversationsListCache,
+  invalidateOpportunitiesCache,
   updateConversationCache,
   updateConversationDetailCache,
 } from "./cache/helpers";
