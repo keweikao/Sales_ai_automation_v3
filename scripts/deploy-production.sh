@@ -8,6 +8,10 @@
 
 set -e
 
+# 取得腳本所在目錄
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 # 顏色定義
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -42,6 +46,26 @@ check_command() {
         print_error "$1 未安裝，請先安裝"
         exit 1
     fi
+}
+
+# 函數：發送部署通知
+send_notification() {
+    local APP=$1
+    local STATUS=$2
+    local MESSAGE=${3:-""}
+
+    if [[ -f "$SCRIPT_DIR/notify-deployment.sh" ]]; then
+        bash "$SCRIPT_DIR/notify-deployment.sh" deploy "$APP" production "$STATUS" "$MESSAGE" || true
+    fi
+}
+
+# 函數：處理部署失敗
+handle_deploy_failure() {
+    local APP=$1
+    local ERROR_MSG=${2:-"部署過程中發生錯誤"}
+    print_error "$APP 部署失敗: $ERROR_MSG"
+    send_notification "$APP" "failure" "$ERROR_MSG"
+    exit 1
 }
 
 # 函數：執行部署前檢查
@@ -125,45 +149,63 @@ confirm_production_deploy() {
 # 函數：部署 Server 到 Production
 deploy_server() {
     print_header "部署 Server 到 Production"
-    cd apps/server
-    bunx wrangler deploy
-    cd ../..
-    print_success "Server 部署完成"
-    echo -e "  URL: ${BLUE}https://sales-ai-server.salesaiautomationv3.workers.dev${NC}"
+    cd "$PROJECT_ROOT/apps/server"
+    if bunx wrangler deploy; then
+        cd "$PROJECT_ROOT"
+        print_success "Server 部署完成"
+        echo -e "  URL: ${BLUE}https://sales-ai-server.salesaiautomationv3.workers.dev${NC}"
+        send_notification "server" "success"
+    else
+        cd "$PROJECT_ROOT"
+        handle_deploy_failure "server" "Wrangler 部署命令失敗"
+    fi
 }
 
 # 函數：部署 Queue Worker 到 Production
 deploy_queue_worker() {
     print_header "部署 Queue Worker 到 Production"
-    cd apps/queue-worker
-    bunx wrangler deploy
-    cd ../..
-    print_success "Queue Worker 部署完成"
+    cd "$PROJECT_ROOT/apps/queue-worker"
+    if bunx wrangler deploy; then
+        cd "$PROJECT_ROOT"
+        print_success "Queue Worker 部署完成"
+        send_notification "queue-worker" "success"
+    else
+        cd "$PROJECT_ROOT"
+        handle_deploy_failure "queue-worker" "Wrangler 部署命令失敗"
+    fi
 }
 
 # 函數：部署 Web 到 Production
 deploy_web() {
     print_header "部署 Web 到 Production"
-    cd apps/web
+    cd "$PROJECT_ROOT/apps/web"
 
     # 檢查 .env.production 是否存在
     if [[ ! -f ".env.production" ]]; then
         print_error ".env.production 不存在！"
         echo "請建立 apps/web/.env.production 並設定："
         echo "  VITE_SERVER_URL=https://sales-ai-server.salesaiautomationv3.workers.dev"
-        exit 1
+        cd "$PROJECT_ROOT"
+        handle_deploy_failure "web" ".env.production 檔案缺失"
     fi
 
     # 使用 production 環境變數建置
     echo "使用 .env.production 建置..."
-    bun run build
+    if ! bun run build; then
+        cd "$PROJECT_ROOT"
+        handle_deploy_failure "web" "Build 失敗"
+    fi
 
     # 部署到 Cloudflare Pages (main branch)
-    bunx wrangler pages deploy dist --project-name=sales-ai-web --branch=main
-
-    cd ../..
-    print_success "Web 部署完成"
-    echo -e "  URL: ${BLUE}https://sales-ai-web.pages.dev${NC}"
+    if bunx wrangler pages deploy dist --project-name=sales-ai-web --branch=main; then
+        cd "$PROJECT_ROOT"
+        print_success "Web 部署完成"
+        echo -e "  URL: ${BLUE}https://sales-ai-web.pages.dev${NC}"
+        send_notification "web" "success"
+    else
+        cd "$PROJECT_ROOT"
+        handle_deploy_failure "web" "Wrangler Pages 部署失敗"
+    fi
 }
 
 # 函數：部署後健康檢查

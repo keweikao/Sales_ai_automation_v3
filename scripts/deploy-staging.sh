@@ -8,6 +8,10 @@
 
 set -e
 
+# 取得腳本所在目錄
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 # 顏色定義
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -46,6 +50,26 @@ check_command() {
     fi
 }
 
+# 函數：發送部署通知
+send_notification() {
+    local APP=$1
+    local STATUS=$2
+    local MESSAGE=${3:-""}
+
+    if [[ -f "$SCRIPT_DIR/notify-deployment.sh" ]]; then
+        bash "$SCRIPT_DIR/notify-deployment.sh" deploy "$APP" staging "$STATUS" "$MESSAGE" || true
+    fi
+}
+
+# 函數：處理部署失敗
+handle_deploy_failure() {
+    local APP=$1
+    local ERROR_MSG=${2:-"部署過程中發生錯誤"}
+    print_error "$APP 部署失敗: $ERROR_MSG"
+    send_notification "$APP" "failure" "$ERROR_MSG"
+    exit 1
+}
+
 # 函數：執行部署前檢查
 pre_deploy_checks() {
     print_header "執行部署前檢查"
@@ -80,37 +104,54 @@ pre_deploy_checks() {
 # 函數：部署 Server 到 Staging
 deploy_server() {
     print_header "部署 Server 到 Staging"
-    cd apps/server
-    bunx wrangler deploy --env staging
-    cd ../..
-    print_success "Server 部署完成"
-    echo -e "  URL: ${BLUE}https://sales-ai-server-staging.salesaiautomationv3.workers.dev${NC}"
+    cd "$PROJECT_ROOT/apps/server"
+    if bunx wrangler deploy --env staging; then
+        cd "$PROJECT_ROOT"
+        print_success "Server 部署完成"
+        echo -e "  URL: ${BLUE}https://sales-ai-server-staging.salesaiautomationv3.workers.dev${NC}"
+        send_notification "server" "success"
+    else
+        cd "$PROJECT_ROOT"
+        handle_deploy_failure "server" "Wrangler 部署命令失敗"
+    fi
 }
 
 # 函數：部署 Queue Worker 到 Staging
 deploy_queue_worker() {
     print_header "部署 Queue Worker 到 Staging"
-    cd apps/queue-worker
-    bunx wrangler deploy --env staging
-    cd ../..
-    print_success "Queue Worker 部署完成"
+    cd "$PROJECT_ROOT/apps/queue-worker"
+    if bunx wrangler deploy --env staging; then
+        cd "$PROJECT_ROOT"
+        print_success "Queue Worker 部署完成"
+        send_notification "queue-worker" "success"
+    else
+        cd "$PROJECT_ROOT"
+        handle_deploy_failure "queue-worker" "Wrangler 部署命令失敗"
+    fi
 }
 
 # 函數：部署 Web 到 Staging
 deploy_web() {
     print_header "部署 Web 到 Staging"
-    cd apps/web
+    cd "$PROJECT_ROOT/apps/web"
 
     # 使用 staging 環境變數建置
     echo "使用 .env.staging 建置..."
-    VITE_SERVER_URL=https://sales-ai-server-staging.salesaiautomationv3.workers.dev bun run build
+    if ! VITE_SERVER_URL=https://sales-ai-server-staging.salesaiautomationv3.workers.dev bun run build; then
+        cd "$PROJECT_ROOT"
+        handle_deploy_failure "web" "Build 失敗"
+    fi
 
     # 部署到 Cloudflare Pages (staging branch)
-    bunx wrangler pages deploy dist --project-name=sales-ai-web --branch=staging
-
-    cd ../..
-    print_success "Web 部署完成"
-    echo -e "  URL: ${BLUE}https://staging.sales-ai-web.pages.dev${NC}"
+    if bunx wrangler pages deploy dist --project-name=sales-ai-web --branch=staging; then
+        cd "$PROJECT_ROOT"
+        print_success "Web 部署完成"
+        echo -e "  URL: ${BLUE}https://staging.sales-ai-web.pages.dev${NC}"
+        send_notification "web" "success"
+    else
+        cd "$PROJECT_ROOT"
+        handle_deploy_failure "web" "Wrangler Pages 部署失敗"
+    fi
 }
 
 # 函數：顯示使用說明
