@@ -7,6 +7,7 @@ import { db } from "@Sales_ai_automation_v3/db";
 import {
   type CompletionRecord,
   type LostRecord,
+  opportunities,
   type PostponeRecord,
   salesTodos,
   todoLogs,
@@ -78,6 +79,7 @@ function getDateEndInTaipei(dateStr: string): Date {
 const createTodoSchema = z.object({
   opportunityId: z.string().optional(),
   conversationId: z.string().optional(),
+  customerNumber: z.string().optional(), // 主要連接欄位，用於關聯 opportunity
   title: z.string().min(1),
   description: z.string().optional(),
   dueDate: z.string(), // ISO string
@@ -240,6 +242,7 @@ export const createTodo = protectedProcedure
         userId,
         opportunityId: input.opportunityId,
         conversationId: input.conversationId,
+        customerNumber: input.customerNumber, // 主要連接欄位
         title: input.title,
         description: input.description,
         dueDate,
@@ -254,6 +257,31 @@ export const createTodo = protectedProcedure
     if (!todo) {
       throw new ORPCError("INTERNAL_SERVER_ERROR");
     }
+
+    // 更新 opportunity 的 updatedAt
+    if (input.opportunityId) {
+      await db
+        .update(opportunities)
+        .set({ updatedAt: new Date() })
+        .where(eq(opportunities.id, input.opportunityId));
+    }
+
+    // 記錄 create log
+    await createTodoLog({
+      todoId: todo.id,
+      opportunityId: todo.opportunityId,
+      userId,
+      action: "create",
+      actionVia: input.source === "slack" ? "slack" : "web",
+      changes: {
+        after: {
+          title: todo.title,
+          description: todo.description,
+          dueDate: todo.dueDate?.toISOString(),
+          customerNumber: todo.customerNumber,
+        },
+      },
+    });
 
     return {
       id: todo.id,
@@ -310,6 +338,7 @@ export const completeTodo = protectedProcedure
         userId: todo.userId,
         opportunityId: todo.opportunityId,
         conversationId: todo.conversationId,
+        customerNumber: todo.customerNumber, // 繼承原 todo 的 customerNumber
         title: nextTodo.title,
         description: nextTodo.description,
         dueDate: nextDueDate,
@@ -370,9 +399,18 @@ export const completeTodo = protectedProcedure
         title: nextTodo.title,
         description: nextTodo.description,
         dueDate: nextTodo.dueDate,
+        customerNumber: todo.customerNumber,
         prevTodoId: todoId,
       },
     });
+
+    // 更新 opportunity 的 updatedAt
+    if (todo.opportunityId) {
+      await db
+        .update(opportunities)
+        .set({ updatedAt: new Date() })
+        .where(eq(opportunities.id, todo.opportunityId));
+    }
 
     return {
       success: true,
@@ -459,6 +497,14 @@ export const postponeTodo = protectedProcedure
       note: reason,
     });
 
+    // 更新 opportunity 的 updatedAt
+    if (todo.opportunityId) {
+      await db
+        .update(opportunities)
+        .set({ updatedAt: new Date() })
+        .where(eq(opportunities.id, todo.opportunityId));
+    }
+
     return {
       success: true,
       todo: {
@@ -509,6 +555,14 @@ export const cancelTodo = protectedProcedure
     const updatedTodo = updateResult[0];
     if (!updatedTodo) {
       throw new ORPCError("INTERNAL_SERVER_ERROR");
+    }
+
+    // 更新 opportunity 的 updatedAt
+    if (todo.opportunityId) {
+      await db
+        .update(opportunities)
+        .set({ updatedAt: new Date() })
+        .where(eq(opportunities.id, todo.opportunityId));
     }
 
     return {
@@ -585,6 +639,14 @@ export const winTodo = protectedProcedure
       note,
     });
 
+    // 更新 opportunity 的 updatedAt
+    if (todo.opportunityId) {
+      await db
+        .update(opportunities)
+        .set({ updatedAt: new Date() })
+        .where(eq(opportunities.id, todo.opportunityId));
+    }
+
     return {
       success: true,
       todo: {
@@ -658,6 +720,14 @@ export const loseTodo = protectedProcedure
       },
       note,
     });
+
+    // 更新 opportunity 的 updatedAt
+    if (todo.opportunityId) {
+      await db
+        .update(opportunities)
+        .set({ updatedAt: new Date() })
+        .where(eq(opportunities.id, todo.opportunityId));
+    }
 
     return {
       success: true,

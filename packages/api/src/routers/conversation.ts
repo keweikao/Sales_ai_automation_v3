@@ -25,7 +25,7 @@ import {
 } from "@Sales_ai_automation_v3/services";
 import { randomUUID } from "node:crypto";
 import { ORPCError } from "@orpc/server";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
@@ -471,6 +471,12 @@ export const uploadConversation = protectedProcedure
         if (!insertedConversation) {
           throw new Error("No conversation returned from DB insert");
         }
+
+        // 更新 opportunity 的 updatedAt，使其出現在機會列表最上方
+        await db
+          .update(opportunities)
+          .set({ updatedAt: new Date() })
+          .where(eq(opportunities.id, opportunityId));
       } catch (error) {
         console.error(`[${requestId}] ❌ DB insert failed:`, error);
         console.error(
@@ -818,6 +824,9 @@ export const listConversations = protectedProcedure
 
     // 根據角色設定查詢條件
     const conditions = [];
+
+    // 排除已封存的對話 (archived 狀態)
+    conditions.push(ne(conversations.status, "archived"));
 
     // 一般業務只能看自己的和 Slack 建立的（userId 為 null 或 "service-account"），管理者和主管可以看全部
     if (!hasAdminAccess) {

@@ -13,7 +13,10 @@ import {
   parseEditSummaryValues,
 } from "./blocks/edit-summary-modal";
 import {
+  buildCloseCaseModal,
+  buildFollowUpChoiceModal,
   buildFollowUpModal,
+  parseCloseCaseFormValues,
   parseFollowUpFormValues,
 } from "./blocks/follow-up-modal";
 import {
@@ -199,7 +202,107 @@ app.post("/slack/interactions", async (c) => {
       console.log(`[Interaction] Button action: ${actionId}`);
       console.log("[Interaction] Action value:", value);
 
-      // Process actions asynchronously
+      // Modal 按鈕需要同步呼叫 views.update API
+      if (actionId === "choose_follow_up") {
+        try {
+          const modalData = JSON.parse(value);
+          console.log(
+            "[choose_follow_up] Building follow-up modal with data:",
+            modalData
+          );
+
+          const followUpModal = buildFollowUpModal({
+            conversationId: modalData.conversationId,
+            caseNumber: modalData.caseNumber,
+            opportunityId: modalData.opportunityId,
+            opportunityName: modalData.opportunityName,
+            customerNumber: modalData.customerNumber,
+          });
+
+          const slackClient = new SlackClient(env.SLACK_BOT_TOKEN);
+          console.log("[choose_follow_up] Calling views.update API");
+          const result = await slackClient.updateView(
+            payload.view.id,
+            followUpModal
+          );
+          console.log("[choose_follow_up] updateView result ok:", result.ok);
+          if (!result.ok) {
+            console.error("[choose_follow_up] updateView error:", result.error);
+          }
+        } catch (error) {
+          console.error("[choose_follow_up] Error:", error);
+        }
+        return c.json({ ok: true });
+      }
+
+      if (actionId === "choose_close_case") {
+        try {
+          const modalData = JSON.parse(value);
+          console.log(
+            "[choose_close_case] Building close case modal with data:",
+            modalData
+          );
+
+          const closeCaseModal = buildCloseCaseModal({
+            conversationId: modalData.conversationId,
+            caseNumber: modalData.caseNumber,
+            opportunityId: modalData.opportunityId,
+            opportunityName: modalData.opportunityName,
+            customerNumber: modalData.customerNumber,
+          });
+
+          const slackClient = new SlackClient(env.SLACK_BOT_TOKEN);
+          console.log("[choose_close_case] Calling views.update API");
+          const result = await slackClient.updateView(
+            payload.view.id,
+            closeCaseModal
+          );
+          console.log("[choose_close_case] updateView result ok:", result.ok);
+          if (!result.ok) {
+            console.error(
+              "[choose_close_case] updateView error:",
+              result.error
+            );
+          }
+        } catch (error) {
+          console.error("[choose_close_case] Error:", error);
+        }
+        return c.json({ ok: true });
+      }
+
+      if (actionId === "back_to_choice") {
+        try {
+          const modalData = JSON.parse(value);
+          console.log(
+            "[back_to_choice] Building choice modal with data:",
+            modalData
+          );
+
+          const choiceModal = buildFollowUpChoiceModal({
+            conversationId: modalData.conversationId,
+            caseNumber: modalData.caseNumber,
+            opportunityId: modalData.opportunityId,
+            opportunityName: modalData.opportunityName,
+            customerNumber: modalData.customerNumber,
+          });
+
+          const slackClient = new SlackClient(env.SLACK_BOT_TOKEN);
+          console.log("[back_to_choice] Calling views.update API");
+          const result = await slackClient.updateView(
+            payload.view.id,
+            choiceModal
+          );
+          console.log("[back_to_choice] updateView result ok:", result.ok);
+          if (!result.ok) {
+            console.error("[back_to_choice] updateView error:", result.error);
+          }
+        } catch (error) {
+          console.error("[back_to_choice] Error:", error);
+        }
+        return c.json({ ok: true });
+      }
+
+      // 其他按鈕動作異步處理
       c.executionCtx.waitUntil(
         (async () => {
           switch (actionId) {
@@ -599,6 +702,8 @@ app.post("/slack/interactions", async (c) => {
               break;
             }
 
+            // choose_follow_up, choose_close_case, back_to_choice 已經在上面同步處理
+
             default:
               console.log(`Unhandled action: ${actionId}`);
           }
@@ -610,6 +715,10 @@ app.post("/slack/interactions", async (c) => {
   // Handle Modal submission
   if (payload.type === "view_submission") {
     const callbackId = payload.view?.callback_id;
+    console.log(
+      "[ViewSubmission] Received view_submission, callback_id:",
+      callbackId
+    );
 
     if (callbackId === "audio_upload_form") {
       // 處理音檔上傳表單提交
@@ -704,10 +813,6 @@ app.post("/slack/interactions", async (c) => {
           staffCount: metadata.staffCount,
           currentSystem: metadata.currentSystem,
           decisionMakerPresent: metadata.decisionMakerPresent,
-          // 聯絡人資訊
-          contactName: metadata.contactName,
-          contactPhone: metadata.contactPhone,
-          contactEmail: metadata.contactEmail,
         };
 
         // 非同步處理音檔
@@ -715,17 +820,19 @@ app.post("/slack/interactions", async (c) => {
           processAudioWithMetadata(pendingFile, legacyMetadata, env)
         );
 
-        // 推送 Follow-up Modal（讓業務設定追蹤提醒）
-        // 注意：此時 conversationId 和 caseNumber 尚未生成，使用 placeholder
-        const followUpModal = buildFollowUpModal({
-          conversationId: "pending", // 將在 follow_up_form 提交時由後端處理
+        // 推送 Follow-up 選擇 Modal（讓業務選擇處理方式）
+        // 注意：此時 conversationId 尚未生成，使用 placeholder
+        // 但 customerNumber 已知，可直接傳遞用於 Todo 連接
+        const followUpChoiceModal = buildFollowUpChoiceModal({
+          conversationId: "pending", // 將在表單提交時由後端處理
           caseNumber: `${metadata.customerNumber || "新案件"}`,
           opportunityName: metadata.customerName,
+          customerNumber: metadata.customerNumber, // 傳遞 customerNumber 用於 Todo 連接
         });
 
         return c.json({
           response_action: "push",
-          view: followUpModal,
+          view: followUpChoiceModal,
         });
       } catch (error) {
         console.error("Error processing audio upload form:", error);
@@ -792,167 +899,100 @@ app.post("/slack/interactions", async (c) => {
     }
 
     if (callbackId === "follow_up_form") {
-      // 處理 Follow-up 表單提交（支援建立 Follow-up 或 客戶已拒絕）
+      // 處理 Follow-up 表單提交
       try {
         const privateMetadata = payload.view?.private_metadata;
         const modalData = JSON.parse(privateMetadata);
         const values = payload.view?.state?.values;
 
         // 解析表單值
-        const { action, days, title, description, rejectReason, competitor } =
-          parseFollowUpFormValues(values);
+        const { days, title, description } = parseFollowUpFormValues(values);
 
         console.log("[Follow-up] Form submitted:", {
-          action,
           days,
           title,
           description,
-          rejectReason,
-          competitor,
           modalData,
         });
 
-        if (action === "follow_up") {
-          // 建立 Follow-up Todo 流程
-          // 驗證必填欄位
-          if (!title?.trim()) {
-            return c.json({
-              response_action: "errors",
-              errors: {
-                title_block: "選擇建立 Follow-up 時，請輸入 Follow 事項",
-              },
-            });
-          }
+        // 非同步建立 Todo（透過 API）
+        console.log("[Follow-up] Starting waitUntil for Todo creation");
+        c.executionCtx.waitUntil(
+          (async () => {
+            console.log("[Follow-up] Inside waitUntil async function");
+            try {
+              // 計算到期日
+              const dueDate = new Date();
+              dueDate.setDate(dueDate.getDate() + days);
 
-          // 非同步建立 Todo（透過 API）
-          c.executionCtx.waitUntil(
-            (async () => {
-              try {
-                // 計算到期日
-                const dueDate = new Date();
-                dueDate.setDate(dueDate.getDate() + (days || 3));
+              console.log("[Follow-up] Creating todo with config:", {
+                apiBaseUrl: env.API_BASE_URL,
+                hasToken: !!env.API_TOKEN,
+                tokenLength: env.API_TOKEN?.length,
+                customerNumber: modalData.customerNumber,
+                opportunityId: modalData.opportunityId,
+              });
 
-                // 呼叫後端 API 建立 Todo
-                const apiClient = new ApiClient(
-                  env.API_BASE_URL,
-                  env.API_TOKEN
+              // 呼叫後端 API 建立 Todo（使用 customerNumber 作為主要連接欄位）
+              const apiClient = new ApiClient(env.API_BASE_URL, env.API_TOKEN);
+
+              // 如果沒有 opportunityId 但有 customerNumber，嘗試查詢 opportunityId
+              let resolvedOpportunityId = modalData.opportunityId;
+              if (!resolvedOpportunityId && modalData.customerNumber) {
+                console.log(
+                  "[Follow-up] No opportunityId, attempting to resolve from customerNumber:",
+                  modalData.customerNumber
                 );
-                const result = await apiClient.createTodo({
-                  title: title!,
-                  description,
-                  dueDate: dueDate.toISOString(),
-                  opportunityId: modalData.opportunityId,
-                  conversationId: modalData.conversationId,
-                  source: "slack",
-                });
-
-                console.log("[Follow-up] Created todo via API:", {
-                  todoId: result.id,
-                  title,
-                  dueDate: dueDate.toISOString(),
-                });
-
-                // 更新 conversation 的 followUpStatus 為 "created"
-                // 注意：只有在 conversationId 是有效 UUID 時才更新（非 "pending" 佔位符）
-                const isValidUuid =
-                  modalData.conversationId &&
-                  modalData.conversationId !== "pending" &&
-                  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-                    modalData.conversationId
+                const opportunity =
+                  await apiClient.getOpportunityByCustomerNumber(
+                    modalData.customerNumber
                   );
-                if (isValidUuid) {
-                  await apiClient.updateFollowUpStatus(
-                    modalData.conversationId,
-                    "created"
-                  );
+                if (opportunity) {
+                  resolvedOpportunityId = opportunity.id;
                   console.log(
-                    "[Follow-up] Updated conversation followUpStatus to 'created'"
+                    "[Follow-up] Resolved opportunityId:",
+                    resolvedOpportunityId
                   );
                 } else {
                   console.log(
-                    "[Follow-up] Skipped followUpStatus update - conversationId not yet available"
+                    "[Follow-up] No opportunity found for customerNumber:",
+                    modalData.customerNumber
                   );
                 }
-              } catch (error) {
-                console.error("[Follow-up] Failed to create todo:", error);
               }
-            })()
-          );
-        } else if (action === "reject") {
-          // 客戶已拒絕流程
-          // 驗證必填欄位
-          if (!rejectReason?.trim()) {
-            return c.json({
-              response_action: "errors",
-              errors: {
-                reject_reason_block: "選擇客戶已拒絕時，請輸入拒絕原因",
-              },
-            });
-          }
 
-          // 非同步建立一個 "lost" 狀態的 Todo 記錄
-          c.executionCtx.waitUntil(
-            (async () => {
-              try {
-                const apiClient = new ApiClient(
-                  env.API_BASE_URL,
-                  env.API_TOKEN
-                );
+              const result = await apiClient.createTodo({
+                title,
+                description,
+                dueDate: dueDate.toISOString(),
+                customerNumber: modalData.customerNumber, // 主要連接欄位
+                opportunityId: resolvedOpportunityId, // 使用解析後的 opportunityId
+                // 只有當 conversationId 不是 "pending" 時才傳遞（避免外鍵約束錯誤）
+                conversationId:
+                  modalData.conversationId !== "pending"
+                    ? modalData.conversationId
+                    : undefined,
+                source: "slack",
+              });
 
-                // 先建立一個 Todo（以便有 todoId 可以標記為 lost）
-                const dueDate = new Date();
-                const todoResult = await apiClient.createTodo({
-                  title: `客戶拒絕 - ${modalData.caseNumber}`,
-                  description: `拒絕原因: ${rejectReason}${competitor ? `\n競品: ${competitor}` : ""}`,
-                  dueDate: dueDate.toISOString(),
-                  opportunityId: modalData.opportunityId,
-                  conversationId: modalData.conversationId,
-                  source: "slack",
-                });
+              console.log("[Follow-up] Created todo via API:", {
+                todoId: result.id,
+                title,
+                dueDate: dueDate.toISOString(),
+              });
+            } catch (error) {
+              console.error("[Follow-up] Failed to create todo:", error);
+              console.error("[Follow-up] Error details:", {
+                message: error instanceof Error ? error.message : String(error),
+                stack: error instanceof Error ? error.stack : undefined,
+              });
+            }
+            console.log("[Follow-up] waitUntil async function completed");
+          })()
+        );
 
-                // 立即標記為 lost
-                await apiClient.loseTodo({
-                  todoId: todoResult.id,
-                  reason: rejectReason,
-                  competitor,
-                  lostVia: "slack",
-                });
-
-                console.log("[Follow-up] Customer rejected, marked as lost:", {
-                  todoId: todoResult.id,
-                  rejectReason,
-                  competitor,
-                });
-
-                // 更新 conversation 的 followUpStatus 為 "rejected"
-                // 注意：只有在 conversationId 是有效 UUID 時才更新（非 "pending" 佔位符）
-                const isValidUuid =
-                  modalData.conversationId &&
-                  modalData.conversationId !== "pending" &&
-                  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-                    modalData.conversationId
-                  );
-                if (isValidUuid) {
-                  await apiClient.updateFollowUpStatus(
-                    modalData.conversationId,
-                    "rejected"
-                  );
-                  console.log(
-                    "[Follow-up] Updated conversation followUpStatus to 'rejected'"
-                  );
-                } else {
-                  console.log(
-                    "[Follow-up] Skipped followUpStatus update - conversationId not yet available"
-                  );
-                }
-              } catch (error) {
-                console.error("[Follow-up] Failed to record rejection:", error);
-              }
-            })()
-          );
-        }
-
-        // 關閉所有 Modal（包括原本的音檔上傳表單）
+        console.log("[Follow-up] Returning clear response");
+        // 關閉所有 Modal
         return c.json({
           response_action: "clear",
         });
@@ -961,7 +1001,104 @@ app.post("/slack/interactions", async (c) => {
         return c.json({
           response_action: "errors",
           errors: {
-            action_block:
+            title_block:
+              error instanceof Error ? error.message : "處理表單時發生錯誤",
+          },
+        });
+      }
+    }
+
+    if (callbackId === "close_case_form") {
+      // 處理結案表單提交
+      try {
+        const privateMetadata = payload.view?.private_metadata;
+        const modalData = JSON.parse(privateMetadata);
+        const values = payload.view?.state?.values;
+
+        const { rejectReason, competitor } = parseCloseCaseFormValues(values);
+
+        console.log("[Close Case] Form submitted:", {
+          rejectReason,
+          competitor,
+          modalData,
+        });
+
+        // 非同步建立一個 "lost" 狀態的 Todo 記錄
+        c.executionCtx.waitUntil(
+          (async () => {
+            try {
+              const apiClient = new ApiClient(env.API_BASE_URL, env.API_TOKEN);
+
+              // 如果沒有 opportunityId 但有 customerNumber，嘗試查詢 opportunityId
+              let resolvedOpportunityId = modalData.opportunityId;
+              if (!resolvedOpportunityId && modalData.customerNumber) {
+                console.log(
+                  "[Close Case] No opportunityId, attempting to resolve from customerNumber:",
+                  modalData.customerNumber
+                );
+                const opportunity =
+                  await apiClient.getOpportunityByCustomerNumber(
+                    modalData.customerNumber
+                  );
+                if (opportunity) {
+                  resolvedOpportunityId = opportunity.id;
+                  console.log(
+                    "[Close Case] Resolved opportunityId:",
+                    resolvedOpportunityId
+                  );
+                } else {
+                  console.log(
+                    "[Close Case] No opportunity found for customerNumber:",
+                    modalData.customerNumber
+                  );
+                }
+              }
+
+              // 先建立一個 Todo（使用 customerNumber 作為主要連接欄位）
+              const dueDate = new Date();
+              const todoResult = await apiClient.createTodo({
+                title: `客戶拒絕 - ${modalData.caseNumber}`,
+                description: `拒絕原因: ${rejectReason}${competitor ? `\n競品: ${competitor}` : ""}`,
+                dueDate: dueDate.toISOString(),
+                customerNumber: modalData.customerNumber, // 主要連接欄位
+                opportunityId: resolvedOpportunityId, // 使用解析後的 opportunityId
+                // 只有當 conversationId 不是 "pending" 時才傳遞（避免外鍵約束錯誤）
+                conversationId:
+                  modalData.conversationId !== "pending"
+                    ? modalData.conversationId
+                    : undefined,
+                source: "slack",
+              });
+
+              // 立即標記為 lost
+              await apiClient.loseTodo({
+                todoId: todoResult.id,
+                reason: rejectReason,
+                competitor,
+                lostVia: "slack",
+              });
+
+              console.log("[Close Case] Customer rejected, marked as lost:", {
+                todoId: todoResult.id,
+                rejectReason,
+                competitor,
+              });
+            } catch (error) {
+              console.error("[Close Case] Failed to record rejection:", error);
+            }
+          })()
+        );
+
+        // 關閉所有 Modal
+        return c.json({
+          response_action: "clear",
+        });
+      } catch (error) {
+        console.error("Error processing close case form:", error);
+        return c.json({
+          response_action: "errors",
+          errors: {
+            reject_reason_block:
               error instanceof Error ? error.message : "處理表單時發生錯誤",
           },
         });
