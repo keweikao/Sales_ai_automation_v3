@@ -280,7 +280,7 @@ export const uploadConversation = protectedProcedure
       // 檢查權限：Service Account、擁有者、管理者/主管、或 Slack 建立的商機
       const isServiceAccount = context.isServiceAccount === true;
       const userEmail = context.session?.user.email;
-      const userRole = getUserRole(userEmail);
+      const userRole = getUserRole(userEmail, context.honoContext.env);
       const isOwner = opportunity.userId === userId;
       const hasAdminAccess = userRole === "admin" || userRole === "manager";
       const isSlackGenerated =
@@ -804,7 +804,7 @@ export const listConversations = protectedProcedure
     }
 
     // 檢查用戶角色 (Service Account 擁有完全訪問權限)
-    const userRole = getUserRole(userEmail);
+    const userRole = getUserRole(userEmail, context.honoContext.env);
     const hasAdminAccess =
       userRole === "admin" ||
       userRole === "manager" ||
@@ -965,26 +965,33 @@ export const listConversations = protectedProcedure
 // ============================================================
 // 權限控制 - 三級權限：管理者、主管、一般業務
 // ============================================================
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
-  .split(",")
-  .map((e) => e.trim())
-  .filter(Boolean);
-const MANAGER_EMAILS = (process.env.MANAGER_EMAILS || "")
-  .split(",")
-  .map((e) => e.trim())
-  .filter(Boolean);
 
-// 檢查用戶角色
+// 檢查用戶角色（從 Cloudflare Workers env 或 process.env 讀取）
 function getUserRole(
-  userEmail: string | null | undefined
+  userEmail: string | null | undefined,
+  env?: { ADMIN_EMAILS?: string; MANAGER_EMAILS?: string }
 ): "admin" | "manager" | "sales" {
   if (!userEmail) {
     return "sales";
   }
-  if (ADMIN_EMAILS.includes(userEmail)) {
+
+  const adminEmails = (env?.ADMIN_EMAILS || process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+  const managerEmails = (
+    env?.MANAGER_EMAILS ||
+    process.env.MANAGER_EMAILS ||
+    ""
+  )
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+
+  if (adminEmails.includes(userEmail)) {
     return "admin";
   }
-  if (MANAGER_EMAILS.includes(userEmail)) {
+  if (managerEmails.includes(userEmail)) {
     return "manager";
   }
   return "sales";
@@ -1027,7 +1034,7 @@ export const getConversation = protectedProcedure
 
     // 檢查權限
     const isOwner = conversation.opportunity.userId === userId;
-    const userRole = getUserRole(userEmail);
+    const userRole = getUserRole(userEmail, context.honoContext.env);
     const hasAdminAccess = userRole === "admin" || userRole === "manager";
     // 從 Slack 建立的對話（userId 為 null 或 "service-account"）視為團隊共享，所有人都可以查看
     const isSlackGenerated =
@@ -1044,8 +1051,6 @@ export const getConversation = protectedProcedure
       userRole,
       hasAdminAccess,
       isSlackGenerated,
-      ADMIN_EMAILS,
-      MANAGER_EMAILS,
     });
 
     // 一般業務只能看自己的，管理者和主管可以看全部，Slack 建立的所有人都可以看
@@ -1110,7 +1115,10 @@ export const updateSummary = protectedProcedure
 
     // 檢查權限：擁有者、管理者/主管、或 Slack 建立的對話
     const isOwner = conversation.opportunity.userId === userId;
-    const userRole = getUserRole(context.session?.user.email);
+    const userRole = getUserRole(
+      context.session?.user.email,
+      context.honoContext.env
+    );
     const hasAdminAccess = userRole === "admin" || userRole === "manager";
     const isSlackGenerated =
       !conversation.opportunity.userId ||
@@ -1163,7 +1171,7 @@ export const retryConversation = protectedProcedure
       }
 
       // 檢查權限（只有管理者可以重試）
-      const userRole = getUserRole(userEmail);
+      const userRole = getUserRole(userEmail, context.honoContext.env);
       if (userRole !== "admin" && userRole !== "manager") {
         throw new ORPCError("FORBIDDEN", {
           message: "只有管理者可以重試失敗的對話",
