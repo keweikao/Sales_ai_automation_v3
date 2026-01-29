@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { cleanupTestUser, createTestUser } from "../fixtures/auth-helpers";
 
-const API_BASE = process.env.API_BASE_URL || "http://localhost:3000";
+const API_BASE = process.env.TEST_API_URL || "http://localhost:3000";
 
 describe("Analytics API", () => {
   let authCookie: string;

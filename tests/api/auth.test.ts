@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-const API_BASE = process.env.API_BASE_URL || "http://localhost:3000";
+const API_BASE = process.env.TEST_API_URL || "http://localhost:3000";
 
 describe("Authentication API", () => {
   const testEmail = `auth-test-${Date.now()}@example.com`;
