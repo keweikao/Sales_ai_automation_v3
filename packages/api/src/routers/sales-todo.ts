@@ -16,7 +16,17 @@ import {
 } from "@Sales_ai_automation_v3/db/schema";
 import { randomUUID } from "node:crypto";
 import { ORPCError } from "@orpc/server";
-import { and, between, count, desc, eq, gte, lte, or } from "drizzle-orm";
+import {
+  and,
+  between,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  lte,
+  or,
+} from "drizzle-orm";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
@@ -927,8 +937,20 @@ export const getTodo = protectedProcedure
 
 export const getTodaysTodos = protectedProcedure
   .input(getTodaysTodosSchema)
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
     const { includeOverdue } = input;
+
+    const userId = context.session?.user.id;
+    if (!userId) {
+      throw new ORPCError("UNAUTHORIZED");
+    }
+
+    // 檢查用戶角色
+    const userProfile = await db.query.userProfiles.findFirst({
+      where: eq(userProfiles.userId, userId),
+    });
+    const role = userProfile?.role || "sales_rep";
+    const department = userProfile?.department;
 
     // 取得今天的日期範圍 (Asia/Taipei timezone, UTC+8)
     const todayStart = getTodayStartInTaipei();
@@ -944,9 +966,37 @@ export const getTodaysTodos = protectedProcedure
       dateCondition = between(salesTodos.dueDate, todayStart, todayEnd);
     }
 
-    // 查詢所有 pending 狀態的今日待辦
+    // 根據角色決定查詢範圍
+    // Admin 或 department='all' 的 Manager：查詢所有待辦
+    // Manager：查詢同部門的待辦
+    // Sales Rep：只查詢自己的待辦
+    let userCondition;
+    if (role === "admin" || (role === "manager" && department === "all")) {
+      // 不過濾用戶
+      userCondition = undefined;
+    } else if (role === "manager" && department) {
+      // 查詢同部門的用戶
+      const departmentProfiles = await db.query.userProfiles.findMany({
+        where: eq(userProfiles.department, department),
+      });
+      const memberIds = departmentProfiles.map((p) => p.userId);
+      userCondition =
+        memberIds.length > 0
+          ? inArray(salesTodos.userId, memberIds)
+          : eq(salesTodos.userId, userId);
+    } else {
+      // 只查詢自己的待辦
+      userCondition = eq(salesTodos.userId, userId);
+    }
+
+    // 查詢 pending 狀態的今日待辦
+    const whereConditions = [eq(salesTodos.status, "pending"), dateCondition];
+    if (userCondition) {
+      whereConditions.push(userCondition);
+    }
+
     const todos = await db.query.salesTodos.findMany({
-      where: and(eq(salesTodos.status, "pending"), dateCondition),
+      where: and(...whereConditions),
       with: {
         opportunity: {
           columns: {
