@@ -814,25 +814,32 @@ export const listOpportunities = protectedProcedure
 // 權限控制 - 三級權限：管理者、主管、一般業務
 // ============================================================
 
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
-  .split(",")
-  .map((e) => e.trim())
-  .filter(Boolean);
-const MANAGER_EMAILS = (process.env.MANAGER_EMAILS || "")
-  .split(",")
-  .map((e) => e.trim())
-  .filter(Boolean);
-
 function getUserRole(
-  userEmail: string | null | undefined
+  userEmail: string | null | undefined,
+  env?: { ADMIN_EMAILS?: string; MANAGER_EMAILS?: string }
 ): "admin" | "manager" | "sales" {
   if (!userEmail) {
     return "sales";
   }
-  if (ADMIN_EMAILS.includes(userEmail)) {
+
+  // 從 Cloudflare Workers env 或 process.env 讀取
+  const adminEmails = (env?.ADMIN_EMAILS || process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+  const managerEmails = (
+    env?.MANAGER_EMAILS ||
+    process.env.MANAGER_EMAILS ||
+    ""
+  )
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+
+  if (adminEmails.includes(userEmail)) {
     return "admin";
   }
-  if (MANAGER_EMAILS.includes(userEmail)) {
+  if (managerEmails.includes(userEmail)) {
     return "manager";
   }
   return "sales";
@@ -879,7 +886,7 @@ export const getOpportunity = protectedProcedure
 
     // 檢查權限：所有者、管理員/主管、或 Slack 建立的商機
     const userEmail = context.session?.user.email;
-    const userRole = getUserRole(userEmail);
+    const userRole = getUserRole(userEmail, context.honoContext.env);
     const isOwner = opportunity.userId === userId;
     const isSlackGenerated =
       !opportunity.userId || opportunity.userId === "service-account";
@@ -1033,7 +1040,7 @@ export const rejectOpportunity = protectedProcedure
     }
 
     const userEmail = context.session?.user.email;
-    const userRole = getUserRole(userEmail);
+    const userRole = getUserRole(userEmail, context.honoContext.env);
     const isOwner = opportunity.userId === userId;
     const isSlackGenerated =
       !opportunity.userId || opportunity.userId === "service-account";
@@ -1165,7 +1172,7 @@ export const winOpportunity = protectedProcedure
     }
 
     const userEmail = context.session?.user.email;
-    const userRole = getUserRole(userEmail);
+    const userRole = getUserRole(userEmail, context.honoContext.env);
     const isOwner = opportunity.userId === userId;
     const isSlackGenerated =
       !opportunity.userId || opportunity.userId === "service-account";
