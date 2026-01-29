@@ -191,11 +191,11 @@ function DashboardPage() {
     },
   });
 
-  // 今日待辦（含過期）
+  // 今日待辦
   const todosQuery = useQuery({
-    queryKey: ["salesTodo", "todaysTodos", { includeOverdue: true }],
+    queryKey: ["salesTodo", "todaysTodos", { includeOverdue: false }],
     queryFn: async () => {
-      return await client.salesTodo.getTodaysTodos({ includeOverdue: true });
+      return await client.salesTodo.getTodaysTodos({ includeOverdue: false });
     },
   });
 
@@ -429,6 +429,18 @@ function DashboardPage() {
                   {[1, 2, 3].map((i) => (
                     <Skeleton className="h-16 w-full" key={i} />
                   ))}
+                </div>
+              ) : todosQuery.isError ? (
+                <div className="py-8 text-center">
+                  <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-red-500/10 p-4">
+                    <AlertCircle className="h-full w-full text-red-400" />
+                  </div>
+                  <p className="data-font text-red-400 text-sm">
+                    無法載入待辦事項
+                  </p>
+                  <p className="data-font mt-2 text-slate-500 text-xs">
+                    {todosQuery.error?.message || "請稍後再試"}
+                  </p>
                 </div>
               ) : todos && todos.length > 0 ? (
                 <div className="space-y-3">
