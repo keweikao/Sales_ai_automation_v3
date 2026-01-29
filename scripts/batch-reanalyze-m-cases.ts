@@ -10,6 +10,7 @@
  * - BATCH_SIZE: number = 15            // 批次大小
  * - BATCH_DELAY_MS: number = 800       // 批次間延遲（ms）
  * - SKIP_ANALYZED: boolean = true      // 跳過已分析的案件
+ * - CASE_TIMEOUT_MS: number = 600000   // 單案件超時（ms，預設 10 分鐘）
  * - SAMPLE_SIZE?: number               // 可選，僅處理前 N 筆（測試用）
  * - START_FROM_INDEX?: number          // 可選，從第 N 筆開始（斷點續傳）
  * - VERBOSE: boolean = false           // 詳細日誌
@@ -103,6 +104,8 @@ const config = {
     : 0,
   VERBOSE: process.env.VERBOSE === "true",
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+  // 單案件超時設定（毫秒）- 超過此時間則跳過該案件
+  CASE_TIMEOUT_MS: Number.parseInt(process.env.CASE_TIMEOUT_MS || "600000", 10), // 預設 10 分鐘
 };
 
 // ============================================================
@@ -157,6 +160,7 @@ async function initializeAndValidate() {
   console.log(`   模式: ${config.DRY_RUN ? "🧪 DRY RUN (測試模式)" : "🚀 正式執行"}`);
   console.log(`   批次大小: ${config.BATCH_SIZE}`);
   console.log(`   批次延遲: ${config.BATCH_DELAY_MS}ms`);
+  console.log(`   單案件超時: ${config.CASE_TIMEOUT_MS / 1000}秒`);
   console.log(`   跳過已分析: ${config.SKIP_ANALYZED ? "是" : "否"}`);
   if (config.SAMPLE_SIZE) {
     console.log(`   樣本大小: ${config.SAMPLE_SIZE} 筆`);
@@ -297,13 +301,22 @@ async function analyzeConversation(
       end: s.end,
     }));
 
-    // 3. 執行分析
-    const analysisResult = await orchestrator.analyze(transcriptSegments, {
+    // 3. 執行分析（帶超時控制）
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`Analysis timeout after ${config.CASE_TIMEOUT_MS / 1000}s`)),
+        config.CASE_TIMEOUT_MS
+      )
+    );
+
+    const analysisPromise = orchestrator.analyze(transcriptSegments, {
       leadId: conversation.opportunityId,
       conversationId: conversation.id,
       salesRep: conversation.slackUsername || "unknown",
       conversationDate: conversation.conversationDate || new Date(),
     });
+
+    const analysisResult = await Promise.race([analysisPromise, timeoutPromise]);
 
     if (config.VERBOSE) {
       console.log(`      分析完成: Score ${analysisResult.overallScore}`);
