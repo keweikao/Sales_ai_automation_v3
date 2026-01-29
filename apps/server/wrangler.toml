@@ -103,7 +103,7 @@ name = "sales-ai-server-dev"
 
 [env.dev.vars]
 ENVIRONMENT = "development"
-BETTER_AUTH_URL = "http://localhost:3000"
+BETTER_AUTH_URL = "http://localhost:3001"
 CORS_ORIGIN = "http://localhost:5173"
 # 權限白名單 - 三級權限
 ADMIN_EMAILS = "stephen.kao@ichef.com.tw"
