@@ -136,14 +136,26 @@ jobs:
           NODE_ENV: test
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
+      - name: Create .dev.vars for wrangler
+        run: |
+          echo "DATABASE_URL=$DATABASE_URL" > apps/server/.dev.vars
+          echo "BETTER_AUTH_SECRET=$BETTER_AUTH_SECRET" >> apps/server/.dev.vars
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          BETTER_AUTH_SECRET: ${{ env.BETTER_AUTH_SECRET }}
+
       - name: Start server
         run: |
           bun run dev:server &
-          sleep 10
-        env:
-          NODE_ENV: test
-          DATABASE_URL: ${{ env.DATABASE_URL }}
-          BETTER_AUTH_SECRET: ${{ env.BETTER_AUTH_SECRET }}
+          # Wait for server to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:3001/ > /dev/null 2>&1; then
+              echo "Server is ready!"
+              break
+            fi
+            echo "Waiting for server... ($i/30)"
+            sleep 1
+          done
 
       - name: Run API tests
         run: bun run test:api

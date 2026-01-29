@@ -53,6 +53,7 @@ temp
 # Wrangler
 .wrangler
 *.wrangler
+.dev.vars
 
 # Temporary test files
 temp-chunks/
