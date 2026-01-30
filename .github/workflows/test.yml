@@ -74,6 +74,9 @@ jobs:
           NODE_ENV: test
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
+      - name: Build packages
+        run: bun run build
+
       - name: Run unit tests
         run: bun run test:unit
         env:
@@ -145,6 +148,9 @@ jobs:
         env:
           NODE_ENV: test
           DATABASE_URL: ${{ env.DATABASE_URL }}
+
+      - name: Build packages
+        run: bun run build
 
       - name: Start server
         run: |
