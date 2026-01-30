@@ -81,12 +81,22 @@ jobs:
           DATABASE_URL: ${{ env.DATABASE_URL }}
           BETTER_AUTH_SECRET: ${{ env.BETTER_AUTH_SECRET }}
 
+      - name: Start server for integration tests
+        run: |
+          bun run dev:server &
+          sleep 10
+        env:
+          NODE_ENV: test
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          BETTER_AUTH_SECRET: ${{ env.BETTER_AUTH_SECRET }}
+
       - name: Run integration tests
         run: bun run test:integration
         env:
           NODE_ENV: test
           DATABASE_URL: ${{ env.DATABASE_URL }}
           BETTER_AUTH_SECRET: ${{ env.BETTER_AUTH_SECRET }}
+          TEST_API_URL: ${{ env.TEST_API_URL }}
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
