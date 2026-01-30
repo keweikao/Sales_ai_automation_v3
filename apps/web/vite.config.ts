@@ -16,8 +16,8 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: [
-      "@Sales_ai_automation_v3/shared",
-      "@Sales_ai_automation_v3/shared/product-configs",
+      "@sales_ai_automation_v3/shared",
+      "@sales_ai_automation_v3/shared/product-configs",
     ],
   },
   build: {

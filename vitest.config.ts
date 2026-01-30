@@ -42,7 +42,7 @@ export default defineConfig({
         __dirname,
         "packages/services/src"
       ),
-      "@Sales_ai_automation_v3/shared": path.resolve(
+      "@sales_ai_automation_v3/shared": path.resolve(
         __dirname,
         "packages/shared/src"
       ),

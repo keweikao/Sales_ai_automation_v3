@@ -6,7 +6,7 @@
 import {
   getProductConfig,
   type ProductLine,
-} from "@Sales_ai_automation_v3/shared/product-configs";
+} from "@sales_ai_automation_v3/shared/product-configs";
 import type { PendingAudioFile } from "../types";
 
 // Slack Modal View 類型

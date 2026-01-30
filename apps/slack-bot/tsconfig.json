@@ -13,8 +13,8 @@
     "noEmit": true,
     "types": ["@cloudflare/workers-types", "node"],
     "paths": {
-      "@Sales_ai_automation_v3/shared": ["../../packages/shared/src"],
-      "@Sales_ai_automation_v3/shared/*": ["../../packages/shared/src/*"]
+      "@sales_ai_automation_v3/shared": ["../../packages/shared/src"],
+      "@sales_ai_automation_v3/shared/*": ["../../packages/shared/src/*"]
     }
   },
   "include": ["src/**/*.ts"],

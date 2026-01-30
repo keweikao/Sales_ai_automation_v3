@@ -5,7 +5,7 @@
 import {
   getProductConfig,
   type ProductLine,
-} from "@Sales_ai_automation_v3/shared/product-configs";
+} from "@sales_ai_automation_v3/shared/product-configs";
 import { Label } from "@/components/ui/label";
 import {
   Select,
