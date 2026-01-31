@@ -45,6 +45,7 @@ export type {
   ActionRisk,
   AgentResult,
   ClaudeAgentOptions,
+  ClaudeModel,
   DiagnoseAction,
   DiagnoseResult,
   // Diagnose types

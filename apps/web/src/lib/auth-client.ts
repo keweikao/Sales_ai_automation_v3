@@ -1,6 +1,7 @@
-import { env } from "@Sales_ai_automation_v3/env/web";
 import { createAuthClient } from "better-auth/react";
 
+// 使用同域 proxy (/api/auth/*) 來避免跨域 OAuth cookie 問題
+// Pages Function 會將請求轉發到 server
 export const authClient = createAuthClient({
-  baseURL: env.VITE_SERVER_URL,
+  // 不指定 baseURL，使用當前域
 });

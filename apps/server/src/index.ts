@@ -40,7 +40,22 @@ app.use(
   })
 );
 
-app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
+// Better Auth handler - 處理所有 /api/auth/* 請求
+app.all("/api/auth/*", async (c) => {
+  const url = new URL(c.req.url);
+  console.log(`[Auth] ${c.req.method} ${url.pathname}`);
+
+  try {
+    const response = await auth.handler(c.req.raw);
+    console.log(
+      `[Auth] Response status: ${response.status}, redirect: ${response.headers.get("location") || "none"}`
+    );
+    return response;
+  } catch (error) {
+    console.error("[Auth] Error:", error);
+    throw error;
+  }
+});
 
 export const apiHandler = new OpenAPIHandler(appRouter, {
   plugins: [
@@ -310,6 +325,14 @@ app.post("/api/admin/retry-conversation", async (c) => {
 interface Env {
   SLACK_BOT_TOKEN?: string;
   CACHE_KV?: KVNamespace;
+  // R2 Storage
+  CLOUDFLARE_R2_ACCESS_KEY?: string;
+  CLOUDFLARE_R2_SECRET_KEY?: string;
+  CLOUDFLARE_R2_ENDPOINT?: string;
+  CLOUDFLARE_R2_BUCKET?: string;
+  // Server API
+  SERVER_URL?: string;
+  API_TOKEN?: string;
   [key: string]: unknown;
 }
 
@@ -327,20 +350,27 @@ export default {
 
     try {
       // ============================================================
-      // 報表預處理 - 每 15 分鐘更新 KV Cache
+      // 根據 cron 表達式決定執行什麼任務
       // ============================================================
-      if (cronEnv.CACHE_KV) {
-        console.log("[Reports] Starting precomputation...");
-        await precomputeReports(cronEnv.CACHE_KV);
-        console.log("[Reports] Precomputation completed");
+      if (event.cron === "*/15 * * * *") {
+        // 每 15 分鐘：報表預計算
+        if (cronEnv.CACHE_KV) {
+          console.log("[Reports] Starting precomputation...");
+          await precomputeReports(cronEnv.CACHE_KV);
+          console.log("[Reports] Precomputation completed");
+        } else {
+          console.warn(
+            "[Reports] CACHE_KV not configured, skipping precomputation"
+          );
+        }
+      } else if (event.cron === "0 19 * * *") {
+        // 每天 19:00 UTC (03:00 UTC+8)：音檔修復 Agent
+        console.log("[AudioRepairAgent] Starting daily execution...");
+        await runAudioRepairAgent(cronEnv);
+        console.log("[AudioRepairAgent] Daily execution completed");
       } else {
-        console.warn(
-          "[Reports] CACHE_KV not configured, skipping precomputation"
-        );
+        console.log(`[Scheduled] Unknown cron: ${event.cron}`);
       }
-
-      // TODO: Ops orchestrator 功能等待實作
-      console.log("[Ops] Health check placeholder - ops module pending");
     } catch (error) {
       console.error("[Scheduled] Event failed:", error);
     }
@@ -583,4 +613,68 @@ async function precomputeReports(kv: KVNamespace): Promise<void> {
     console.error("[Reports] Precomputation failed:", error);
     throw error;
   }
+}
+
+// ============================================================
+// Audio Repair Agent
+// ============================================================
+
+async function runAudioRepairAgent(cronEnv: Env): Promise<void> {
+  // 動態 import 以避免在未使用時載入
+  const { runAudioRepairAgent: runAgent, createR2Service } = await import(
+    "@Sales_ai_automation_v3/services"
+  );
+
+  // 檢查必要的環境變數
+  if (
+    !(
+      cronEnv.CLOUDFLARE_R2_ACCESS_KEY &&
+      cronEnv.CLOUDFLARE_R2_SECRET_KEY &&
+      cronEnv.CLOUDFLARE_R2_ENDPOINT &&
+      cronEnv.CLOUDFLARE_R2_BUCKET
+    )
+  ) {
+    console.warn("[AudioRepairAgent] R2 not configured, skipping");
+    return;
+  }
+
+  if (!cronEnv.SLACK_BOT_TOKEN) {
+    console.warn("[AudioRepairAgent] SLACK_BOT_TOKEN not configured, skipping");
+    return;
+  }
+
+  // 建立 R2 服務
+  const r2Service = createR2Service({
+    accessKeyId: cronEnv.CLOUDFLARE_R2_ACCESS_KEY,
+    secretAccessKey: cronEnv.CLOUDFLARE_R2_SECRET_KEY,
+    endpoint: cronEnv.CLOUDFLARE_R2_ENDPOINT,
+    bucket: cronEnv.CLOUDFLARE_R2_BUCKET,
+  });
+
+  // Server URL 和 API Token
+  const serverUrl =
+    cronEnv.SERVER_URL ||
+    "https://sales-ai-server.salesaiautomationv3.workers.dev";
+  const apiToken = cronEnv.API_TOKEN || "";
+
+  if (!apiToken) {
+    console.warn("[AudioRepairAgent] API_TOKEN not configured, skipping");
+    return;
+  }
+
+  // 執行音檔修復 Agent
+  const summary = await runAgent({
+    db,
+    r2Service,
+    slackToken: cronEnv.SLACK_BOT_TOKEN,
+    serverUrl,
+    apiToken,
+    dryRun: false,
+    maxRetryAttempts: 2,
+    stuckThresholdHours: 3,
+  });
+
+  console.log(
+    `[AudioRepairAgent] Summary: checked=${summary.checkedCount}, retried=${summary.retriedCount}, deleted=${summary.deletedCount}`
+  );
 }

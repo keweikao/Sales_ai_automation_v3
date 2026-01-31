@@ -41,7 +41,8 @@ export const auth = betterAuth({
     google: {
       clientId: env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: env.GOOGLE_CLIENT_SECRET ?? "",
-      redirectURI: `${env.BETTER_AUTH_URL}/api/auth/callback/google`,
+      // 使用 WEB_APP_URL 讓 callback 走 frontend proxy，解決跨域 cookie 問題
+      redirectURI: `${env.WEB_APP_URL}/api/auth/callback/google`,
     },
   },
   // cookieCache setting for Cloudflare deployment using *.workers.dev domains
@@ -55,9 +56,10 @@ export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
   advanced: {
     defaultCookieAttributes: {
-      sameSite: "lax",
+      sameSite: "none",
       secure: true,
       httpOnly: true,
+      partitioned: true,
     },
     useSecureCookies: true,
   },

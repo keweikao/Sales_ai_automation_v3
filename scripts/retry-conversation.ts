@@ -16,13 +16,13 @@ if (!token) {
 console.log(`重試對話: ${caseNumber}`);
 console.log(`Server: ${serverUrl}`);
 
-const response = await fetch(`${serverUrl}/rpc/conversation.retry`, {
+const response = await fetch(`${serverUrl}/rpc/conversations/retry`, {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
     "Authorization": `Bearer ${token}`,
   },
-  body: JSON.stringify({ caseNumber }),
+  body: JSON.stringify({ json: { caseNumber } }),
 });
 
 const text = await response.text();

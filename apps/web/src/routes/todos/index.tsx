@@ -1452,9 +1452,9 @@ function TodosPage() {
 
   // 取得機會列表（用於建立待辦的下拉選單）
   const opportunitiesQuery = useQuery({
-    queryKey: ["opportunity", "list"],
+    queryKey: ["opportunities", "list"],
     queryFn: async () => {
-      const result = await client.opportunity.list({
+      const result = await client.opportunities.list({
         limit: 100,
         offset: 0,
       });

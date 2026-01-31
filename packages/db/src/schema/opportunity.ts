@@ -69,6 +69,10 @@ export const opportunities = pgTable("opportunities", {
   currentSystem: text("current_system"),
   decisionMakerPresent: text("decision_maker_present"),
 
+  // Auto-repair tracking (音檔修復 Agent 使用)
+  retryCount: integer("retry_count").default(0),
+  lastRetryAt: timestamp("last_retry_at"),
+
   // Timestamps
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

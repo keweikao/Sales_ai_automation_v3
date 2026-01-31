@@ -28,8 +28,14 @@ export const queryClient = new QueryClient({
   }),
 });
 
+// 使用同域 proxy 來確保 session cookie 被正確發送
+// Pages Function 會將 /rpc/* 請求轉發到 server
 export const link = new RPCLink({
-  url: `${env.VITE_SERVER_URL}/rpc`,
+  // 使用完整的當前域名 URL
+  url:
+    typeof window !== "undefined"
+      ? `${window.location.origin}/rpc`
+      : `${env.VITE_SERVER_URL}/rpc`,
   fetch(url, options) {
     return fetch(url, {
       ...options,

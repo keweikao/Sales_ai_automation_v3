@@ -21,7 +21,14 @@
  * ```
  */
 
-import type { AgentResult, ClaudeAgentOptions } from "./types.js";
+import type { AgentResult, ClaudeAgentOptions, ClaudeModel } from "./types.js";
+
+// ============================================================
+// 常數
+// ============================================================
+
+/** 預設模型 */
+const DEFAULT_MODEL: ClaudeModel = "sonnet";
 
 // ============================================================
 // 內部工具函式
@@ -93,6 +100,7 @@ export async function executeAgent(
     for await (const message of query({
       prompt: options.prompt,
       options: {
+        model: options.model ?? DEFAULT_MODEL,
         allowedTools: options.tools,
         mcpServers: options.mcpServers,
         permissionMode: options.permissionMode ?? "default",
@@ -170,6 +178,7 @@ export async function* streamAgent(
     for await (const message of query({
       prompt: options.prompt,
       options: {
+        model: options.model ?? DEFAULT_MODEL,
         allowedTools: options.tools,
         mcpServers: options.mcpServers,
         permissionMode: options.permissionMode ?? "default",

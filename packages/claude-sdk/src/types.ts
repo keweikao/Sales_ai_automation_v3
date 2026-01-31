@@ -21,9 +21,14 @@ export interface McpServerConfig {
 // Agent 執行選項
 // ============================================================
 
+/** 支援的 Claude 模型 */
+export type ClaudeModel = "sonnet" | "opus" | "haiku";
+
 export interface ClaudeAgentOptions {
   /** 任務 prompt */
   prompt: string;
+  /** 使用的模型 (預設: sonnet) */
+  model?: ClaudeModel;
   /** 允許使用的工具列表 */
   tools?: string[];
   /** MCP Server 配置 */

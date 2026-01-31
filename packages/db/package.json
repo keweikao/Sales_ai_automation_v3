@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "@Sales_ai_automation_v3/config": "workspace:*",
-    "@types/pg": "^8.15.4",
+    "@types/pg": "^8.16.0",
     "drizzle-kit": "^0.31.8",
     "typescript": "catalog:"
   }

@@ -7,6 +7,8 @@
 
 declare module "@anthropic-ai/claude-code" {
   export interface QueryOptions {
+    /** 使用的模型 */
+    model?: "sonnet" | "opus" | "haiku";
     /** 允許使用的工具列表 */
     allowedTools?: string[];
     /** MCP Server 配置 */
