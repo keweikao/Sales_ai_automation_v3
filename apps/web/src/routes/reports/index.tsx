@@ -7,11 +7,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  AlertCircle,
   ArrowDown,
   ArrowUp,
   BarChart3,
   Building2,
   Calendar,
+  CheckCircle2,
+  Lightbulb,
   Medal,
   MessageSquare,
   Minus,
@@ -1028,39 +1031,65 @@ function TeamPerformanceReport() {
         )}
       </div>
 
-      {/* PDCM 維度分析（新版 Cache 資料） */}
-      {hasCachedData && cachedData.pdcmAnalysis && (
+      {/* V2: PDCM 維度弱項分析（新版 Cache 資料） */}
+      {hasCachedData && cachedData.teamPdcmAnalysisV2 && (
         <AnalyticsCard
           compact
           delay={700}
-          description="各維度團隊平均分數"
+          description="各維度團隊平均分數與需加強成員（分數 < 60）"
           icon={BarChart3}
-          title="團隊 PDCM 維度分析"
+          title={
+            <TermTooltip termKey="pdcmScore">PDCM 維度弱項分析</TermTooltip>
+          }
         >
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {Object.entries(cachedData.pdcmAnalysis).map(
+          <div className="space-y-4">
+            {Object.entries(cachedData.teamPdcmAnalysisV2).map(
               ([key, dim]: [string, any]) => {
                 const labelInfo = PDCM_LABELS[key];
                 if (!labelInfo) {
                   return null;
                 }
+                const hasWeakMembers =
+                  dim.weakMembers && dim.weakMembers.length > 0;
                 return (
-                  <div
-                    className="rounded-lg border border-border/50 bg-muted/30 p-3 text-center"
-                    key={key}
-                  >
-                    <p className="font-data text-muted-foreground text-xs">
-                      {labelInfo.label}
-                    </p>
-                    <p className="mt-1 font-bold font-data text-2xl text-teal-400">
-                      {dim.teamAvg}
-                    </p>
-                    <Badge
-                      className="mt-1.5 font-data text-xs"
-                      variant="outline"
-                    >
-                      權重 {PDCM_WEIGHTS[key as keyof typeof PDCM_WEIGHTS]}%
-                    </Badge>
+                  <div className="space-y-2" key={key}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <TermTooltip termKey={labelInfo.termKey}>
+                          <span className="font-data font-medium text-sm">
+                            {labelInfo.label}
+                          </span>
+                        </TermTooltip>
+                        <Badge className="font-data text-xs" variant="outline">
+                          權重 {PDCM_WEIGHTS[key as keyof typeof PDCM_WEIGHTS]}%
+                        </Badge>
+                      </div>
+                      <span className="font-bold font-data text-sm text-teal-400">
+                        {dim.teamAvg}/100
+                      </span>
+                    </div>
+                    <ProgressBar animated value={dim.teamAvg} />
+                    {hasWeakMembers && (
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <span className="font-data text-muted-foreground text-xs">
+                          ⚠️ 需加強:
+                        </span>
+                        {dim.weakMembers.map(
+                          (m: {
+                            userId: string;
+                            name: string;
+                            score: number;
+                          }) => (
+                            <span
+                              className="inline-flex rounded-md bg-amber-500/15 px-2 py-0.5 font-data text-amber-400 text-xs ring-1 ring-amber-500/30"
+                              key={m.userId}
+                            >
+                              {m.name} ({m.score})
+                            </span>
+                          )
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               }
@@ -1068,6 +1097,191 @@ function TeamPerformanceReport() {
           </div>
         </AnalyticsCard>
       )}
+
+      {/* V2: SPIN 團隊進度與卡點分析 */}
+      {hasCachedData && cachedData.teamSpinAnalysisV2 && (
+        <AnalyticsCard
+          compact
+          delay={750}
+          description="團隊在銷售四階段的進度和卡點偵測"
+          icon={Target}
+          title={
+            <TermTooltip termKey="spinAnalysis">SPIN 團隊進度</TermTooltip>
+          }
+        >
+          <div className="space-y-3">
+            {(
+              ["situation", "problem", "implication", "needPayoff"] as const
+            ).map((key) => {
+              const dim = cachedData.teamSpinAnalysisV2[key];
+              const labelInfo = SPIN_LABELS[key];
+              if (!(dim && labelInfo)) {
+                return null;
+              }
+              const isBlocking = dim.isBlockingPoint;
+              return (
+                <div className="space-y-2" key={key}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <TermTooltip termKey={labelInfo.termKey}>
+                        <span className="font-data font-medium text-sm">
+                          {labelInfo.label}
+                        </span>
+                      </TermTooltip>
+                      <Badge className="font-data text-xs" variant="outline">
+                        權重 {SPIN_WEIGHTS[key]}%
+                      </Badge>
+                      {isBlocking && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-rose-500/15 px-2 py-0.5 font-data text-rose-400 text-xs ring-1 ring-rose-500/30">
+                          <AlertCircle className="h-3 w-3" />
+                          卡點
+                        </span>
+                      )}
+                    </div>
+                    <span
+                      className={`font-bold font-data text-sm ${isBlocking ? "text-rose-400" : "text-teal-400"}`}
+                    >
+                      {dim.teamAvg.toFixed(0)}%
+                    </span>
+                  </div>
+                  <ProgressBar
+                    animated
+                    color={isBlocking ? "rose" : SPIN_COLORS[key]}
+                    value={dim.teamAvg}
+                  />
+                </div>
+              );
+            })}
+            {/* 建議區塊 */}
+            {cachedData.teamSpinAnalysisV2.suggestion && (
+              <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                <Lightbulb className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-400" />
+                <p className="font-data text-amber-200 text-sm">
+                  {cachedData.teamSpinAnalysisV2.suggestion}
+                </p>
+              </div>
+            )}
+          </div>
+        </AnalyticsCard>
+      )}
+
+      {/* V2: 本週行動優先級 */}
+      {hasCachedData &&
+        cachedData.weeklyActionPriorities &&
+        cachedData.weeklyActionPriorities.length > 0 && (
+          <AnalyticsCard
+            compact
+            delay={800}
+            description="根據成員表現和趨勢自動產生的行動建議"
+            icon={CheckCircle2}
+            title="本週行動優先級"
+          >
+            <div className="space-y-4">
+              {/* 高優先級 */}
+              {cachedData.weeklyActionPriorities.filter(
+                (p: any) => p.priority === "high"
+              ).length > 0 && (
+                <div>
+                  <h4 className="mb-2 flex items-center gap-2 font-data font-semibold text-rose-400 text-sm">
+                    <AlertCircle className="h-4 w-4" />
+                    高優先
+                  </h4>
+                  <div className="space-y-2">
+                    {cachedData.weeklyActionPriorities
+                      .filter((p: any) => p.priority === "high")
+                      .map((item: any, idx: number) => (
+                        <div
+                          className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3"
+                          key={`high-${idx}`}
+                        >
+                          <p className="font-data font-medium text-sm">
+                            {item.name !== "團隊整體" && `${item.name}：`}
+                            {item.issue}
+                          </p>
+                          <p className="mt-1 font-data text-muted-foreground text-xs">
+                            → {item.action}
+                          </p>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 中優先級 */}
+              {cachedData.weeklyActionPriorities.filter(
+                (p: any) => p.priority === "medium"
+              ).length > 0 && (
+                <div>
+                  <h4 className="mb-2 flex items-center gap-2 font-data font-semibold text-amber-400 text-sm">
+                    <Target className="h-4 w-4" />
+                    中優先
+                  </h4>
+                  <div className="space-y-2">
+                    {cachedData.weeklyActionPriorities
+                      .filter((p: any) => p.priority === "medium")
+                      .map((item: any, idx: number) => (
+                        <div
+                          className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3"
+                          key={`medium-${idx}`}
+                        >
+                          <p className="font-data font-medium text-sm">
+                            {item.name !== "團隊整體" && `${item.name}：`}
+                            {item.issue}
+                          </p>
+                          <p className="mt-1 font-data text-muted-foreground text-xs">
+                            → {item.action}
+                          </p>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </AnalyticsCard>
+        )}
+
+      {/* 舊版 PDCM 維度分析（向後相容） */}
+      {hasCachedData &&
+        !cachedData.teamPdcmAnalysisV2 &&
+        cachedData.pdcmAnalysis && (
+          <AnalyticsCard
+            compact
+            delay={700}
+            description="各維度團隊平均分數"
+            icon={BarChart3}
+            title="團隊 PDCM 維度分析"
+          >
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              {Object.entries(cachedData.pdcmAnalysis).map(
+                ([key, dim]: [string, any]) => {
+                  const labelInfo = PDCM_LABELS[key];
+                  if (!labelInfo) {
+                    return null;
+                  }
+                  return (
+                    <div
+                      className="rounded-lg border border-border/50 bg-muted/30 p-3 text-center"
+                      key={key}
+                    >
+                      <p className="font-data text-muted-foreground text-xs">
+                        {labelInfo.label}
+                      </p>
+                      <p className="mt-1 font-bold font-data text-2xl text-teal-400">
+                        {dim.teamAvg}
+                      </p>
+                      <Badge
+                        className="mt-1.5 font-data text-xs"
+                        variant="outline"
+                      >
+                        權重 {PDCM_WEIGHTS[key as keyof typeof PDCM_WEIGHTS]}%
+                      </Badge>
+                    </div>
+                  );
+                }
+              )}
+            </div>
+          </AnalyticsCard>
+        )}
 
       {/* Attention Needed */}
       {report.attentionNeeded.length > 0 && (

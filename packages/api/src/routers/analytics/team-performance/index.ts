@@ -51,6 +51,33 @@ import {
 // Types
 // ============================================================
 
+// V2 型別定義
+interface WeakMemberItem {
+  userId: string;
+  name: string;
+  score: number;
+}
+
+interface PdcmDimensionV2 {
+  teamAvg: number;
+  topPerformer: string;
+  bottomPerformer: string;
+  weakMembers: WeakMemberItem[];
+}
+
+interface SpinStageV2 {
+  teamAvg: number;
+  isBlockingPoint: boolean;
+}
+
+interface ActionPriorityItem {
+  priority: "high" | "medium";
+  userId: string;
+  name: string;
+  issue: string;
+  action: string;
+}
+
 /** KV Cache 中的團隊報告格式 */
 export interface CachedTeamReport {
   department: string;
@@ -98,6 +125,22 @@ export interface CachedTeamReport {
     score: number;
     risk: string;
   }>;
+  // V2 新增欄位
+  teamPdcmAnalysisV2?: {
+    pain: PdcmDimensionV2;
+    decision: PdcmDimensionV2;
+    champion: PdcmDimensionV2;
+    metrics: PdcmDimensionV2;
+  };
+  teamSpinAnalysisV2?: {
+    situation: SpinStageV2;
+    problem: SpinStageV2;
+    implication: SpinStageV2;
+    needPayoff: SpinStageV2;
+    blockingStage: string | null;
+    suggestion: string;
+  };
+  weeklyActionPriorities?: ActionPriorityItem[];
 }
 
 // ============================================================

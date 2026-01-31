@@ -83,6 +83,29 @@ export interface MemberRankingItem {
   department: string | null;
 }
 
+// V2 新增型別：PDCM 維度（包含弱項成員）
+export interface PdcmDimensionV2 {
+  teamAvg: number;
+  topPerformer: string;
+  bottomPerformer: string;
+  weakMembers: Array<{ userId: string; name: string; score: number }>;
+}
+
+// V2 新增型別：SPIN 階段（包含卡點偵測）
+export interface SpinStageV2 {
+  teamAvg: number;
+  isBlockingPoint: boolean;
+}
+
+// V2 新增型別：行動優先級項目
+export interface ActionPriorityItem {
+  priority: "high" | "medium";
+  userId: string;
+  name: string;
+  issue: string;
+  action: string;
+}
+
 export interface TeamReportData {
   department: string;
   generatedAt: string;
@@ -120,6 +143,22 @@ export interface TeamReportData {
     needPayoff: { teamAvg: number };
     averageCompletionRate: number;
   };
+  // V2 新增欄位
+  teamPdcmAnalysisV2?: {
+    pain: PdcmDimensionV2;
+    decision: PdcmDimensionV2;
+    champion: PdcmDimensionV2;
+    metrics: PdcmDimensionV2;
+  };
+  teamSpinAnalysisV2?: {
+    situation: SpinStageV2;
+    problem: SpinStageV2;
+    implication: SpinStageV2;
+    needPayoff: SpinStageV2;
+    blockingStage: string | null;
+    suggestion: string;
+  };
+  weeklyActionPriorities?: ActionPriorityItem[];
   attentionNeeded: Array<{
     opportunityId: string;
     companyName: string;
@@ -679,6 +718,148 @@ export function computeTeamReport(params: {
     };
   };
 
+  // V2: 找出各維度弱項成員（分數 < 60）
+  const WEAK_THRESHOLD = 60;
+  const findWeakMembers = (
+    scores: number[],
+    reports: RepReportData[]
+  ): Array<{ userId: string; name: string; score: number }> => {
+    if (reports.length === 0) {
+      return [];
+    }
+    return reports
+      .map((r, i) => ({
+        userId: r.userId,
+        name: members.find((m) => m.id === r.userId)?.name || "未知",
+        score: roundScore(scores[i] || 0),
+      }))
+      .filter((m) => m.score < WEAK_THRESHOLD)
+      .sort((a, b) => a.score - b.score);
+  };
+
+  // V2: SPIN 卡點偵測
+  const spinAvgs = {
+    situation: avg(teamSpinScores.situation),
+    problem: avg(teamSpinScores.problem),
+    implication: avg(teamSpinScores.implication),
+    needPayoff: avg(teamSpinScores.needPayoff),
+  };
+
+  const spinStages = [
+    "situation",
+    "problem",
+    "implication",
+    "needPayoff",
+  ] as const;
+  const BLOCKING_DROP_THRESHOLD = 15; // 相對於前一階段下降 15% 視為卡點
+
+  let blockingStage: string | null = null;
+  let maxDrop = 0;
+
+  for (let i = 1; i < spinStages.length; i++) {
+    const prevStage = spinStages[i - 1];
+    const currStage = spinStages[i];
+    if (prevStage && currStage) {
+      const prev = spinAvgs[prevStage];
+      const curr = spinAvgs[currStage];
+      if (prev > 0) {
+        const drop = prev - curr;
+        if (drop > BLOCKING_DROP_THRESHOLD && drop > maxDrop) {
+          maxDrop = drop;
+          blockingStage = currStage;
+        }
+      }
+    }
+  }
+
+  const spinSuggestions: Record<string, string> = {
+    situation: "團隊普遍在「Situation 階段」卡住，建議加強客戶背景資料收集訓練",
+    problem: "團隊普遍在「Problem 階段」卡住，建議練習痛點挖掘話術",
+    implication: "團隊普遍在「Implication 階段」卡住，建議練習痛點放大話術",
+    needPayoff:
+      "團隊普遍在「Need-payoff 階段」卡住，建議加強價值呈現和成交技巧",
+  };
+
+  // V2: 行動優先級計算
+  const actionPriorities: ActionPriorityItem[] = [];
+
+  // 計算團隊平均上傳數
+  const teamAvgUpload =
+    memberRankings.length > 0
+      ? memberRankings.reduce((sum, m) => sum + m.uploadCount, 0) /
+        memberRankings.length
+      : 0;
+  const LOW_UPLOAD_THRESHOLD = teamAvgUpload * 0.7; // 低於團隊平均 30%
+
+  for (const member of memberRankings) {
+    const report = memberReports.find((r) => r.userId === member.userId);
+
+    // 高優先級：needsAttention 或趨勢持續下滑
+    if (member.needsAttention) {
+      actionPriorities.push({
+        priority: "high",
+        userId: member.userId,
+        name: member.name,
+        issue: `平均分數僅 ${member.averagePdcmScore} 分`,
+        action: "安排 1:1 輔導，找出問題根源",
+      });
+    } else if (member.trend === "down" && report) {
+      // 找出下滑最多的維度
+      const weakestDim = report.weaknesses[0];
+      if (weakestDim) {
+        actionPriorities.push({
+          priority: "high",
+          userId: member.userId,
+          name: member.name,
+          issue: `「${weakestDim}」維度持續下滑`,
+          action: "針對弱項進行專項訓練",
+        });
+      }
+    }
+
+    // 中優先級：低上傳量
+    if (member.uploadCount < LOW_UPLOAD_THRESHOLD && teamAvgUpload > 0) {
+      actionPriorities.push({
+        priority: "medium",
+        userId: member.userId,
+        name: member.name,
+        issue: `本月僅上傳 ${member.uploadCount} 件（團隊平均 ${Math.round(teamAvgUpload)} 件）`,
+        action: "提醒增加錄音上傳頻率",
+      });
+    }
+  }
+
+  // 團隊級別建議
+  const dimensionWeakCounts = {
+    pain: findWeakMembers(teamPdcmScores.pain, memberReports).length,
+    decision: findWeakMembers(teamPdcmScores.decision, memberReports).length,
+    champion: findWeakMembers(teamPdcmScores.champion, memberReports).length,
+    metrics: findWeakMembers(teamPdcmScores.metrics, memberReports).length,
+  };
+
+  const weakestTeamDim = Object.entries(dimensionWeakCounts).sort(
+    (a, b) => b[1] - a[1]
+  )[0];
+
+  if (weakestTeamDim && weakestTeamDim[1] >= 2) {
+    const dimLabels: Record<string, string> = {
+      pain: "痛點 (Pain)",
+      decision: "決策 (Decision)",
+      champion: "支持度 (Champion)",
+      metrics: "量化 (Metrics)",
+    };
+    actionPriorities.push({
+      priority: "medium",
+      userId: "team",
+      name: "團隊整體",
+      issue: `團隊「${dimLabels[weakestTeamDim[0]]}」維度偏低（${weakestTeamDim[1]} 人需加強）`,
+      action: "週會安排專項訓練",
+    });
+  }
+
+  // 去重並限制數量
+  const uniquePriorities = actionPriorities.slice(0, 10);
+
   // 教練優先級
   const coachingPriority = memberRankings
     .filter((m) => m.needsAttention)
@@ -747,6 +928,61 @@ export function computeTeamReport(params: {
       needPayoff: { teamAvg: avg(teamSpinScores.needPayoff) },
       averageCompletionRate: avg(teamSpinScores.completionRates),
     },
+    // V2 新增欄位
+    teamPdcmAnalysisV2: {
+      pain: {
+        teamAvg: avg(teamPdcmScores.pain),
+        topPerformer: findTopBottom(teamPdcmScores.pain, memberReports).top,
+        bottomPerformer: findTopBottom(teamPdcmScores.pain, memberReports)
+          .bottom,
+        weakMembers: findWeakMembers(teamPdcmScores.pain, memberReports),
+      },
+      decision: {
+        teamAvg: avg(teamPdcmScores.decision),
+        topPerformer: findTopBottom(teamPdcmScores.decision, memberReports).top,
+        bottomPerformer: findTopBottom(teamPdcmScores.decision, memberReports)
+          .bottom,
+        weakMembers: findWeakMembers(teamPdcmScores.decision, memberReports),
+      },
+      champion: {
+        teamAvg: avg(teamPdcmScores.champion),
+        topPerformer: findTopBottom(teamPdcmScores.champion, memberReports).top,
+        bottomPerformer: findTopBottom(teamPdcmScores.champion, memberReports)
+          .bottom,
+        weakMembers: findWeakMembers(teamPdcmScores.champion, memberReports),
+      },
+      metrics: {
+        teamAvg: avg(teamPdcmScores.metrics),
+        topPerformer: findTopBottom(teamPdcmScores.metrics, memberReports).top,
+        bottomPerformer: findTopBottom(teamPdcmScores.metrics, memberReports)
+          .bottom,
+        weakMembers: findWeakMembers(teamPdcmScores.metrics, memberReports),
+      },
+    },
+    teamSpinAnalysisV2: {
+      situation: {
+        teamAvg: spinAvgs.situation,
+        isBlockingPoint: blockingStage === "situation",
+      },
+      problem: {
+        teamAvg: spinAvgs.problem,
+        isBlockingPoint: blockingStage === "problem",
+      },
+      implication: {
+        teamAvg: spinAvgs.implication,
+        isBlockingPoint: blockingStage === "implication",
+      },
+      needPayoff: {
+        teamAvg: spinAvgs.needPayoff,
+        isBlockingPoint: blockingStage === "needPayoff",
+      },
+      blockingStage,
+      suggestion: blockingStage
+        ? (spinSuggestions[blockingStage] ??
+          "團隊 SPIN 各階段表現均衡，請繼續保持！")
+        : "團隊 SPIN 各階段表現均衡，請繼續保持！",
+    },
+    weeklyActionPriorities: uniquePriorities,
     attentionNeeded: attentionNeededOpportunities,
     coachingPriority,
   };
