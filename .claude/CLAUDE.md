@@ -101,6 +101,7 @@ Claude 會根據情境**自動判斷並調用**以下 skills，無需手動觸�
 | `code-review` | 完成功能開發、修復 bug、重構後 | 程式碼審查、簡化建議、品質評分 |
 | `typescript-quality` | 編輯 .ts/.tsx 檔案後 | 型別檢查、lint、最佳實踐 |
 | `tdd-guard` | 修改程式碼時 | 確保有對應的測試變更 |
+| `recurring-issues` | 修復 bug 後、commit 包含 fix: 時 | 偵測重複修復模式、更新歷史教訓 |
 
 ### 安全類（涉及敏感資料時自動執行）
 
@@ -133,8 +134,9 @@ Claude 會根據情境**自動判斷並調用**以下 skills，無需手動觸�
 
 1. **完成功能開發後**：自動執行 `code-review` + `typescript-quality`
 2. **準備 commit 前**：自動執行 `secret-scanner` + `tdd-guard`
-3. **建立 PR 前**：自動執行 `pr-review`（包含上述所有檢查）
-4. **涉及用戶輸入/資料庫**：自動執行 `security-audit`
+3. **修復 Bug 後**：自動執行 `recurring-issues`（檢查是否為重複問題）
+4. **建立 PR 前**：自動執行 `pr-review`（包含上述所有檢查）
+5. **涉及用戶輸入/資料庫**：自動執行 `security-audit`
 
 ### 手動觸發
 
@@ -156,6 +158,7 @@ Claude 會根據情境**自動判斷並調用**以下 skills，無需手動觸�
 - `/code-review` - 程式碼審查與簡化
 - `/typescript-quality` - TypeScript 品質檢查
 - `/tdd-guard` - TDD 守護
+- `/recurring-issues` - 重複修復議題偵測與歷史教訓更新
 
 ### 安全
 - `/secret-scanner` - 敏感資訊掃描
